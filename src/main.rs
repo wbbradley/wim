@@ -154,18 +154,8 @@ impl Editor {
     fn move_cursor(&mut self, x: i64, y: i64) {
         self.cursor.row += y;
         self.cursor.col += x;
-        if self.cursor.row < 0 {
-            self.cursor.row = 0;
-        }
-        if self.cursor.col < 0 {
-            self.cursor.col = 0;
-        }
-        if self.cursor.col >= self.screen_size.cols {
-            self.cursor.col -= 1;
-        }
-        if self.cursor.row >= self.screen_size.rows {
-            self.cursor.row -= 1;
-        }
+        self.cursor.row.clamp(0, self.screen_size.rows - 1);
+        self.cursor.col.clamp(0, self.screen_size.cols - 1);
     }
 }
 
@@ -233,6 +223,8 @@ fn main() -> io::Result<()> {
                 Key::Down => edit.move_cursor(0, 1),
                 Key::Up => edit.move_cursor(0, -1),
                 Key::Right => edit.move_cursor(1, 0),
+                Key::PageDown => edit.move_cursor(0, edit.screen_size.rows),
+                Key::PageUp => edit.move_cursor(0, -edit.screen_size.rows),
                 Key::Ascii('h') => edit.move_cursor(-1, 0),
                 Key::Ascii('j') => edit.move_cursor(0, 1),
                 Key::Ascii('k') => edit.move_cursor(0, -1),
