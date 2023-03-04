@@ -155,6 +155,14 @@ impl Editor {
         self.cursor.row = (self.cursor.row + y).clamp(0, self.screen_size.rows - 1);
         self.cursor.col = (self.cursor.col + x).clamp(0, self.screen_size.cols - 1);
     }
+    fn jump_cursor(&mut self, x: Option<i64>, y: Option<i64>) {
+        if let Some(y) = y {
+            self.cursor.row = y.clamp(0, self.screen_size.rows - 1);
+        }
+        if let Some(x) = x {
+            self.cursor.col = x.clamp(0, self.screen_size.cols - 1);
+        }
+    }
 }
 
 impl Drop for Editor {
@@ -224,8 +232,8 @@ fn main() -> io::Result<()> {
                 Key::Right => edit.move_cursor(1, 0),
                 Key::PageDown => edit.move_cursor(0, edit.screen_size.rows),
                 Key::PageUp => edit.move_cursor(0, -edit.screen_size.rows),
-                Key::Home => edit.move_cursor(-edit.screen_size.cols, 0),
-                Key::End => edit.move_cursor(edit.screen_size.cols, 0),
+                Key::Home => edit.jump_cursor(Some(0), None),
+                Key::End => edit.jump_cursor(Some(i64::MAX), None),
                 Key::Ascii('h') => edit.move_cursor(-1, 0),
                 Key::Ascii('j') => edit.move_cursor(0, 1),
                 Key::Ascii('k') => edit.move_cursor(0, -1),
