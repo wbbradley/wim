@@ -30,6 +30,21 @@ macro_rules! die {
 }
 pub(crate) use die;
 
+macro_rules! put {
+    ($($args:expr),+) => {{
+        let mut buf = [0u8; 1024];
+        let formatted: &str = stackfmt::fmt_truncate(&mut buf, format_args!($($args),+));
+        unsafe {
+            libc::write(
+                libc::STDOUT_FILENO,
+                formatted.as_ptr() as *const libc::c_void,
+                formatted.len(),
+            );
+        }
+    }};
+}
+pub(crate) use put;
+
 #[derive(Copy, Clone)]
 pub struct Errno {
     errno: libc::c_int,

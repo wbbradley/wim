@@ -1,18 +1,13 @@
 use crate::read::{ctrl_key, read_char, Key};
 use crate::termios::Termios;
+use crate::utils::put;
 mod files;
 mod read;
 mod termios;
 mod utils;
 
 fn editor_refresh_screen() {
-    unsafe {
-        libc::write(
-            libc::STDOUT_FILENO,
-            b"\x1b[2J" as *const u8 as *const libc::c_void,
-            4,
-        );
-    }
+    put!("\x1b[2J");
 }
 
 fn main() {
