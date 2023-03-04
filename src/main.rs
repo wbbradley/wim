@@ -112,6 +112,7 @@ impl Editor {
         buf.truncate();
         buf.append("\x1b[?25l\x1b[H");
         self.draw_rows(buf);
+        buf_fmt!(buf, "\x1b[{};{}H", self.cursor.row, self.cursor.col);
         buf.append("\x1b[H\x1b[?25h");
         buf.write_to(libc::STDIN_FILENO);
     }
@@ -163,11 +164,20 @@ impl Default for ABuf {
     }
 }
 
+macro_rules! buf_fmt {
+    ($buf:expr, $($args:expr),+) => {{
+        let mut buf = [0u8; 1024];
+        let formatted: &str = stackfmt::fmt_truncate(&mut buf, format_args!($($args),+));
+        $buf.append(&formatted);
+    }};
+}
+pub(crate) use buf_fmt;
+
 impl ABuf {
     pub fn truncate(&mut self) {
         self.b.truncate(0);
     }
-    pub fn _append(&mut self, text: &[u8]) {
+    pub fn append_bytes(&mut self, text: &[u8]) {
         self.b.extend_from_slice(text);
     }
     pub fn append(&mut self, text: &str) {
