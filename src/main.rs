@@ -2,7 +2,6 @@ use crate::read::{ctrl_key, read_char, read_u8, Key};
 use crate::termios::Termios;
 use crate::utils::put;
 use log::LevelFilter;
-use std::default::Default;
 use std::io;
 mod files;
 mod read;
@@ -110,10 +109,10 @@ impl Editor {
             screen_size: get_window_size(),
         }
     }
-    fn refresh_screen(&self) {
-        let mut buf = ABuf::default();
+    fn refresh_screen(&self, buf: &mut ABuf) {
+        buf.truncate();
         buf.append_str("\x1b[?25l\x1b[H");
-        self.draw_rows(&mut buf);
+        self.draw_rows(buf);
         buf.append_str("\x1b[H\x1b[?25h");
         buf.write_to(libc::STDIN_FILENO);
     }
@@ -140,12 +139,22 @@ impl Drop for Editor {
     }
 }
 
-#[derive(Default)]
 pub struct ABuf {
     b: Vec<u8>,
 }
 
+impl Default for ABuf {
+    fn default() -> Self {
+        let mut b = Vec::new();
+        b.reserve(2 << 16);
+        Self { b }
+    }
+}
+
 impl ABuf {
+    pub fn truncate(&mut self) {
+        self.b.truncate(0);
+    }
     pub fn append(&mut self, text: &[u8]) {
         self.b.extend_from_slice(text);
     }
@@ -162,8 +171,9 @@ fn main() -> io::Result<()> {
 
     let edit = Editor::new();
 
+    let mut buf = ABuf::default();
     loop {
-        edit.refresh_screen();
+        edit.refresh_screen(&mut buf);
         if let Some(ch) = read_char() {
             let ch = ch.to_keycode();
             if ch == ctrl_key('q') {
