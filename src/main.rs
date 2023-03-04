@@ -1,6 +1,9 @@
-use crate::read::{ctrl_key, read_char, Key};
+use crate::read::{ctrl_key, read_char, read_u8, Key};
 use crate::termios::Termios;
-use crate::utils::{die, put};
+use crate::utils::put;
+use log::trace;
+use log::LevelFilter;
+use std::io;
 mod files;
 mod read;
 mod termios;
@@ -13,9 +16,70 @@ pub struct Size {
     rows: u16,
 }
 
+#[allow(dead_code)]
+#[derive(Copy, Clone, Debug)]
+pub struct Coord {
+    col: u16,
+    row: u16,
+}
+
+impl From<Coord> for Size {
+    fn from(coord: Coord) -> Self {
+        Self {
+            cols: coord.col,
+            rows: coord.row,
+        }
+    }
+}
+
+fn get_cursor_position() -> Option<Coord> {
+    let mut buf = [0u8; 32];
+    let mut i: usize = 0;
+
+    // Write the "get position" command.
+    if put!("\x1b[6n") != 4 {
+        return None;
+    }
+    loop {
+        if i >= 32 - 1 {
+            break;
+        }
+        if let Some(ch) = read_u8() {
+            buf[i] = ch;
+            if ch == b'R' {
+                break;
+            }
+            i += 1;
+        } else {
+            return None;
+        }
+    }
+    buf[i] = 0;
+    if buf[0] != 0x1b || buf[1] != b'[' {
+        return None;
+    }
+    let buf = &buf[2..i];
+    let semicolon_position = buf.iter().position(|x| *x == b';').unwrap();
+    let row: libc::c_int = lexical::parse(&buf[0..semicolon_position]).unwrap();
+    let col: libc::c_int = lexical::parse(&buf[semicolon_position + 1..]).unwrap();
+    Some(Coord {
+        row: row as u16,
+        col: col as u16,
+    })
+}
+
 fn get_window_size() -> Size {
-    unsafe {
-        let mut ws: libc::winsize = std::mem::zeroed();
+    /*unsafe*/
+    {
+        if put!("\x1b[999C\x1b[999B") != 12 {
+            read_char();
+            Size { cols: 80, rows: 24 }
+        } else if let Some(coord) = get_cursor_position() {
+            coord.into()
+        } else {
+            Size { cols: 80, rows: 24 }
+        }
+        /*
         if libc::ioctl(
             libc::STDOUT_FILENO,
             libc::TIOCGWINSZ,
@@ -30,6 +94,7 @@ fn get_window_size() -> Size {
                 rows: ws.ws_row,
             }
         }
+        */
     }
 }
 
@@ -66,7 +131,9 @@ impl Drop for Editor {
     }
 }
 
-fn main() {
+fn main() -> io::Result<()> {
+    simple_logging::log_to_file("wim.log", LevelFilter::Trace)?;
+
     let edit = Editor::new();
 
     loop {
@@ -80,4 +147,5 @@ fn main() {
     }
     put!("\x1b[2J");
     put!("\x1b[H");
+    Ok(())
 }

@@ -34,3 +34,21 @@ pub fn read_char() -> Option<char> {
         None
     }
 }
+
+pub fn read_u8() -> Option<u8> {
+    let mut ch: u8 = 0;
+    let ret = unsafe {
+        libc::read(
+            libc::STDIN_FILENO,
+            &mut ch as *mut u8 as *mut libc::c_void,
+            1,
+        )
+    };
+    if ret == 1 {
+        Some(ch)
+    } else if ret == -1 && !Errno::latest().is_eagain() {
+        die!("failed to read_u8!");
+    } else {
+        None
+    }
+}

@@ -39,7 +39,7 @@ macro_rules! put {
                 libc::STDOUT_FILENO,
                 formatted.as_ptr() as *const libc::c_void,
                 formatted.len(),
-            );
+            )
         }
     }};
 }
