@@ -72,6 +72,7 @@ pub fn read_key() -> Option<Key> {
             (Some(b'O'), Some(b'H')) => Some(Key::Home),
             (Some(b'O'), Some(b'F')) => Some(Key::End),
             (Some(a), Some(b)) => Some(Key::EscSeq(a, b)),
+            (Some(a), None) => Some(Key::EscSeq(a, 0)),
             (_, _) => Some(Key::Esc),
         },
         Some(ch) if is_ctrl_key(ch) => Some(Key::Ctrl(decode_ctrl_key(ch))),
