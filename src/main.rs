@@ -8,6 +8,7 @@ mod utils;
 
 fn editor_refresh_screen() {
     put!("\x1b[2J");
+    put!("\x1b[H");
 }
 
 fn main() {
