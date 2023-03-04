@@ -1,4 +1,4 @@
-use crate::read::{ctrl_key, read_char, read_u8, Key};
+use crate::read::{read_key, read_u8, Key};
 use crate::termios::Termios;
 use crate::utils::put;
 use log::LevelFilter;
@@ -13,15 +13,15 @@ static VERSION: &str = "v0.1.0";
 #[allow(dead_code)]
 #[derive(Copy, Clone, Debug)]
 pub struct Size {
-    cols: usize,
-    rows: usize,
+    cols: i64,
+    rows: i64,
 }
 
 #[allow(dead_code)]
 #[derive(Default, Copy, Clone, Debug)]
 pub struct Coord {
-    col: usize,
-    row: usize,
+    col: i64,
+    row: i64,
 }
 
 impl From<Coord> for Size {
@@ -61,8 +61,8 @@ fn get_cursor_position() -> Option<Coord> {
     }
     let buf = &buf[2..i];
     let semicolon_position = buf.iter().position(|x| *x == b';').unwrap();
-    let row: usize = lexical::parse(&buf[0..semicolon_position]).unwrap();
-    let col: usize = lexical::parse(&buf[semicolon_position + 1..]).unwrap();
+    let row: i64 = lexical::parse(&buf[0..semicolon_position]).unwrap();
+    let col: i64 = lexical::parse(&buf[semicolon_position + 1..]).unwrap();
     Some(Coord { row, col })
 }
 
@@ -78,7 +78,7 @@ fn get_window_size() -> Size {
         || ws.ws_col == 0
     {
         if put!("\x1b[999C\x1b[999B") != 12 {
-            read_char();
+            read_u8();
             Size { cols: 80, rows: 24 }
         } else if let Some(coord) = get_cursor_position() {
             coord.into()
@@ -87,8 +87,8 @@ fn get_window_size() -> Size {
         }
     } else {
         Size {
-            cols: ws.ws_col as usize,
-            rows: ws.ws_row as usize,
+            cols: ws.ws_col as i64,
+            rows: ws.ws_row as i64,
         }
     }
 }
@@ -98,7 +98,7 @@ struct Editor {
     termios: Termios,
     screen_size: Size,
     cursor: Coord,
-    last_key: i32,
+    last_key: Key,
 }
 
 impl Editor {
@@ -107,14 +107,14 @@ impl Editor {
             termios: Termios::enter_raw_mode(),
             screen_size: get_window_size(),
             cursor: Coord::default(),
-            last_key: 0,
+            last_key: Key::Ascii(' '),
         }
     }
     fn refresh_screen(&self, buf: &mut ABuf) {
         buf.truncate();
         buf.append("\x1b[?25l\x1b[H");
         self.draw_rows(buf);
-        buf_fmt!(buf, "Last key: {}", self.last_key as u8 as char);
+        buf_fmt!(buf, "Last key: {}", self.last_key);
         buf_fmt!(buf, "\x1b[{};{}H", self.cursor.row + 1, self.cursor.col + 1);
         buf.append("\x1b[?25h");
         buf.write_to(libc::STDIN_FILENO);
@@ -124,7 +124,7 @@ impl Editor {
         for y in 0..self.screen_size.rows {
             if y == self.screen_size.rows / 3 {
                 let welcome = format!("Wim editor -- version {}", VERSION);
-                let mut welcome_len = welcome.len();
+                let mut welcome_len = welcome.len() as i64;
                 if welcome_len > self.screen_size.cols {
                     welcome_len = self.screen_size.cols;
                 }
@@ -136,7 +136,7 @@ impl Editor {
                 for _ in 0..padding {
                     buf.append(" ");
                 }
-                buf.append_with_max_len(&welcome, welcome_len);
+                buf.append_with_max_len(&welcome, welcome_len as usize);
             } else {
                 buf.append("~");
             }
@@ -147,20 +147,13 @@ impl Editor {
             }
         }
     }
-    fn set_last_key(&mut self, ch: i32) {
-        self.last_key = ch;
+    fn set_last_key(&mut self, key: Key) {
+        self.last_key = key;
     }
 
-    fn move_cursor(&mut self, ch: i32) {
-        if ch == 'j' as i32 {
-            self.cursor.row += 1;
-        } else if ch == 'h' as i32 {
-            self.cursor.col -= 1;
-        } else if ch == 'k' as i32 {
-            self.cursor.row -= 1;
-        } else if ch == 'l' as i32 {
-            self.cursor.col += 1;
-        }
+    fn move_cursor(&mut self, x: i64, y: i64) {
+        self.cursor.row += y;
+        self.cursor.col += x;
     }
 }
 
@@ -218,23 +211,21 @@ fn main() -> io::Result<()> {
     let mut buf = ABuf::default();
     loop {
         edit.refresh_screen(&mut buf);
-        if let Some(ch) = read_char() {
-            let ch = ch.to_keycode();
+        if let Some(ch) = read_key() {
             edit.set_last_key(ch);
-            if ch == ctrl_key('q') {
-                break;
-            }
-            if ch == b'h' as i32 {
-                edit.move_cursor(ch);
-            }
-            if ch == b'j' as i32 {
-                edit.move_cursor(ch);
-            }
-            if ch == b'k' as i32 {
-                edit.move_cursor(ch);
-            }
-            if ch == b'l' as i32 {
-                edit.move_cursor(ch);
+            match ch {
+                Key::Esc => log::trace!("you pressed Esc!?"),
+                Key::Ctrl('q') => break,
+                Key::ArrowLeft => edit.move_cursor(-1, 0),
+                Key::ArrowDown => edit.move_cursor(0, 1),
+                Key::ArrowUp => edit.move_cursor(0, -1),
+                Key::ArrowRight => edit.move_cursor(1, 0),
+                Key::Ascii('h') => edit.move_cursor(-1, 0),
+                Key::Ascii('j') => edit.move_cursor(0, 1),
+                Key::Ascii('k') => edit.move_cursor(0, -1),
+                Key::Ascii('l') => edit.move_cursor(1, 0),
+                Key::Ascii(_) => (),
+                Key::Ctrl(_) => (),
             }
         }
     }
