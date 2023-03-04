@@ -95,12 +95,28 @@ impl From<Coord> for Size {
 
 macro_rules! buf_fmt {
     ($buf:expr, $($args:expr),+) => {{
-        let mut buf = [0u8; 1024];
-        let formatted: &str = stackfmt::fmt_truncate(&mut buf, format_args!($($args),+));
-        $buf.append(&formatted);
+        let mut stackbuf = [0u8; 1024];
+        let formatted: &str = stackfmt::fmt_truncate(&mut stackbuf, format_args!($($args),+));
+        $buf.append(formatted);
     }};
 }
 pub(crate) use buf_fmt;
+
+#[allow(dead_code)]
+#[derive(Default)]
+struct Row {
+    buf: Buf,
+}
+
+impl Row {
+    #[inline]
+    pub fn append(&mut self, text: &str) {
+        self.buf.append(text)
+    }
+    pub fn get_buf_bytes(&self) -> &[u8] {
+        return self.buf.get_bytes();
+    }
+}
 
 #[allow(dead_code)]
 pub struct Editor {
@@ -108,6 +124,7 @@ pub struct Editor {
     pub screen_size: Size,
     cursor: Coord,
     last_key: Key,
+    row: Row,
 }
 
 impl Editor {
@@ -115,8 +132,9 @@ impl Editor {
         Self {
             termios: Termios::enter_raw_mode(),
             screen_size: get_window_size(),
-            cursor: Coord::default(),
+            cursor: Default::default(),
             last_key: Key::Ascii(' '),
+            row: Default::default(),
         }
     }
     pub fn refresh_screen(&self, buf: &mut Buf) {
@@ -129,25 +147,32 @@ impl Editor {
         buf.write_to(libc::STDIN_FILENO);
     }
 
+    fn num_rows(&self) -> i64 {
+        1
+    }
     fn draw_rows(&self, buf: &mut Buf) {
         for y in 0..self.screen_size.height {
-            if y == self.screen_size.height / 3 {
-                let welcome = format!("Wim editor -- version {}", VERSION);
-                let mut welcome_len = welcome.len() as i64;
-                if welcome_len > self.screen_size.width {
-                    welcome_len = self.screen_size.width;
-                }
-                let mut padding = (self.screen_size.width - welcome_len) / 2;
-                if padding != 0 {
+            if y >= self.num_rows() {
+                if y == self.screen_size.height / 3 {
+                    let welcome = format!("Wim editor -- version {}", VERSION);
+                    let mut welcome_len = welcome.len() as i64;
+                    if welcome_len > self.screen_size.width {
+                        welcome_len = self.screen_size.width;
+                    }
+                    let mut padding = (self.screen_size.width - welcome_len) / 2;
+                    if padding != 0 {
+                        buf.append("~");
+                        padding -= 1;
+                    }
+                    for _ in 0..padding {
+                        buf.append(" ");
+                    }
+                    buf.append_with_max_len(&welcome, welcome_len as usize);
+                } else {
                     buf.append("~");
-                    padding -= 1;
                 }
-                for _ in 0..padding {
-                    buf.append(" ");
-                }
-                buf.append_with_max_len(&welcome, welcome_len as usize);
             } else {
-                buf.append("~");
+                buf.append(self.row.get_buf_bytes());
             }
 
             buf.append("\x1b[K");
@@ -171,6 +196,9 @@ impl Editor {
         if let Some(x) = x {
             self.cursor.x = x.clamp(0, self.screen_size.width - 1);
         }
+    }
+    pub fn open(&mut self) {
+        buf_fmt!(self.row, "Hello, world!");
     }
 }
 

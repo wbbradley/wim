@@ -14,16 +14,11 @@ mod utils;
 
 pub static VERSION: &str = "v0.1.0";
 
-#[allow(dead_code)]
-struct Row {
-    buf: Buf,
-}
-
 fn main() -> io::Result<()> {
     simple_logging::log_to_file("wim.log", LevelFilter::Trace)?;
 
     let mut edit = Editor::new();
-
+    edit.open();
     let mut buf = Buf::default();
     loop {
         edit.refresh_screen(&mut buf);
