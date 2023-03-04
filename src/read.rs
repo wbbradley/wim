@@ -48,7 +48,7 @@ pub fn read_key() -> Option<Key> {
             (Some(b'['), Some(b'B')) => Some(Key::Down),
             (Some(b'['), Some(b'C')) => Some(Key::Right),
             (Some(b'['), Some(b'D')) => Some(Key::Left),
-            (Some(b'['), Some(a)) if a >= b'0' && a <= b'9' => match read_u8() {
+            (Some(b'['), Some(a)) if (b'0'..=b'9').contains(&a) => match read_u8() {
                 Some(b'~') => {
                     if a == b'5' {
                         Some(Key::PageUp)
