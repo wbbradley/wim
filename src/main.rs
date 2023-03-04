@@ -2,6 +2,7 @@ use crate::read::{ctrl_key, read_char, read_u8, Key};
 use crate::termios::Termios;
 use crate::utils::put;
 use log::LevelFilter;
+use std::default::Default;
 use std::io;
 mod files;
 mod read;
@@ -108,23 +109,42 @@ impl Editor {
         }
     }
     fn refresh_screen(&self) {
-        put!("\x1b[2J");
-        put!("\x1b[H");
-        self.draw_rows();
-        put!("\x1b[H");
+        let mut buf = ABuf::default();
+        buf.append_str("\x1b[2J");
+        buf.append_str("\x1b[H");
+        self.draw_rows(&mut buf);
+        buf.append_str("\x1b[H");
+        buf.write_to(libc::STDIN_FILENO);
     }
 
-    fn draw_rows(&self) {
+    fn draw_rows(&self, buf: &mut ABuf) {
         for _ in 0..self.screen_size.rows - 1 {
-            put!("~\r\n");
+            buf.append_str("~\r\n");
         }
-        put!("~");
+        buf.append_str("~");
     }
 }
 
 impl Drop for Editor {
     fn drop(&mut self) {
         println!("Closing wim.\r\n  Screen size was {:?}\r", self.screen_size);
+    }
+}
+
+#[derive(Default)]
+pub struct ABuf {
+    b: Vec<u8>,
+}
+
+impl ABuf {
+    pub fn append(&mut self, text: &[u8]) {
+        self.b.extend_from_slice(text);
+    }
+    pub fn append_str(&mut self, text: &str) {
+        self.b.extend_from_slice(text.as_bytes());
+    }
+    pub fn write_to(&self, fd: libc::c_int) {
+        unsafe { libc::write(fd, self.b.as_ptr() as *const libc::c_void, self.b.len()) };
     }
 }
 
