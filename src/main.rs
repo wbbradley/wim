@@ -110,8 +110,7 @@ impl Editor {
     }
     fn refresh_screen(&self) {
         let mut buf = ABuf::default();
-        buf.append_str("\x1b[2J");
-        buf.append_str("\x1b[H");
+        buf.append_str("\x1b[2J\x1b[H");
         self.draw_rows(&mut buf);
         buf.append_str("\x1b[H");
         buf.write_to(libc::STDIN_FILENO);
