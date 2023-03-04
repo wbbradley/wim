@@ -1,10 +1,11 @@
-use crate::buf::Buf;
+use crate::buf::{Buf, ToBufBytes};
 use crate::read::{read_u8, Key};
 use crate::termios::Termios;
+use crate::types::{Coord, SafeCoordCast};
 use crate::utils::put;
 use crate::VERSION;
 
-fn get_cursor_position() -> Option<Coord> {
+fn get_cursor_position() -> Option<Pos> {
     let mut buf = [0u8; 32];
     let mut i: usize = 0;
 
@@ -32,9 +33,9 @@ fn get_cursor_position() -> Option<Coord> {
     }
     let buf = &buf[2..i];
     let semicolon_position = buf.iter().position(|x| *x == b';').unwrap();
-    let y: i64 = lexical::parse(&buf[0..semicolon_position]).unwrap();
-    let x: i64 = lexical::parse(&buf[semicolon_position + 1..]).unwrap();
-    Some(Coord { y, x })
+    let y: Coord = lexical::parse(&buf[0..semicolon_position]).unwrap();
+    let x: Coord = lexical::parse(&buf[semicolon_position + 1..]).unwrap();
+    Some(Pos { y, x })
 }
 
 fn get_window_size() -> Size {
@@ -64,8 +65,8 @@ fn get_window_size() -> Size {
         }
     } else {
         Size {
-            width: ws.ws_col as i64,
-            height: ws.ws_row as i64,
+            width: ws.ws_col.as_coord(),
+            height: ws.ws_row.as_coord(),
         }
     }
 }
@@ -73,19 +74,19 @@ fn get_window_size() -> Size {
 #[allow(dead_code)]
 #[derive(Copy, Clone, Debug)]
 pub struct Size {
-    pub width: i64,
-    pub height: i64,
+    pub width: Coord,
+    pub height: Coord,
 }
 
 #[allow(dead_code)]
 #[derive(Default, Copy, Clone, Debug)]
-pub struct Coord {
-    pub x: i64,
-    pub y: i64,
+pub struct Pos {
+    pub x: Coord,
+    pub y: Coord,
 }
 
-impl From<Coord> for Size {
-    fn from(coord: Coord) -> Self {
+impl From<Pos> for Size {
+    fn from(coord: Pos) -> Self {
         Self {
             width: coord.x,
             height: coord.y,
@@ -113,8 +114,11 @@ impl Row {
     pub fn append(&mut self, text: &str) {
         self.buf.append(text)
     }
-    pub fn get_buf_bytes(&self) -> &[u8] {
-        return self.buf.get_bytes();
+}
+
+impl ToBufBytes for &Row {
+    fn to_bytes(&self) -> &[u8] {
+        self.buf.to_bytes()
     }
 }
 
@@ -122,7 +126,7 @@ impl Row {
 pub struct Editor {
     termios: Termios,
     pub screen_size: Size,
-    cursor: Coord,
+    cursor: Pos,
     last_key: Key,
     row: Row,
 }
@@ -147,7 +151,7 @@ impl Editor {
         buf.write_to(libc::STDIN_FILENO);
     }
 
-    fn num_rows(&self) -> i64 {
+    fn num_rows(&self) -> Coord {
         1
     }
     fn draw_rows(&self, buf: &mut Buf) {
@@ -155,7 +159,7 @@ impl Editor {
             if y >= self.num_rows() {
                 if y == self.screen_size.height / 3 {
                     let welcome = format!("Wim editor -- version {}", VERSION);
-                    let mut welcome_len = welcome.len() as i64;
+                    let mut welcome_len = welcome.len().as_coord();
                     if welcome_len > self.screen_size.width {
                         welcome_len = self.screen_size.width;
                     }
@@ -172,7 +176,7 @@ impl Editor {
                     buf.append("~");
                 }
             } else {
-                buf.append(self.row.get_buf_bytes());
+                buf.append_with_max_len(&self.row, self.screen_size.width);
             }
 
             buf.append("\x1b[K");
@@ -185,7 +189,7 @@ impl Editor {
         self.last_key = key;
     }
 
-    pub fn move_cursor(&mut self, x: i64, y: i64) {
+    pub fn move_cursor(&mut self, x: Coord, y: Coord) {
         self.cursor.y = (self.cursor.y + y).clamp(0, self.screen_size.height - 1);
         self.cursor.x = (self.cursor.x + x).clamp(0, self.screen_size.width - 1);
     }

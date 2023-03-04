@@ -10,6 +10,7 @@ mod editor;
 mod files;
 mod read;
 mod termios;
+mod types;
 mod utils;
 
 pub static VERSION: &str = "v0.1.0";
