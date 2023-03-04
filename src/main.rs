@@ -1,7 +1,6 @@
 use crate::read::{ctrl_key, read_char, read_u8, Key};
 use crate::termios::Termios;
 use crate::utils::put;
-use log::trace;
 use log::LevelFilter;
 use std::io;
 mod files;
@@ -69,7 +68,15 @@ fn get_cursor_position() -> Option<Coord> {
 }
 
 fn get_window_size() -> Size {
-    /*unsafe*/
+    let mut ws: libc::winsize = unsafe { std::mem::zeroed() };
+    if unsafe {
+        libc::ioctl(
+            libc::STDOUT_FILENO,
+            libc::TIOCGWINSZ,
+            &mut ws as *mut libc::winsize as *mut libc::c_void,
+        )
+    } == -1
+        || ws.ws_col == 0
     {
         if put!("\x1b[999C\x1b[999B") != 12 {
             read_char();
@@ -79,22 +86,11 @@ fn get_window_size() -> Size {
         } else {
             Size { cols: 80, rows: 24 }
         }
-        /*
-        if libc::ioctl(
-            libc::STDOUT_FILENO,
-            libc::TIOCGWINSZ,
-            &mut ws as *mut libc::winsize as *mut libc::c_void,
-        ) == -1
-            || ws.ws_col == 0
-        {
-            die!("ioctl failed in get_window_size");
-        } else {
-            Size {
-                cols: ws.ws_col,
-                rows: ws.ws_row,
-            }
+    } else {
+        Size {
+            cols: ws.ws_col,
+            rows: ws.ws_row,
         }
-        */
     }
 }
 
