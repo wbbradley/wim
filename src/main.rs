@@ -9,6 +9,8 @@ mod read;
 mod termios;
 mod utils;
 
+static VERSION: &str = "v0.1.0";
+
 #[allow(dead_code)]
 #[derive(Copy, Clone, Debug)]
 pub struct Size {
@@ -118,10 +120,14 @@ impl Editor {
 
     fn draw_rows(&self, buf: &mut ABuf) {
         for y in 0..self.screen_size.rows - 1 {
-            buf.append_str("~");
-            buf.append_str("\x1b[K");
-            if y < self.screen_size.rows - 1 {
-                buf.append_str("\r\n");
+            if y == self.screen_size.rows / 3 {
+                buf.append_str(&format!("Wim editor -- version {}", VERSION));
+            } else {
+                buf.append_str("~");
+                buf.append_str("\x1b[K");
+                if y < self.screen_size.rows - 1 {
+                    buf.append_str("\r\n");
+                }
             }
         }
     }
