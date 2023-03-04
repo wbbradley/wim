@@ -18,7 +18,7 @@ pub struct Size {
 }
 
 #[allow(dead_code)]
-#[derive(Copy, Clone, Debug)]
+#[derive(Default, Copy, Clone, Debug)]
 pub struct Coord {
     col: usize,
     row: usize,
@@ -97,6 +97,7 @@ fn get_window_size() -> Size {
 struct Editor {
     termios: Termios,
     screen_size: Size,
+    cursor: Coord,
 }
 
 impl Editor {
@@ -104,6 +105,7 @@ impl Editor {
         Self {
             termios: Termios::enter_raw_mode(),
             screen_size: get_window_size(),
+            cursor: Coord::default(),
         }
     }
     fn refresh_screen(&self, buf: &mut ABuf) {
