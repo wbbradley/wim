@@ -3,6 +3,7 @@ use crate::editor::Editor;
 use crate::read::{read_key, Key};
 use crate::utils::put;
 use log::LevelFilter;
+use std::env;
 use std::io;
 
 mod buf;
@@ -17,9 +18,13 @@ pub static VERSION: &str = "v0.1.0";
 
 fn main() -> io::Result<()> {
     simple_logging::log_to_file("wim.log", LevelFilter::Trace)?;
+    let args: Vec<String> = env::args().collect();
+    log::trace!("wim run with args: {:?}", args);
 
     let mut edit = Editor::new();
-    edit.open();
+    if args.len() > 1 {
+        edit.open(args[1].as_str())?;
+    }
     let mut buf = Buf::default();
     loop {
         edit.refresh_screen(&mut buf);

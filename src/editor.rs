@@ -4,6 +4,9 @@ use crate::termios::Termios;
 use crate::types::{Coord, SafeCoordCast};
 use crate::utils::put;
 use crate::VERSION;
+use std::fs::File;
+use std::io::{self, BufRead};
+use std::path::Path;
 
 fn get_cursor_position() -> Option<Pos> {
     let mut buf = [0u8; 32];
@@ -109,10 +112,16 @@ struct Row {
     buf: Buf,
 }
 
+#[allow(dead_code)]
 impl Row {
     #[inline]
     pub fn append(&mut self, text: &str) {
         self.buf.append(text)
+    }
+    pub fn from_line(line: &str) -> Self {
+        Self {
+            buf: Buf::from_bytes(line),
+        }
     }
 }
 
@@ -128,7 +137,7 @@ pub struct Editor {
     pub screen_size: Size,
     cursor: Pos,
     last_key: Key,
-    row: Row,
+    rows: Vec<Row>,
 }
 
 impl Editor {
@@ -138,7 +147,7 @@ impl Editor {
             screen_size: get_window_size(),
             cursor: Default::default(),
             last_key: Key::Ascii(' '),
-            row: Default::default(),
+            rows: Default::default(),
         }
     }
     pub fn refresh_screen(&self, buf: &mut Buf) {
@@ -151,36 +160,36 @@ impl Editor {
         buf.write_to(libc::STDIN_FILENO);
     }
 
-    fn num_rows(&self) -> Coord {
-        1
-    }
     fn draw_rows(&self, buf: &mut Buf) {
-        for y in 0..self.screen_size.height {
-            if y >= self.num_rows() {
-                if y == self.screen_size.height / 3 {
-                    let welcome = format!("Wim editor -- version {}", VERSION);
-                    let mut welcome_len = welcome.len().as_coord();
-                    if welcome_len > self.screen_size.width {
-                        welcome_len = self.screen_size.width;
-                    }
-                    let mut padding = (self.screen_size.width - welcome_len) / 2;
-                    if padding != 0 {
-                        buf.append("~");
-                        padding -= 1;
-                    }
-                    for _ in 0..padding {
-                        buf.append(" ");
-                    }
-                    buf.append_with_max_len(&welcome, welcome_len as usize);
-                } else {
-                    buf.append("~");
+        for (i, row) in self.rows.iter().enumerate() {
+            if i.as_coord() >= self.screen_size.height - 1 {
+                break;
+            }
+            buf.append_with_max_len(row, self.screen_size.width - 1);
+            buf.append("\x1b[K\r\n");
+        }
+        for y in self.rows.len()..self.screen_size.height as usize {
+            if self.rows.is_empty() && y == self.screen_size.height as usize / 3 {
+                let welcome = format!("Wim editor -- version {}", VERSION);
+                let mut welcome_len = welcome.len().as_coord();
+                if welcome_len > self.screen_size.width {
+                    welcome_len = self.screen_size.width;
                 }
+                let mut padding = (self.screen_size.width - welcome_len) / 2;
+                if padding != 0 {
+                    buf.append("~");
+                    padding -= 1;
+                }
+                for _ in 0..padding {
+                    buf.append(" ");
+                }
+                buf.append_with_max_len(&welcome, welcome_len as usize);
             } else {
-                buf.append_with_max_len(&self.row, self.screen_size.width);
+                buf.append("~");
             }
 
             buf.append("\x1b[K");
-            if y < self.screen_size.height - 1 {
+            if y < self.screen_size.height as usize - 1 {
                 buf.append("\r\n");
             }
         }
@@ -201,9 +210,23 @@ impl Editor {
             self.cursor.x = x.clamp(0, self.screen_size.width - 1);
         }
     }
-    pub fn open(&mut self) {
-        buf_fmt!(self.row, "Hello, world!");
+    pub fn open<'a, T>(&mut self, filename: T) -> io::Result<()>
+    where
+        T: Into<&'a str>,
+    {
+        let lines = read_lines(filename.into())?;
+        for line in lines {
+            self.rows.push(Row::from_line(&line?));
+        }
+        Ok(())
     }
+}
+fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>
+where
+    P: AsRef<Path>,
+{
+    let file = File::open(filename)?;
+    Ok(io::BufReader::new(file).lines())
 }
 
 impl Drop for Editor {

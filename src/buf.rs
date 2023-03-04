@@ -56,6 +56,14 @@ impl Buf {
     pub fn write_to(&self, fd: libc::c_int) {
         unsafe { libc::write(fd, self.b.as_ptr() as *const libc::c_void, self.b.len()) };
     }
+    pub fn from_bytes<T>(text: T) -> Self
+    where
+        T: ToBufBytes,
+    {
+        let mut b = Vec::new();
+        b.extend_from_slice(text.to_bytes());
+        Self { b }
+    }
 }
 
 impl ToBufBytes for Buf {
