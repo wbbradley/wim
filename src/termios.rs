@@ -8,15 +8,7 @@ impl Termios {
     fn new() -> Self {
         let fd = libc::STDIN_FILENO;
         let mut termios = Self {
-            orig: libc::termios {
-                c_cc: [0; 20],
-                c_cflag: 0,
-                c_iflag: 0,
-                c_ispeed: 0,
-                c_ospeed: 0,
-                c_lflag: 0,
-                c_oflag: 0,
-            },
+            orig: unsafe { std::mem::zeroed() },
         };
         let ret = unsafe { libc::tcgetattr(fd, &mut termios.orig as *mut libc::termios) };
         if ret == -1 {
