@@ -2,7 +2,7 @@ mod files;
 mod utils;
 
 struct TermiosRestorer {
-    orig: libc::termios,
+    pub orig: libc::termios,
 }
 
 impl TermiosRestorer {
@@ -40,6 +40,29 @@ impl Drop for TermiosRestorer {
 }
 
 fn main() {
-    let _orig_termios = TermiosRestorer::new();
-    println!("Hello, world!")
+    let termios = TermiosRestorer::new();
+    let mut raw = libc::termios {
+        c_cc: termios.orig.c_cc,
+        c_cflag: termios.orig.c_cflag,
+        c_iflag: termios.orig.c_iflag,
+        c_ispeed: termios.orig.c_ispeed,
+        c_ospeed: termios.orig.c_ospeed,
+        c_lflag: termios.orig.c_lflag,
+        c_oflag: termios.orig.c_oflag,
+    };
+    raw.c_iflag &= !(libc::BRKINT | libc::ICRNL | libc::INPCK | libc::ISTRIP | libc::IXON);
+    raw.c_oflag &= !(libc::OPOST);
+    raw.c_cflag |= libc::CS8;
+    raw.c_lflag &= !(libc::ECHO | libc::ICANON | libc::IEXTEN | libc::ISIG);
+    raw.c_cc[libc::VMIN] = 0;
+    raw.c_cc[libc::VTIME] = 1;
+    unsafe {
+        libc::tcsetattr(
+            libc::STDIN_FILENO,
+            libc::TCSAFLUSH,
+            &mut raw as *mut libc::termios,
+        );
+    }
+    println!("Hello, world!");
+    std::thread::sleep(std::time::Duration::from_secs(2));
 }
