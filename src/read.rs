@@ -13,7 +13,8 @@ pub fn decode_ctrl_key(k: u8) -> char {
 #[derive(Copy, Clone, Debug)]
 pub enum Key {
     Esc,
-    EscSeq(u8, u8),
+    EscSeq1(u8),
+    EscSeq2(u8, u8),
     Up,
     Down,
     Left,
@@ -23,8 +24,11 @@ pub enum Key {
     Del,
     PageUp,
     PageDown,
+    PrintScreen,
+    Backspace,
     Ctrl(char),
     Ascii(char),
+    Function(u8),
 }
 
 impl std::fmt::Display for Key {
@@ -42,48 +46,74 @@ impl std::fmt::Display for Key {
             Key::Ctrl(ch) => write!(f, "<C-{}>", ch),
             Key::Ascii(ch) => write!(f, "{}", ch),
             Key::Esc => write!(f, "<Esc>"),
-            Key::EscSeq(a, b) => write!(f, "<Esc-{}-{}>", *a as char, *b as char),
+            Key::EscSeq1(a) => write!(f, "<Esc-{}>", *a as char),
+            Key::EscSeq2(a, b) => write!(f, "<Esc-{}-{}>", *a as char, *b as char),
+            Key::Function(a) => write!(f, "<F{}>", *a),
+            Key::PrintScreen => write!(f, "<PrintScreen>"),
+            Key::Backspace => write!(f, "<Backspace>"),
         }
     }
 }
 
 pub fn read_key() -> Option<Key> {
-    match read_u8() {
-        Some(0x1b) => match (read_u8(), read_u8()) {
-            (Some(b'['), Some(b'A')) => Some(Key::Up),
-            (Some(b'['), Some(b'B')) => Some(Key::Down),
-            (Some(b'['), Some(b'C')) => Some(Key::Right),
-            (Some(b'['), Some(b'D')) => Some(Key::Left),
-            (Some(b'['), Some(b'H')) => Some(Key::Home),
-            (Some(b'['), Some(b'F')) => Some(Key::End),
-            (Some(b'['), Some(a)) if (b'0'..=b'9').contains(&a) => match read_u8() {
-                Some(b'~') => match a {
-                    b'1' => Some(Key::Home),
-                    b'3' => Some(Key::Del),
-                    b'4' => Some(Key::End),
-                    b'5' => Some(Key::PageUp),
-                    b'6' => Some(Key::PageDown),
-                    b'7' => Some(Key::Home),
-                    b'8' => Some(Key::End),
+    if let Some(ch) = read_u8() {
+        if ch == 0x1b {
+            match (read_u8(), read_u8()) {
+                (Some(b'['), Some(b'A')) => Some(Key::Up),
+                (Some(b'['), Some(b'B')) => Some(Key::Down),
+                (Some(b'['), Some(b'C')) => Some(Key::Right),
+                (Some(b'['), Some(b'D')) => Some(Key::Left),
+                (Some(b'['), Some(b'H')) => Some(Key::Home),
+                (Some(b'['), Some(b'F')) => Some(Key::End),
+                (Some(b'['), Some(a)) if (b'0'..=b'9').contains(&a) => match read_u8() {
+                    Some(b) if (b'0'..=b'9').contains(&b) => match (a, b, read_u8()) {
+                        (b'1', b'5', Some(b'~')) => Some(Key::Function(5)),
+                        (b'1', b'7', Some(b'~')) => Some(Key::Function(6)),
+                        (b'1', b'8', Some(b'~')) => Some(Key::Function(7)),
+                        (b'1', b'9', Some(b'~')) => Some(Key::Function(8)),
+                        (b'2', b'0', Some(b'~')) => Some(Key::Function(9)),
+                        (b'2', b'1', Some(b'~')) => Some(Key::Function(10)),
+                        (b'2', b'3', Some(b'~')) => Some(Key::Function(11)),
+                        (b'2', b'4', Some(b'~')) => Some(Key::Function(12)),
+                        _ => Some(Key::Esc),
+                    },
+                    Some(b';') => match (a, b';', read_u8(), read_u8()) {
+                        (b'1', b';', Some(b'2'), Some(b'P')) => Some(Key::PrintScreen),
+                        _ => Some(Key::Esc),
+                    },
+                    Some(b'~') => match a {
+                        b'1' => Some(Key::Home),
+                        b'3' => Some(Key::Del),
+                        b'4' => Some(Key::End),
+                        b'5' => Some(Key::PageUp),
+                        b'6' => Some(Key::PageDown),
+                        b'7' => Some(Key::Home),
+                        b'8' => Some(Key::End),
+                        _ => Some(Key::Esc),
+                    },
                     _ => Some(Key::Esc),
                 },
-                _ => Some(Key::Esc),
-            },
-            (Some(b'O'), Some(b'H')) => Some(Key::Home),
-            (Some(b'O'), Some(b'F')) => Some(Key::End),
-            (Some(a), Some(b)) => Some(Key::EscSeq(a, b)),
-            (Some(a), None) => Some(Key::EscSeq(a, 0)),
-            (_, _) => Some(Key::Esc),
-        },
-        Some(ch) if is_ctrl_key(ch) => Some(Key::Ctrl(decode_ctrl_key(ch))),
-        Some(ch) => {
-            if ch < 128 {
-                Some(Key::Ascii(ch as char))
-            } else {
-                panic!("unhandled key '{}'", ch as char);
+                (Some(b'O'), Some(b'H')) => Some(Key::Home),
+                (Some(b'O'), Some(b'F')) => Some(Key::End),
+                (Some(b'O'), Some(b'P')) => Some(Key::Function(1)),
+                (Some(b'O'), Some(b'Q')) => Some(Key::Function(2)),
+                (Some(b'O'), Some(b'R')) => Some(Key::Function(3)),
+                (Some(b'O'), Some(b'S')) => Some(Key::Function(4)),
+                (Some(a), Some(b)) => Some(Key::EscSeq2(a, b)),
+                (Some(a), None) => Some(Key::EscSeq1(a)),
+                (_, _) => Some(Key::Esc),
             }
+        } else if is_ctrl_key(ch) {
+            Some(Key::Ctrl(decode_ctrl_key(ch)))
+        } else if ch < 127 {
+            Some(Key::Ascii(ch as char))
+        } else if ch == 127 {
+            Some(Key::Backspace)
+        } else {
+            panic!("unhandled key '{}'", ch as char);
         }
-        None => None,
+    } else {
+        None
     }
 }
 
