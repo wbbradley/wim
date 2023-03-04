@@ -41,8 +41,11 @@ impl Errno {
             errno: errors::get_errno(),
         }
     }
-    pub fn is_enoent(&self) -> bool {
+    pub fn is_enoent(self) -> bool {
         self.errno == libc::ENOENT
+    }
+    pub fn is_eagain(self) -> bool {
+        self.errno == libc::EAGAIN
     }
 }
 
