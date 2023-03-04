@@ -20,8 +20,8 @@ pub mod errors {
 }
 
 macro_rules! die {
-    ($fmt:expr) => {
-        panic!("{}", $fmt)
+    ($message:expr) => {
+        panic!("error: {}: {}", $message, $crate::utils::Errno::latest())
     };
     ($fmt:expr, $($args:expr),+) => {{
         let user_message = format!($fmt, $($args),+);
