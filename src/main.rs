@@ -110,17 +110,20 @@ impl Editor {
     }
     fn refresh_screen(&self) {
         let mut buf = ABuf::default();
-        buf.append_str("\x1b[?25l\x1b[2J\x1b[H");
+        buf.append_str("\x1b[?25l\x1b[H");
         self.draw_rows(&mut buf);
         buf.append_str("\x1b[H\x1b[?25h");
         buf.write_to(libc::STDIN_FILENO);
     }
 
     fn draw_rows(&self, buf: &mut ABuf) {
-        for _ in 0..self.screen_size.rows - 1 {
-            buf.append_str("~\r\n");
+        for y in 0..self.screen_size.rows - 1 {
+            buf.append_str("~");
+            buf.append_str("\x1b[K");
+            if y < self.screen_size.rows - 1 {
+                buf.append_str("\r\n");
+            }
         }
-        buf.append_str("~");
     }
 }
 
