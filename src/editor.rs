@@ -138,6 +138,7 @@ pub struct Editor {
     cursor: Pos,
     last_key: Key,
     rows: Vec<Row>,
+    y_scroll_offset: Coord,
 }
 
 impl Editor {
@@ -148,21 +149,39 @@ impl Editor {
             cursor: Default::default(),
             last_key: Key::Ascii(' '),
             rows: Default::default(),
+            y_scroll_offset: 30,
         }
     }
     pub fn refresh_screen(&self, buf: &mut Buf) {
         buf.truncate();
         buf.append("\x1b[?25l\x1b[H");
         self.draw_rows(buf);
-        buf_fmt!(buf, "Last key: {}", self.last_key);
-        buf_fmt!(buf, "\x1b[{};{}H", self.cursor.y + 1, self.cursor.x + 1);
+        buf_fmt!(
+            buf,
+            "Last key: {}. y_scroll_offset: {}. cursor=(line: {}, col: {})\x1b[K",
+            self.last_key,
+            self.y_scroll_offset,
+            self.cursor.y + 1,
+            self.cursor.x + 1
+        );
+        buf_fmt!(
+            buf,
+            "\x1b[{};{}H",
+            self.cursor.y - self.y_scroll_offset + 1,
+            self.cursor.x + 1
+        );
         buf.append("\x1b[?25h");
         buf.write_to(libc::STDIN_FILENO);
     }
 
     fn draw_rows(&self, buf: &mut Buf) {
-        for (i, row) in self.rows.iter().enumerate() {
-            if i.as_coord() >= self.screen_size.height - 1 {
+        for (i, row) in self
+            .rows
+            .iter()
+            .enumerate()
+            .skip(self.y_scroll_offset as usize)
+        {
+            if i.as_coord() - self.y_scroll_offset >= self.screen_size.height - 1 {
                 break;
             }
             buf.append_with_max_len(row, self.screen_size.width - 1);
@@ -194,12 +213,21 @@ impl Editor {
             }
         }
     }
+    pub fn scroll(&mut self) {
+        if self.cursor.y < self.y_scroll_offset {
+            self.y_scroll_offset = self.cursor.y;
+        }
+        if self.cursor.y >= self.y_scroll_offset + self.screen_size.height {
+            self.y_scroll_offset = self.cursor.y - self.screen_size.height + 1;
+        }
+    }
+
     pub fn set_last_key(&mut self, key: Key) {
         self.last_key = key;
     }
 
     pub fn move_cursor(&mut self, x: Coord, y: Coord) {
-        self.cursor.y = (self.cursor.y + y).clamp(0, self.screen_size.height - 1);
+        self.cursor.y = (self.cursor.y + y).clamp(0, self.last_valid_row());
         self.cursor.x = (self.cursor.x + x).clamp(0, self.screen_size.width - 1);
     }
     pub fn jump_cursor(&mut self, x: Option<i64>, y: Option<i64>) {
@@ -219,6 +247,9 @@ impl Editor {
             self.rows.push(Row::from_line(&line?));
         }
         Ok(())
+    }
+    pub fn last_valid_row(&self) -> Coord {
+        self.rows.len().as_coord()
     }
 }
 fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>

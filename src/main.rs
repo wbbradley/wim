@@ -27,6 +27,7 @@ fn main() -> io::Result<()> {
     }
     let mut buf = Buf::default();
     loop {
+        edit.scroll();
         edit.refresh_screen(&mut buf);
         if let Some(ch) = read_key() {
             edit.set_last_key(ch);
