@@ -13,15 +13,15 @@ static VERSION: &str = "v0.1.0";
 #[allow(dead_code)]
 #[derive(Copy, Clone, Debug)]
 pub struct Size {
-    cols: u16,
-    rows: u16,
+    cols: usize,
+    rows: usize,
 }
 
 #[allow(dead_code)]
 #[derive(Copy, Clone, Debug)]
 pub struct Coord {
-    col: u16,
-    row: u16,
+    col: usize,
+    row: usize,
 }
 
 impl From<Coord> for Size {
@@ -61,12 +61,9 @@ fn get_cursor_position() -> Option<Coord> {
     }
     let buf = &buf[2..i];
     let semicolon_position = buf.iter().position(|x| *x == b';').unwrap();
-    let row: libc::c_int = lexical::parse(&buf[0..semicolon_position]).unwrap();
-    let col: libc::c_int = lexical::parse(&buf[semicolon_position + 1..]).unwrap();
-    Some(Coord {
-        row: row as u16,
-        col: col as u16,
-    })
+    let row: usize = lexical::parse(&buf[0..semicolon_position]).unwrap();
+    let col: usize = lexical::parse(&buf[semicolon_position + 1..]).unwrap();
+    Some(Coord { row, col })
 }
 
 fn get_window_size() -> Size {
@@ -90,8 +87,8 @@ fn get_window_size() -> Size {
         }
     } else {
         Size {
-            cols: ws.ws_col,
-            rows: ws.ws_row,
+            cols: ws.ws_col as usize,
+            rows: ws.ws_row as usize,
         }
     }
 }
@@ -111,23 +108,36 @@ impl Editor {
     }
     fn refresh_screen(&self, buf: &mut ABuf) {
         buf.truncate();
-        buf.append_str("\x1b[?25l\x1b[H");
+        buf.append("\x1b[?25l\x1b[H");
         self.draw_rows(buf);
-        buf.append_str("\x1b[H\x1b[?25h");
+        buf.append("\x1b[H\x1b[?25h");
         buf.write_to(libc::STDIN_FILENO);
     }
 
     fn draw_rows(&self, buf: &mut ABuf) {
         for y in 0..self.screen_size.rows {
             if y == self.screen_size.rows / 3 {
-                buf.append_str(&format!("Wim editor -- version {}", VERSION));
+                let welcome = format!("Wim editor -- version {}", VERSION);
+                let mut welcome_len = welcome.len();
+                if welcome_len > self.screen_size.cols {
+                    welcome_len = self.screen_size.cols;
+                }
+                let mut padding = (self.screen_size.cols - welcome_len) / 2;
+                if padding != 0 {
+                    buf.append("~");
+                    padding -= 1;
+                }
+                for _ in 0..padding {
+                    buf.append(" ");
+                }
+                buf.append_with_max_len(&welcome, welcome_len);
             } else {
-                buf.append_str("~");
+                buf.append("~");
             }
 
-            buf.append_str("\x1b[K");
+            buf.append("\x1b[K");
             if y < self.screen_size.rows - 1 {
-                buf.append_str("\r\n");
+                buf.append("\r\n");
             }
         }
     }
@@ -155,11 +165,15 @@ impl ABuf {
     pub fn truncate(&mut self) {
         self.b.truncate(0);
     }
-    pub fn append(&mut self, text: &[u8]) {
+    pub fn _append(&mut self, text: &[u8]) {
         self.b.extend_from_slice(text);
     }
-    pub fn append_str(&mut self, text: &str) {
+    pub fn append(&mut self, text: &str) {
         self.b.extend_from_slice(text.as_bytes());
+    }
+    pub fn append_with_max_len(&mut self, text: &str, max_len: usize) {
+        let slice = text.as_bytes();
+        self.b.extend_from_slice(&slice[0..max_len]);
     }
     pub fn write_to(&self, fd: libc::c_int) {
         unsafe { libc::write(fd, self.b.as_ptr() as *const libc::c_void, self.b.len()) };
