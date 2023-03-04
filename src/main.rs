@@ -98,6 +98,7 @@ struct Editor {
     termios: Termios,
     screen_size: Size,
     cursor: Coord,
+    last_key: i32,
 }
 
 impl Editor {
@@ -106,14 +107,16 @@ impl Editor {
             termios: Termios::enter_raw_mode(),
             screen_size: get_window_size(),
             cursor: Coord::default(),
+            last_key: 0,
         }
     }
     fn refresh_screen(&self, buf: &mut ABuf) {
         buf.truncate();
         buf.append("\x1b[?25l\x1b[H");
         self.draw_rows(buf);
-        buf_fmt!(buf, "\x1b[{};{}H", self.cursor.row, self.cursor.col);
-        buf.append("\x1b[H\x1b[?25h");
+        buf_fmt!(buf, "Last key: {}", self.last_key as u8 as char);
+        buf_fmt!(buf, "\x1b[{};{}H", self.cursor.row + 1, self.cursor.col + 1);
+        buf.append("\x1b[?25h");
         buf.write_to(libc::STDIN_FILENO);
     }
 
@@ -142,6 +145,21 @@ impl Editor {
             if y < self.screen_size.rows - 1 {
                 buf.append("\r\n");
             }
+        }
+    }
+    fn set_last_key(&mut self, ch: i32) {
+        self.last_key = ch;
+    }
+
+    fn move_cursor(&mut self, ch: i32) {
+        if ch == 'j' as i32 {
+            self.cursor.row += 1;
+        } else if ch == 'h' as i32 {
+            self.cursor.col -= 1;
+        } else if ch == 'k' as i32 {
+            self.cursor.row -= 1;
+        } else if ch == 'l' as i32 {
+            self.cursor.col += 1;
         }
     }
 }
@@ -195,15 +213,28 @@ impl ABuf {
 fn main() -> io::Result<()> {
     simple_logging::log_to_file("wim.log", LevelFilter::Trace)?;
 
-    let edit = Editor::new();
+    let mut edit = Editor::new();
 
     let mut buf = ABuf::default();
     loop {
         edit.refresh_screen(&mut buf);
         if let Some(ch) = read_char() {
             let ch = ch.to_keycode();
+            edit.set_last_key(ch);
             if ch == ctrl_key('q') {
                 break;
+            }
+            if ch == b'h' as i32 {
+                edit.move_cursor(ch);
+            }
+            if ch == b'j' as i32 {
+                edit.move_cursor(ch);
+            }
+            if ch == b'k' as i32 {
+                edit.move_cursor(ch);
+            }
+            if ch == b'l' as i32 {
+                edit.move_cursor(ch);
             }
         }
     }
