@@ -215,11 +215,12 @@ fn main() -> io::Result<()> {
             edit.set_last_key(ch);
             match ch {
                 Key::Esc => log::trace!("you pressed Esc!?"),
+                Key::EscSeq(_, _) => continue,
                 Key::Ctrl('q') => break,
-                Key::ArrowLeft => edit.move_cursor(-1, 0),
-                Key::ArrowDown => edit.move_cursor(0, 1),
-                Key::ArrowUp => edit.move_cursor(0, -1),
-                Key::ArrowRight => edit.move_cursor(1, 0),
+                Key::Left => edit.move_cursor(-1, 0),
+                Key::Down => edit.move_cursor(0, 1),
+                Key::Up => edit.move_cursor(0, -1),
+                Key::Right => edit.move_cursor(1, 0),
                 Key::Ascii('h') => edit.move_cursor(-1, 0),
                 Key::Ascii('j') => edit.move_cursor(0, 1),
                 Key::Ascii('k') => edit.move_cursor(0, -1),
