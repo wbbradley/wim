@@ -154,6 +154,18 @@ impl Editor {
     fn move_cursor(&mut self, x: i64, y: i64) {
         self.cursor.row += y;
         self.cursor.col += x;
+        if self.cursor.row < 0 {
+            self.cursor.row = 0;
+        }
+        if self.cursor.col < 0 {
+            self.cursor.col = 0;
+        }
+        if self.cursor.col >= self.screen_size.cols {
+            self.cursor.col -= 1;
+        }
+        if self.cursor.row >= self.screen_size.rows {
+            self.cursor.row -= 1;
+        }
     }
 }
 
