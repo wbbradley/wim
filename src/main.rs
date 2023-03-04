@@ -9,6 +9,14 @@ mod utils;
 fn editor_refresh_screen() {
     put!("\x1b[2J");
     put!("\x1b[H");
+    editor_draw_rows();
+    put!("\x1b[H");
+}
+
+fn editor_draw_rows() {
+    for _ in 0..24 {
+        put!("~\r\n");
+    }
 }
 
 fn main() {
@@ -22,4 +30,6 @@ fn main() {
             }
         }
     }
+    put!("\x1b[2J");
+    put!("\x1b[H");
 }
