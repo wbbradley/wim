@@ -19,6 +19,17 @@ pub mod errors {
     }
 }
 
+macro_rules! die {
+    ($fmt:expr) => {
+        panic!("{}", $fmt)
+    };
+    ($fmt:expr, $($args:expr),+) => {{
+        let user_message = format!($fmt, $($args),+);
+        panic!("error: {}: {}", $crate::utils::Errno::latest(), user_message)
+    }};
+}
+pub(crate) use die;
+
 #[derive(Copy, Clone)]
 pub struct Errno {
     errno: libc::c_int,
@@ -47,15 +58,4 @@ impl From<Errno> for String {
         String::from_utf8_lossy(unsafe { CStr::from_ptr(strerror(errno.errno)) }.to_bytes())
             .to_string()
     }
-}
-
-#[macro_export]
-macro_rules! c_catastrophe {
-    ($fmt:expr) => {
-        panic!("{}", $fmt)
-    };
-    ($fmt:expr, $($args:expr),+) => {{
-        let user_message = format!($fmt, $($args),+);
-        panic!("error: {}: {}", $crate::utils::Errno::latest(), user_message)
-    }};
 }
