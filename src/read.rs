@@ -20,6 +20,7 @@ pub enum Key {
     Right,
     Home,
     End,
+    Del,
     PageUp,
     PageDown,
     Ctrl(char),
@@ -33,6 +34,7 @@ impl std::fmt::Display for Key {
             Key::PageDown => write!(f, "<PageDown>"),
             Key::Home => write!(f, "<Home>"),
             Key::End => write!(f, "<End>"),
+            Key::Del => write!(f, "<Del>"),
             Key::Up => write!(f, "<Up>"),
             Key::Down => write!(f, "<Down>"),
             Key::Left => write!(f, "<Left>"),
@@ -57,6 +59,7 @@ pub fn read_key() -> Option<Key> {
             (Some(b'['), Some(a)) if (b'0'..=b'9').contains(&a) => match read_u8() {
                 Some(b'~') => match a {
                     b'1' => Some(Key::Home),
+                    b'3' => Some(Key::Del),
                     b'4' => Some(Key::End),
                     b'5' => Some(Key::PageUp),
                     b'6' => Some(Key::PageDown),

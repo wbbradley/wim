@@ -217,6 +217,7 @@ fn main() -> io::Result<()> {
                 Key::Esc => log::trace!("you pressed Esc!?"),
                 Key::EscSeq(_, _) => continue,
                 Key::Ctrl('q') => break,
+                Key::Del => continue,
                 Key::Left => edit.move_cursor(-1, 0),
                 Key::Down => edit.move_cursor(0, 1),
                 Key::Up => edit.move_cursor(0, -1),
