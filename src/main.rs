@@ -118,6 +118,7 @@ impl Editor {
         for _ in 0..self.screen_size.rows - 1 {
             put!("~\r\n");
         }
+        put!("~");
     }
 }
 
