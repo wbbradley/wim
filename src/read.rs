@@ -66,6 +66,8 @@ pub fn read_key() -> Option<Key> {
                 },
                 _ => Some(Key::Esc),
             },
+            (Some(b'O'), Some(b'H')) => Some(Key::Home),
+            (Some(b'O'), Some(b'F')) => Some(Key::End),
             (Some(a), Some(b)) => Some(Key::EscSeq(a, b)),
             (_, _) => Some(Key::Esc),
         },
