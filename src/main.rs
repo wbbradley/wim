@@ -1,11 +1,11 @@
 mod files;
 mod utils;
 
-struct TermiosRestorer {
+struct SavedTermios {
     pub orig: libc::termios,
 }
 
-impl TermiosRestorer {
+impl SavedTermios {
     fn new() -> Self {
         let fd = libc::STDIN_FILENO;
         let mut termios = Self {
@@ -27,7 +27,7 @@ impl TermiosRestorer {
     }
 }
 
-impl Drop for TermiosRestorer {
+impl Drop for SavedTermios {
     fn drop(&mut self) {
         unsafe {
             libc::tcsetattr(
@@ -38,9 +38,7 @@ impl Drop for TermiosRestorer {
         }
     }
 }
-
-fn main() {
-    let termios = TermiosRestorer::new();
+fn enable_raw_mode(termios: &SavedTermios) {
     let mut raw = libc::termios {
         c_cc: termios.orig.c_cc,
         c_cflag: termios.orig.c_cflag,
@@ -63,6 +61,37 @@ fn main() {
             &mut raw as *mut libc::termios,
         );
     }
-    println!("Hello, world!");
-    std::thread::sleep(std::time::Duration::from_secs(2));
+}
+
+fn read_char() -> Option<char> {
+    let mut ch: char = '\0';
+    let ret = unsafe {
+        libc::read(
+            libc::STDIN_FILENO,
+            &mut ch as *mut char as *mut libc::c_void,
+            1,
+        )
+    };
+    if ret == 1 {
+        Some(ch)
+    } else {
+        None
+    }
+}
+
+fn main() {
+    let termios = SavedTermios::new();
+    enable_raw_mode(&termios);
+    loop {
+        if let Some(ch) = read_char() {
+            if unsafe { libc::iscntrl(ch as i32) } != 0 {
+                println!("{}\r", ch as i32);
+            } else {
+                println!("{} ('{}')\r", ch as i32, ch);
+            }
+            if ch == 'q' {
+                break;
+            }
+        }
+    }
 }
