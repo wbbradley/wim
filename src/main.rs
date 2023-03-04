@@ -119,15 +119,16 @@ impl Editor {
     }
 
     fn draw_rows(&self, buf: &mut ABuf) {
-        for y in 0..self.screen_size.rows - 1 {
+        for y in 0..self.screen_size.rows {
             if y == self.screen_size.rows / 3 {
                 buf.append_str(&format!("Wim editor -- version {}", VERSION));
             } else {
                 buf.append_str("~");
-                buf.append_str("\x1b[K");
-                if y < self.screen_size.rows - 1 {
-                    buf.append_str("\r\n");
-                }
+            }
+
+            buf.append_str("\x1b[K");
+            if y < self.screen_size.rows - 1 {
+                buf.append_str("\r\n");
             }
         }
     }
