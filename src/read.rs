@@ -18,6 +18,8 @@ pub enum Key {
     Down,
     Left,
     Right,
+    Home,
+    End,
     PageUp,
     PageDown,
     Ctrl(char),
@@ -29,6 +31,8 @@ impl std::fmt::Display for Key {
         match self {
             Key::PageUp => write!(f, "<PageUp>"),
             Key::PageDown => write!(f, "<PageDown>"),
+            Key::Home => write!(f, "<Home>"),
+            Key::End => write!(f, "<End>"),
             Key::Up => write!(f, "<Up>"),
             Key::Down => write!(f, "<Down>"),
             Key::Left => write!(f, "<Left>"),
@@ -48,16 +52,18 @@ pub fn read_key() -> Option<Key> {
             (Some(b'['), Some(b'B')) => Some(Key::Down),
             (Some(b'['), Some(b'C')) => Some(Key::Right),
             (Some(b'['), Some(b'D')) => Some(Key::Left),
+            (Some(b'['), Some(b'H')) => Some(Key::Home),
+            (Some(b'['), Some(b'F')) => Some(Key::End),
             (Some(b'['), Some(a)) if (b'0'..=b'9').contains(&a) => match read_u8() {
-                Some(b'~') => {
-                    if a == b'5' {
-                        Some(Key::PageUp)
-                    } else if a == b'6' {
-                        Some(Key::PageDown)
-                    } else {
-                        Some(Key::Esc)
-                    }
-                }
+                Some(b'~') => match a {
+                    b'1' => Some(Key::Home),
+                    b'4' => Some(Key::End),
+                    b'5' => Some(Key::PageUp),
+                    b'6' => Some(Key::PageDown),
+                    b'7' => Some(Key::Home),
+                    b'8' => Some(Key::End),
+                    _ => Some(Key::Esc),
+                },
                 _ => Some(Key::Esc),
             },
             (Some(a), Some(b)) => Some(Key::EscSeq(a, b)),

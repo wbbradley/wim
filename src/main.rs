@@ -223,6 +223,8 @@ fn main() -> io::Result<()> {
                 Key::Right => edit.move_cursor(1, 0),
                 Key::PageDown => edit.move_cursor(0, edit.screen_size.rows),
                 Key::PageUp => edit.move_cursor(0, -edit.screen_size.rows),
+                Key::Home => edit.move_cursor(-edit.screen_size.cols, 0),
+                Key::End => edit.move_cursor(edit.screen_size.cols, 0),
                 Key::Ascii('h') => edit.move_cursor(-1, 0),
                 Key::Ascii('j') => edit.move_cursor(0, 1),
                 Key::Ascii('k') => edit.move_cursor(0, -1),
