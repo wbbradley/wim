@@ -1,4 +1,4 @@
-use crate::buf::{Buf, ToBufBytes};
+use crate::buf::{safe_byte_slice, Buf, ToBufBytes};
 use crate::read::{read_u8, Key};
 use crate::termios::Termios;
 use crate::types::{Coord, SafeCoordCast};
@@ -123,6 +123,9 @@ impl Row {
             buf: Buf::from_bytes(line),
         }
     }
+    pub fn len(&self) -> usize {
+        self.buf.len()
+    }
 }
 
 impl ToBufBytes for &Row {
@@ -138,7 +141,7 @@ pub struct Editor {
     cursor: Pos,
     last_key: Key,
     rows: Vec<Row>,
-    y_scroll_offset: Coord,
+    scroll_offset: Pos,
 }
 
 impl Editor {
@@ -149,7 +152,7 @@ impl Editor {
             cursor: Default::default(),
             last_key: Key::Ascii(' '),
             rows: Default::default(),
-            y_scroll_offset: 30,
+            scroll_offset: Default::default(),
         }
     }
     pub fn refresh_screen(&self, buf: &mut Buf) {
@@ -158,17 +161,17 @@ impl Editor {
         self.draw_rows(buf);
         buf_fmt!(
             buf,
-            "Last key: {}. y_scroll_offset: {}. cursor=(line: {}, col: {})\x1b[K",
+            "Last key: {}. scroll_offset: {:?}. cursor=(line: {}, col: {})\x1b[K",
             self.last_key,
-            self.y_scroll_offset,
+            self.scroll_offset,
             self.cursor.y + 1,
             self.cursor.x + 1
         );
         buf_fmt!(
             buf,
             "\x1b[{};{}H",
-            self.cursor.y - self.y_scroll_offset + 1,
-            self.cursor.x + 1
+            self.cursor.y - self.scroll_offset.y + 1,
+            self.cursor.x - self.scroll_offset.x + 1
         );
         buf.append("\x1b[?25h");
         buf.write_to(libc::STDIN_FILENO);
@@ -179,12 +182,17 @@ impl Editor {
             .rows
             .iter()
             .enumerate()
-            .skip(self.y_scroll_offset as usize)
+            .skip(self.scroll_offset.y as usize)
         {
-            if i.as_coord() - self.y_scroll_offset >= self.screen_size.height - 1 {
+            if i.as_coord() - self.scroll_offset.y >= self.screen_size.height - 1 {
                 break;
             }
-            buf.append_with_max_len(row, self.screen_size.width - 1);
+            let slice = safe_byte_slice(
+                &row,
+                self.scroll_offset.x as usize,
+                self.screen_size.width as usize - 1,
+            );
+            buf.append_with_max_len(slice, self.screen_size.width - 1);
             buf.append("\x1b[K\r\n");
         }
         for y in self.rows.len()..self.screen_size.height as usize {
@@ -214,11 +222,17 @@ impl Editor {
         }
     }
     pub fn scroll(&mut self) {
-        if self.cursor.y < self.y_scroll_offset {
-            self.y_scroll_offset = self.cursor.y;
+        if self.cursor.y < self.scroll_offset.y {
+            self.scroll_offset.y = self.cursor.y;
         }
-        if self.cursor.y >= self.y_scroll_offset + self.screen_size.height {
-            self.y_scroll_offset = self.cursor.y - self.screen_size.height + 1;
+        if self.cursor.y >= self.scroll_offset.y + self.screen_size.height {
+            self.scroll_offset.y = self.cursor.y - self.screen_size.height + 1;
+        }
+        if self.cursor.x < self.scroll_offset.x {
+            self.scroll_offset.x = self.cursor.x;
+        }
+        if self.cursor.x >= self.scroll_offset.x + self.screen_size.width {
+            self.scroll_offset.x = self.cursor.x - self.screen_size.width + 1;
         }
     }
 
@@ -227,16 +241,27 @@ impl Editor {
     }
 
     pub fn move_cursor(&mut self, x: Coord, y: Coord) {
-        self.cursor.y = (self.cursor.y + y).clamp(0, self.last_valid_row());
-        self.cursor.x = (self.cursor.x + x).clamp(0, self.screen_size.width - 1);
+        self.cursor.y += y;
+        self.cursor.x += x;
+        self.clamp_cursor();
+    }
+
+    pub fn clamp_cursor(&mut self) {
+        self.cursor.y = self.cursor.y.clamp(0, self.last_valid_row());
+        self.cursor.x = if let Some(row) = self.rows.get(self.cursor.y as usize) {
+            self.cursor.x.clamp(0, row.len() as i64)
+        } else {
+            0
+        };
     }
     pub fn jump_cursor(&mut self, x: Option<i64>, y: Option<i64>) {
         if let Some(y) = y {
-            self.cursor.y = y.clamp(0, self.screen_size.height - 1);
+            self.cursor.y = y;
         }
         if let Some(x) = x {
-            self.cursor.x = x.clamp(0, self.screen_size.width - 1);
+            self.cursor.x = x;
         }
+        self.clamp_cursor();
     }
     pub fn open<'a, T>(&mut self, filename: T) -> io::Result<()>
     where

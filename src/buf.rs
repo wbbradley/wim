@@ -64,10 +64,26 @@ impl Buf {
         b.extend_from_slice(text.to_bytes());
         Self { b }
     }
+    pub fn len(&self) -> usize {
+        self.b.len()
+    }
 }
 
 impl ToBufBytes for Buf {
     fn to_bytes(&self) -> &[u8] {
         &self.b
     }
+}
+
+static EMPTY: &[u8] = &[];
+
+pub fn safe_byte_slice<'a, T>(buf: &'a T, start: usize, max_len: usize) -> &'a [u8]
+where
+    T: ToBufBytes + 'a,
+{
+    let bytes = buf.to_bytes();
+    if start >= bytes.len() {
+        return EMPTY;
+    }
+    &bytes[start..std::cmp::min(bytes.len(), start + max_len)]
 }
