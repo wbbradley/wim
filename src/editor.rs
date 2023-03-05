@@ -188,13 +188,7 @@ impl Editor {
             },
         }
     }
-    pub fn refresh_screen(&self, buf: &mut Buf) {
-        buf.truncate();
-        buf.append("\x1b[?25l\x1b[H");
-        let rows_drawn = self.draw_rows(buf);
-        for _ in rows_drawn..self.screen_size.height - self.control_center.height {
-            buf.append("~\x1b[K\r\n");
-        }
+    pub fn draw_control_center(&self, buf: &mut Buf) {
         buf.append("\x1b[7m");
         for _ in 0..self.screen_size.width {
             buf.append("-");
@@ -212,6 +206,17 @@ impl Editor {
             self.cursor.y + 1,
             self.cursor.x + 1
         );
+    }
+
+    pub fn refresh_screen(&self, buf: &mut Buf) {
+        buf.truncate();
+        buf.append("\x1b[?25l\x1b[H");
+        let rows_drawn = self.draw_rows(buf);
+        for _ in rows_drawn..self.screen_size.height - self.control_center.height {
+            buf.append("~\x1b[K\r\n");
+        }
+        self.draw_control_center(buf);
+
         buf_fmt!(
             buf,
             "\x1b[{};{}H",
