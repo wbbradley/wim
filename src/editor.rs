@@ -190,22 +190,35 @@ impl Editor {
     }
     pub fn draw_control_center(&self, buf: &mut Buf) {
         buf.append("\x1b[7m");
-        for _ in 0..self.screen_size.width {
-            buf.append("-");
-        }
-        buf.append("\x1b[m");
-        buf_fmt!(
-            buf,
-            "\r\n{} [Last key: {}. scroll_offset: {:?}. cursor=(line: {}, col: {})]\x1b[K",
-            match self.filename {
-                Some(ref filename) => filename.as_str(),
-                None => "<no filename>",
-            },
-            self.last_key,
-            self.scroll_offset,
-            self.cursor.y + 1,
-            self.cursor.x + 1
+        let mut stackbuf = [0u8; 1024];
+        let mut formatted: &str = stackfmt::fmt_truncate(
+            &mut stackbuf,
+            format_args!(
+                "{}",
+                match self.filename {
+                    Some(ref filename) => filename.as_str(),
+                    None => "<no filename>",
+                }
+            ),
         );
+        buf.append(formatted);
+        let mut remaining_len = self.screen_size.width - formatted.len().as_coord();
+        formatted = stackfmt::fmt_truncate(
+            &mut stackbuf,
+            format_args!(
+                "[Last key: {}. scroll_offset: {:?}. cursor=(line: {}, col: {})]",
+                self.last_key,
+                self.scroll_offset,
+                self.cursor.y + 1,
+                self.cursor.x + 1
+            ),
+        );
+        remaining_len -= formatted.len().as_coord();
+        for _ in 0..remaining_len {
+            buf.append(" ");
+        }
+        buf.append(formatted);
+        buf.append("\x1b[m");
     }
 
     pub fn refresh_screen(&self, buf: &mut Buf) {
