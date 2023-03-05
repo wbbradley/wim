@@ -23,7 +23,7 @@ fn main() -> io::Result<()> {
 
     let mut edit = Editor::new();
     if args.len() > 1 {
-        edit.open(args[1].as_str())?;
+        edit.open(args[1].clone())?;
     }
     let mut buf = Buf::default();
     let mut updated = true;

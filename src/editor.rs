@@ -162,6 +162,7 @@ impl ToBufBytes for &Row {
 pub struct Editor {
     termios: Termios,
     pub screen_size: Size,
+    filename: Option<String>,
     cursor: Pos,
     render_cursor_x: Coord,
     last_key: Key,
@@ -175,6 +176,7 @@ impl Editor {
         Self {
             termios: Termios::enter_raw_mode(),
             screen_size: get_window_size(),
+            filename: None,
             cursor: Default::default(),
             render_cursor_x: 0,
             last_key: Key::Ascii(' '),
@@ -193,12 +195,18 @@ impl Editor {
         for _ in rows_drawn..self.screen_size.height - self.control_center.height {
             buf.append("~\x1b[K\r\n");
         }
+        buf.append("\x1b[7m");
         for _ in 0..self.screen_size.width {
             buf.append("-");
         }
+        buf.append("\x1b[m");
         buf_fmt!(
             buf,
-            "\r\nLast key: {}. scroll_offset: {:?}. cursor=(line: {}, col: {})\x1b[K",
+            "\r\n{} [Last key: {}. scroll_offset: {:?}. cursor=(line: {}, col: {})]\x1b[K",
+            match self.filename {
+                Some(ref filename) => filename.as_str(),
+                None => "<no filename>",
+            },
             self.last_key,
             self.scroll_offset,
             self.cursor.y + 1,
@@ -310,14 +318,13 @@ impl Editor {
         }
         self.clamp_cursor();
     }
-    pub fn open<'a, T>(&mut self, filename: T) -> io::Result<()>
-    where
-        T: Into<&'a str>,
-    {
-        let lines = read_lines(filename.into())?;
+    pub fn open(&mut self, filename: String) -> io::Result<()> {
+        self.rows.truncate(0);
+        let lines = read_lines(&filename)?;
         for line in lines {
             self.rows.push(Row::from_line(&line?));
         }
+        self.filename = Some(filename);
         Ok(())
     }
     pub fn last_valid_row(&self) -> Coord {
