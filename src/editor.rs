@@ -110,6 +110,7 @@ pub(crate) use buf_fmt;
 #[derive(Default)]
 struct Row {
     buf: Buf,
+    render: Buf,
 }
 
 #[allow(dead_code)]
@@ -118,13 +119,20 @@ impl Row {
     pub fn append(&mut self, text: &str) {
         self.buf.append(text)
     }
+    pub fn render_buf(&self) -> &Buf {
+        &self.render
+    }
     pub fn from_line(line: &str) -> Self {
         Self {
             buf: Buf::from_bytes(line),
+            render: Buf::render_from_bytes(line),
         }
     }
     pub fn len(&self) -> usize {
         self.buf.len()
+    }
+    pub fn col_len(&self) -> usize {
+        self.render.len()
     }
 }
 
@@ -142,6 +150,7 @@ pub struct Editor {
     last_key: Key,
     rows: Vec<Row>,
     scroll_offset: Pos,
+    control_center: Size,
 }
 
 impl Editor {
@@ -153,15 +162,25 @@ impl Editor {
             last_key: Key::Ascii(' '),
             rows: Default::default(),
             scroll_offset: Default::default(),
+            control_center: Size {
+                width: 0,
+                height: 2,
+            },
         }
     }
     pub fn refresh_screen(&self, buf: &mut Buf) {
         buf.truncate();
         buf.append("\x1b[?25l\x1b[H");
-        self.draw_rows(buf);
+        let rows_drawn = self.draw_rows(buf);
+        for _ in rows_drawn..self.screen_size.height - self.control_center.height {
+            buf.append("~\x1b[K\r\n");
+        }
+        for _ in 0..self.screen_size.width {
+            buf.append("-");
+        }
         buf_fmt!(
             buf,
-            "Last key: {}. scroll_offset: {:?}. cursor=(line: {}, col: {})\x1b[K",
+            "\r\nLast key: {}. scroll_offset: {:?}. cursor=(line: {}, col: {})\x1b[K",
             self.last_key,
             self.scroll_offset,
             self.cursor.y + 1,
@@ -177,25 +196,28 @@ impl Editor {
         buf.write_to(libc::STDIN_FILENO);
     }
 
-    fn draw_rows(&self, buf: &mut Buf) {
+    fn draw_rows(&self, buf: &mut Buf) -> Coord {
+        let screen_height = self.screen_size.height - self.control_center.height;
+        let mut count = 0;
         for (i, row) in self
             .rows
             .iter()
             .enumerate()
             .skip(self.scroll_offset.y as usize)
         {
-            if i.as_coord() - self.scroll_offset.y >= self.screen_size.height - 1 {
+            if i.as_coord() - self.scroll_offset.y >= screen_height {
                 break;
             }
             let slice = safe_byte_slice(
-                &row,
+                row.render_buf(),
                 self.scroll_offset.x as usize,
                 self.screen_size.width as usize - 1,
             );
             buf.append_with_max_len(slice, self.screen_size.width - 1);
             buf.append("\x1b[K\r\n");
+            count += 1;
         }
-        for y in self.rows.len()..self.screen_size.height as usize {
+        for y in self.rows.len()..screen_height as usize {
             if self.rows.is_empty() && y == self.screen_size.height as usize / 3 {
                 let welcome = format!("Wim editor -- version {}", VERSION);
                 let mut welcome_len = welcome.len().as_coord();
@@ -216,17 +238,22 @@ impl Editor {
             }
 
             buf.append("\x1b[K");
-            if y < self.screen_size.height as usize - 1 {
+            if y < screen_height as usize - 1 {
                 buf.append("\r\n");
+                count += 1;
             }
         }
+        count
     }
     pub fn scroll(&mut self) {
         if self.cursor.y < self.scroll_offset.y {
             self.scroll_offset.y = self.cursor.y;
         }
-        if self.cursor.y >= self.scroll_offset.y + self.screen_size.height {
-            self.scroll_offset.y = self.cursor.y - self.screen_size.height + 1;
+        if self.cursor.y
+            >= self.scroll_offset.y + self.screen_size.height - self.control_center.height
+        {
+            self.scroll_offset.y =
+                self.cursor.y - (self.screen_size.height - self.control_center.height) + 1;
         }
         if self.cursor.x < self.scroll_offset.x {
             self.scroll_offset.x = self.cursor.x;
@@ -249,7 +276,7 @@ impl Editor {
     pub fn clamp_cursor(&mut self) {
         self.cursor.y = self.cursor.y.clamp(0, self.last_valid_row());
         self.cursor.x = if let Some(row) = self.rows.get(self.cursor.y as usize) {
-            self.cursor.x.clamp(0, row.len() as i64)
+            self.cursor.x.clamp(0, row.col_len() as i64)
         } else {
             0
         };

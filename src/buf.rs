@@ -64,11 +64,33 @@ impl Buf {
         b.extend_from_slice(text.to_bytes());
         Self { b }
     }
+    pub fn render_from_bytes<T>(text: T) -> Self
+    where
+        T: ToBufBytes,
+    {
+        // Deal with rendering Tabs.
+        let mut b = Vec::new();
+        let bytes = text.to_bytes();
+        let tabs = bytes.iter().copied().filter(|&x| x == b'\t').count();
+        if tabs == 0 {
+            b.extend_from_slice(bytes);
+        } else {
+            b.reserve(bytes.len() + tabs * (TAB.len() - 1));
+            for &ch in bytes.to_bytes() {
+                if ch == b'\t' {
+                    b.extend_from_slice(TAB);
+                } else {
+                    b.push(ch);
+                }
+            }
+        }
+        Self { b }
+    }
     pub fn len(&self) -> usize {
         self.b.len()
     }
 }
-
+static TAB: &[u8] = &[b' ', b' ', b' ', b' '];
 impl ToBufBytes for Buf {
     fn to_bytes(&self) -> &[u8] {
         &self.b
