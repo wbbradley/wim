@@ -336,6 +336,7 @@ impl Editor {
         } else {
             self.rows.push(Row::from_line(&ch.to_string()));
         }
+        self.move_cursor(1, 0);
     }
 }
 fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>
