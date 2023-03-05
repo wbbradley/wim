@@ -10,6 +10,7 @@ mod buf;
 mod editor;
 mod files;
 mod read;
+mod row;
 mod termios;
 mod types;
 mod utils;
@@ -53,7 +54,7 @@ fn main() -> io::Result<()> {
                     Key::Ascii('j') => edit.move_cursor(0, 1),
                     Key::Ascii('k') => edit.move_cursor(0, -1),
                     Key::Ascii('l') => edit.move_cursor(1, 0),
-                    Key::Ascii(_) => (),
+                    Key::Ascii(ch) => edit.insert_char(ch),
                     Key::Ctrl(_) => (),
                     Key::Function(_) => (),
                     Key::PrintScreen => (),

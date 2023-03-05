@@ -1,5 +1,6 @@
-use crate::buf::{safe_byte_slice, Buf, ToBufBytes, TAB};
+use crate::buf::{safe_byte_slice, Buf};
 use crate::read::{read_u8, Key};
+use crate::row::Row;
 use crate::termios::Termios;
 use crate::types::{Coord, SafeCoordCast};
 use crate::utils::put;
@@ -107,58 +108,6 @@ macro_rules! buf_fmt {
 }
 pub(crate) use buf_fmt;
 
-#[allow(dead_code)]
-#[derive(Default)]
-struct Row {
-    buf: Buf,
-    render: Buf,
-}
-
-#[allow(dead_code)]
-impl Row {
-    #[inline]
-    pub fn append(&mut self, text: &str) {
-        self.buf.append(text)
-    }
-    pub fn render_buf(&self) -> &Buf {
-        &self.render
-    }
-    pub fn from_line(line: &str) -> Self {
-        Self {
-            buf: Buf::from_bytes(line),
-            render: Buf::render_from_bytes(line),
-        }
-    }
-    pub fn len(&self) -> usize {
-        self.buf.len()
-    }
-    pub fn col_len(&self) -> usize {
-        self.render.len()
-    }
-
-    /// Adjust the render column to account for tabs.
-    pub fn cursor_to_render_col(&self, cursor: Coord) -> Coord {
-        let cursor = cursor as usize;
-        let mut render_x: usize = 0;
-        for (i, &ch) in self.buf.to_bytes().iter().enumerate() {
-            if i == cursor {
-                break;
-            }
-            if ch == b'\t' {
-                render_x += (TAB.len() - 1) - render_x % TAB.len();
-            }
-            render_x += 1;
-        }
-        render_x.as_coord()
-    }
-}
-
-impl ToBufBytes for &Row {
-    fn to_bytes(&self) -> &[u8] {
-        self.buf.to_bytes()
-    }
-}
-
 #[derive(Debug)]
 pub enum Status {
     Message { message: String, expiry: Instant },
@@ -188,7 +137,7 @@ impl Editor {
             cursor: Default::default(),
             render_cursor_x: 0,
             last_key: Key::Ascii(' '),
-            rows: Default::default(),
+            rows: Vec::default(),
             scroll_offset: Default::default(),
             control_center: Size {
                 width: 0,
@@ -350,7 +299,7 @@ impl Editor {
         self.clamp_cursor();
     }
 
-    pub fn clamp_cursor(&mut self) {
+    fn clamp_cursor(&mut self) {
         self.cursor.y = self.cursor.y.clamp(0, self.last_valid_row());
         if let Some(row) = self.rows.get(self.cursor.y as usize) {
             self.cursor.x = self.cursor.x.clamp(0, row.len() as i64);
@@ -380,6 +329,13 @@ impl Editor {
     }
     pub fn last_valid_row(&self) -> Coord {
         self.rows.len().as_coord()
+    }
+    pub fn insert_char(&mut self, ch: char) {
+        if let Some(row) = self.rows.get_mut(self.cursor.y as usize) {
+            row.insert(self.cursor.x, ch);
+        } else {
+            self.rows.push(Row::from_line(&ch.to_string()));
+        }
     }
 }
 fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>

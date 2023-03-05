@@ -1,4 +1,4 @@
-use crate::types::SafeCoordCast;
+use crate::types::{Coord, SafeCoordCast};
 
 pub struct Buf {
     b: Vec<u8>,
@@ -53,6 +53,20 @@ impl Buf {
         self.b
             .extend_from_slice(&slice[0..std::cmp::min(max_len.as_coord() as usize, slice.len())]);
     }
+
+    pub fn splice<T>(&mut self, range: std::ops::Range<Coord>, text: T)
+    where
+        T: ToBufBytes,
+    {
+        // Note: `<=` because it's valid to insert after everything
+        // which would be equivalent to push.
+        let bytes = text.to_bytes();
+        self.b.splice(
+            range.start as usize..range.end as usize,
+            bytes.iter().copied(),
+        );
+    }
+
     pub fn write_to(&self, fd: libc::c_int) {
         unsafe { libc::write(fd, self.b.as_ptr() as *const libc::c_void, self.b.len()) };
     }
@@ -75,10 +89,10 @@ impl Buf {
         if tabs == 0 {
             b.extend_from_slice(bytes);
         } else {
-            b.reserve(bytes.len() + tabs * (TAB.len() - 1));
+            b.reserve(bytes.len() + tabs * (TAB_STOP_SIZE - 1));
             for &ch in bytes.to_bytes() {
                 if ch == b'\t' {
-                    b.extend_from_slice(TAB);
+                    b.extend_from_slice(&TAB[..TAB_STOP_SIZE]);
                 } else {
                     b.push(ch);
                 }
@@ -90,7 +104,10 @@ impl Buf {
         self.b.len()
     }
 }
-pub static TAB: &[u8] = &[b' ', b' ', b' ', b' '];
+
+pub static TAB: &[u8] = &[b' '; 32];
+pub static TAB_STOP_SIZE: usize = 4;
+
 impl ToBufBytes for Buf {
     fn to_bytes(&self) -> &[u8] {
         &self.b
