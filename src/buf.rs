@@ -114,7 +114,7 @@ impl ToBufBytes for Buf {
     }
 }
 
-static EMPTY: &[u8] = &[];
+pub static EMPTY: &[u8] = &[];
 
 pub fn safe_byte_slice<'a, T>(buf: &'a T, start: usize, max_len: usize) -> &'a [u8]
 where

@@ -1,4 +1,4 @@
-use crate::buf::{safe_byte_slice, Buf};
+use crate::buf::{safe_byte_slice, Buf, ToBufBytes};
 use crate::read::{read_u8, Key};
 use crate::row::Row;
 use crate::termios::Termios;
@@ -6,7 +6,8 @@ use crate::types::{Coord, SafeCoordCast};
 use crate::utils::put;
 use crate::VERSION;
 use std::fs::File;
-use std::io::{self, BufRead};
+use std::fs::OpenOptions;
+use std::io::{self, BufRead, Seek, Write};
 use std::path::Path;
 use std::time::{Duration, Instant};
 
@@ -330,6 +331,15 @@ impl Editor {
     pub fn last_valid_row(&self) -> Coord {
         self.rows.len().as_coord()
     }
+    pub fn insert_newline_above(&mut self) {
+        let y = std::cmp::min(self.cursor.y as usize, self.rows.len());
+        self.rows.splice(y..y, [Row::from_line("")]);
+    }
+    pub fn insert_newline_below(&mut self) {
+        let y = std::cmp::min(self.cursor.y as usize + 1, self.rows.len());
+        self.rows.splice(y..y, [Row::from_line("")]);
+        self.move_cursor(0, 1);
+    }
     pub fn insert_char(&mut self, ch: char) {
         if let Some(row) = self.rows.get_mut(self.cursor.y as usize) {
             row.insert_char(self.cursor.x, ch);
@@ -337,6 +347,31 @@ impl Editor {
             self.rows.push(Row::from_line(&ch.to_string()));
         }
         self.move_cursor(1, 0);
+    }
+    pub fn get_save_buffer(&self) -> Buf {
+        let mut buf = Buf::default();
+        for row in self.rows.iter() {
+            buf.append(row);
+            buf.append("\n");
+        }
+        buf
+    }
+    pub fn save_file(&mut self) -> io::Result<()> {
+        // TODO: write + rename.
+        let save_buffer = self.get_save_buffer();
+        if let Some(filename) = &self.filename {
+            let mut f = OpenOptions::new().write(true).create(true).open(filename)?;
+            f.set_len(0)?;
+            f.seek(io::SeekFrom::Start(0))?;
+            let bytes = save_buffer.to_bytes();
+            f.write_all(bytes)?;
+            f.flush()?;
+            self.status = Status::Message {
+                message: format!("{} saved [{}b]!", filename, bytes.len()),
+                expiry: Instant::now() + Duration::from_secs(2),
+            };
+        }
+        Ok(())
     }
 }
 fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>
