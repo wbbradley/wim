@@ -39,7 +39,7 @@ fn main() -> io::Result<()> {
                     Key::Esc => log::trace!("you pressed Esc!?"),
                     Key::EscSeq1(_) => continue,
                     Key::EscSeq2(_, _) => continue,
-                    Key::Ctrl('q') => break,
+                    Key::Ctrl('w') => break,
                     Key::Del => continue,
                     Key::Left => edit.move_cursor(-1, 0),
                     Key::Down => edit.move_cursor(0, 1),

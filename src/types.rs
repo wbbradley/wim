@@ -5,12 +5,14 @@ pub trait SafeCoordCast {
 }
 
 impl SafeCoordCast for u64 {
+    #[inline]
     fn as_coord(self) -> Coord {
         self as Coord
     }
 }
 
 impl SafeCoordCast for i64 {
+    #[inline]
     fn as_coord(self) -> Coord {
         assert!(self >= 0);
         self as Coord
@@ -18,6 +20,7 @@ impl SafeCoordCast for i64 {
 }
 
 impl SafeCoordCast for i32 {
+    #[inline]
     fn as_coord(self) -> Coord {
         assert!(self >= 0);
         self as Coord
@@ -25,12 +28,14 @@ impl SafeCoordCast for i32 {
 }
 
 impl SafeCoordCast for usize {
+    #[inline]
     fn as_coord(self) -> Coord {
         self as Coord
     }
 }
 
 impl SafeCoordCast for i16 {
+    #[inline]
     fn as_coord(self) -> Coord {
         assert!(self >= 0);
         self as Coord
@@ -38,6 +43,7 @@ impl SafeCoordCast for i16 {
 }
 
 impl SafeCoordCast for u16 {
+    #[inline]
     fn as_coord(self) -> Coord {
         self as Coord
     }

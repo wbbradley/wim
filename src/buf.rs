@@ -90,7 +90,7 @@ impl Buf {
         self.b.len()
     }
 }
-static TAB: &[u8] = &[b' ', b' ', b' ', b' '];
+pub static TAB: &[u8] = &[b' ', b' ', b' ', b' '];
 impl ToBufBytes for Buf {
     fn to_bytes(&self) -> &[u8] {
         &self.b

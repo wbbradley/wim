@@ -1,4 +1,4 @@
-use crate::buf::{safe_byte_slice, Buf, ToBufBytes};
+use crate::buf::{safe_byte_slice, Buf, ToBufBytes, TAB};
 use crate::read::{read_u8, Key};
 use crate::termios::Termios;
 use crate::types::{Coord, SafeCoordCast};
@@ -134,6 +134,22 @@ impl Row {
     pub fn col_len(&self) -> usize {
         self.render.len()
     }
+
+    /// Adjust the render column to account for tabs.
+    pub fn cursor_to_render_col(&self, cursor: Coord) -> Coord {
+        let cursor = cursor as usize;
+        let mut render_x: usize = 0;
+        for (i, &ch) in self.buf.to_bytes().iter().enumerate() {
+            if i == cursor {
+                break;
+            }
+            if ch == b'\t' {
+                render_x += (TAB.len() - 1) - render_x % TAB.len();
+            }
+            render_x += 1;
+        }
+        render_x.as_coord()
+    }
 }
 
 impl ToBufBytes for &Row {
@@ -147,6 +163,7 @@ pub struct Editor {
     termios: Termios,
     pub screen_size: Size,
     cursor: Pos,
+    render_cursor_x: Coord,
     last_key: Key,
     rows: Vec<Row>,
     scroll_offset: Pos,
@@ -159,6 +176,7 @@ impl Editor {
             termios: Termios::enter_raw_mode(),
             screen_size: get_window_size(),
             cursor: Default::default(),
+            render_cursor_x: 0,
             last_key: Key::Ascii(' '),
             rows: Default::default(),
             scroll_offset: Default::default(),
@@ -190,7 +208,7 @@ impl Editor {
             buf,
             "\x1b[{};{}H",
             self.cursor.y - self.scroll_offset.y + 1,
-            self.cursor.x - self.scroll_offset.x + 1
+            self.render_cursor_x - self.scroll_offset.x + 1
         );
         buf.append("\x1b[?25h");
         buf.write_to(libc::STDIN_FILENO);
@@ -255,11 +273,11 @@ impl Editor {
             self.scroll_offset.y =
                 self.cursor.y - (self.screen_size.height - self.control_center.height) + 1;
         }
-        if self.cursor.x < self.scroll_offset.x {
-            self.scroll_offset.x = self.cursor.x;
+        if self.render_cursor_x < self.scroll_offset.x {
+            self.scroll_offset.x = self.render_cursor_x;
         }
-        if self.cursor.x >= self.scroll_offset.x + self.screen_size.width {
-            self.scroll_offset.x = self.cursor.x - self.screen_size.width + 1;
+        if self.render_cursor_x >= self.scroll_offset.x + self.screen_size.width {
+            self.scroll_offset.x = self.render_cursor_x - self.screen_size.width + 1;
         }
     }
 
@@ -275,10 +293,12 @@ impl Editor {
 
     pub fn clamp_cursor(&mut self) {
         self.cursor.y = self.cursor.y.clamp(0, self.last_valid_row());
-        self.cursor.x = if let Some(row) = self.rows.get(self.cursor.y as usize) {
-            self.cursor.x.clamp(0, row.col_len() as i64)
+        if let Some(row) = self.rows.get(self.cursor.y as usize) {
+            self.cursor.x = self.cursor.x.clamp(0, row.len() as i64);
+            self.render_cursor_x = row.cursor_to_render_col(self.cursor.x);
         } else {
-            0
+            self.cursor.x = 0;
+            self.render_cursor_x = 0;
         };
     }
     pub fn jump_cursor(&mut self, x: Option<i64>, y: Option<i64>) {
