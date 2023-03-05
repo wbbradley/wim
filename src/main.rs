@@ -62,7 +62,7 @@ fn main() -> io::Result<()> {
                 updated = true;
             }
             None => {
-                updated = false;
+                updated = edit.expired_status();
             }
         }
     }

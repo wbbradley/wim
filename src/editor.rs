@@ -7,6 +7,7 @@ use crate::VERSION;
 use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::Path;
+use std::time::{Duration, Instant};
 
 fn get_cursor_position() -> Option<Pos> {
     let mut buf = [0u8; 32];
@@ -158,6 +159,12 @@ impl ToBufBytes for &Row {
     }
 }
 
+#[derive(Debug)]
+pub enum Status {
+    Message { message: String, expiry: Instant },
+    None,
+}
+
 #[allow(dead_code)]
 pub struct Editor {
     termios: Termios,
@@ -169,6 +176,7 @@ pub struct Editor {
     rows: Vec<Row>,
     scroll_offset: Pos,
     control_center: Size,
+    status: Status,
 }
 
 impl Editor {
@@ -185,6 +193,10 @@ impl Editor {
             control_center: Size {
                 width: 0,
                 height: 2,
+            },
+            status: Status::Message {
+                message: String::from("<C-w> to quit..."),
+                expiry: Instant::now() + Duration::from_secs(5),
             },
         }
     }
@@ -218,7 +230,28 @@ impl Editor {
             buf.append(" ");
         }
         buf.append(formatted);
-        buf.append("\x1b[m");
+        buf.append("\x1b[m\r\n");
+
+        if let Status::Message {
+            ref message,
+            expiry,
+        } = self.status
+        {
+            if expiry > Instant::now() {
+                buf.append(message);
+            }
+        }
+        buf.append("\x1b[K");
+    }
+
+    pub fn expired_status(&mut self) -> bool {
+        if let Status::Message { message: _, expiry } = self.status {
+            if expiry <= Instant::now() {
+                self.status = Status::None;
+                return true;
+            }
+        }
+        false
     }
 
     pub fn refresh_screen(&self, buf: &mut Buf) {
