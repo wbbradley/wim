@@ -1,5 +1,6 @@
 use crate::buf::{Buf, ToBufBytes, TAB_STOP_SIZE};
 use crate::types::{Coord, SafeCoordCast};
+use std::ops::Range;
 
 #[allow(dead_code)]
 pub struct Row {
@@ -45,8 +46,18 @@ impl Row {
         render_x.as_coord()
     }
 
-    pub fn insert(&mut self, x: Coord, ch: char) {
-        self.buf.splice(x..x, std::slice::from_ref(&(ch as u8)));
+    pub fn insert_char(&mut self, x: Coord, ch: char) {
+        let mut tmp = [0u8; 4];
+        let ch_text = ch.encode_utf8(&mut tmp);
+        self.buf.splice(x..x, ch_text.as_bytes());
+        self.render = Buf::render_from_bytes(self.buf.to_bytes());
+    }
+
+    pub fn splice<T>(&mut self, range: Range<Coord>, text: T)
+    where
+        T: ToBufBytes,
+    {
+        self.buf.splice(range, text.to_bytes());
         self.render = Buf::render_from_bytes(self.buf.to_bytes());
     }
 }

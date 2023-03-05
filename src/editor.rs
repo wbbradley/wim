@@ -332,7 +332,7 @@ impl Editor {
     }
     pub fn insert_char(&mut self, ch: char) {
         if let Some(row) = self.rows.get_mut(self.cursor.y as usize) {
-            row.insert(self.cursor.x, ch);
+            row.insert_char(self.cursor.x, ch);
         } else {
             self.rows.push(Row::from_line(&ch.to_string()));
         }
