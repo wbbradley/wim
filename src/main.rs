@@ -7,6 +7,7 @@ use log::LevelFilter;
 use std::env;
 use std::time::{Duration, Instant};
 mod buf;
+mod doc;
 mod editor;
 mod error;
 mod files;

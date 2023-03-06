@@ -1,5 +1,10 @@
+use crate::error::Result;
 use libc::strerror;
 use std::ffi::CStr;
+use std::fs::File;
+use std::io::BufRead;
+use std::io::{BufReader, Lines};
+use std::path::Path;
 
 #[allow(dead_code)]
 #[cfg(any(target_os = "linux"))]
@@ -76,4 +81,12 @@ impl From<Errno> for String {
         String::from_utf8_lossy(unsafe { CStr::from_ptr(strerror(errno.errno)) }.to_bytes())
             .to_string()
     }
+}
+
+pub fn read_lines<P>(filename: P) -> Result<Lines<BufReader<File>>>
+where
+    P: AsRef<Path>,
+{
+    let file = File::open(filename)?;
+    Ok(BufReader::new(file).lines())
 }

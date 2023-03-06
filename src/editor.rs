@@ -1,15 +1,13 @@
 use crate::buf::{safe_byte_slice, Buf, ToBufBytes};
+use crate::doc::Doc;
 use crate::error::{Error, Result};
 use crate::read::{read_u8, Key};
-use crate::row::Row;
 use crate::termios::Termios;
-use crate::types::{Coord, SafeCoordCast};
+use crate::types::{Coord, Pos, SafeCoordCast, Size};
 use crate::utils::put;
 use crate::VERSION;
-use std::fs::File;
 use std::fs::OpenOptions;
-use std::io::{self, BufRead, Seek, Write};
-use std::path::Path;
+use std::io::{Seek, SeekFrom, Write};
 use std::time::{Duration, Instant};
 
 fn get_cursor_position() -> Option<Pos> {
@@ -78,29 +76,6 @@ fn get_window_size() -> Size {
     }
 }
 
-#[allow(dead_code)]
-#[derive(Copy, Clone, Debug)]
-pub struct Size {
-    pub width: Coord,
-    pub height: Coord,
-}
-
-#[allow(dead_code)]
-#[derive(Default, Copy, Clone, Debug)]
-pub struct Pos {
-    pub x: Coord,
-    pub y: Coord,
-}
-
-impl From<Pos> for Size {
-    fn from(coord: Pos) -> Self {
-        Self {
-            width: coord.x,
-            height: coord.y,
-        }
-    }
-}
-
 macro_rules! buf_fmt {
     ($buf:expr, $($args:expr),+) => {{
         let mut stackbuf = [0u8; 1024];
@@ -120,12 +95,10 @@ pub enum Status {
 pub struct Editor {
     termios: Termios,
     pub screen_size: Size,
-    filename: Option<String>,
     cursor: Pos,
     render_cursor_x: Coord,
     last_key: Key,
-    rows: Vec<Row>,
-    dirty: bool,
+    doc: Doc,
     scroll_offset: Pos,
     control_center: Size,
     _status: Status,
@@ -142,12 +115,10 @@ impl Editor {
         Self {
             termios: Termios::enter_raw_mode(),
             screen_size: get_window_size(),
-            filename: None,
             cursor: Default::default(),
             render_cursor_x: 0,
             last_key: Key::Ascii(' '),
-            rows: Vec::default(),
-            dirty: false,
+            doc: Doc::empty(),
             scroll_offset: Default::default(),
             control_center: Size {
                 width: 0,
@@ -163,11 +134,11 @@ impl Editor {
             &mut stackbuf,
             format_args!(
                 "{}{}",
-                match self.filename {
+                match self.doc.get_filename() {
                     Some(ref filename) => filename.as_str(),
                     None => "<no filename>",
                 },
-                if self.dirty { "| +" } else { "" }
+                if self.doc.is_dirty() { "| +" } else { "" }
             ),
         );
         buf.append(formatted);
@@ -234,8 +205,8 @@ impl Editor {
         let screen_height = self.screen_size.height - self.control_center.height;
         let mut count = 0;
         for (i, row) in self
-            .rows
-            .iter()
+            .doc
+            .iter_lines()
             .enumerate()
             .skip(self.scroll_offset.y as usize)
         {
@@ -251,8 +222,8 @@ impl Editor {
             buf.append("\x1b[K\r\n");
             count += 1;
         }
-        for y in self.rows.len()..screen_height as usize {
-            if self.rows.is_empty() && y == self.screen_size.height as usize / 3 {
+        for y in self.doc.line_count()..screen_height as usize {
+            if self.doc.is_empty() && y == self.screen_size.height as usize / 3 {
                 let welcome = format!("Wim editor -- version {}", VERSION);
                 let mut welcome_len = welcome.len().as_coord();
                 if welcome_len > self.screen_size.width {
@@ -309,7 +280,7 @@ impl Editor {
 
     fn clamp_cursor(&mut self) {
         self.cursor.y = self.cursor.y.clamp(0, self.last_valid_row());
-        if let Some(row) = self.rows.get(self.cursor.y as usize) {
+        if let Some(row) = self.doc.get_line_buf(self.cursor.y) {
             self.cursor.x = self.cursor.x.clamp(0, row.len() as i64);
             self.render_cursor_x = row.cursor_to_render_col(self.cursor.x);
         } else {
@@ -327,43 +298,15 @@ impl Editor {
         self.clamp_cursor();
     }
     pub fn open(&mut self, filename: String) -> Result<()> {
-        self.rows.truncate(0);
-        let lines = read_lines(&filename)?;
-        for line in lines {
-            self.rows.push(Row::from_line(&line?));
-        }
-        self.filename = Some(filename);
+        self.doc = Doc::open(filename)?;
         Ok(())
     }
     pub fn last_valid_row(&self) -> Coord {
-        self.rows.len().as_coord()
-    }
-    /// TODO: Move to Document
-    pub fn insert_newline_above(&mut self) {
-        let y = std::cmp::min(self.cursor.y as usize, self.rows.len());
-        self.rows.splice(y..y, [Row::from_line("")]);
-        self.dirty = true;
-    }
-    /// TODO: Move to Document
-    pub fn insert_newline_below(&mut self) {
-        let y = std::cmp::min(self.cursor.y as usize + 1, self.rows.len());
-        self.rows.splice(y..y, [Row::from_line("")]);
-        self.move_cursor(0, 1);
-        self.dirty = true;
-    }
-    /// TODO: Move to Document
-    pub fn insert_char(&mut self, ch: char) {
-        if let Some(row) = self.rows.get_mut(self.cursor.y as usize) {
-            row.insert_char(self.cursor.x, ch);
-        } else {
-            self.rows.push(Row::from_line(&ch.to_string()));
-        }
-        self.move_cursor(1, 0);
-        self.dirty = true;
+        self.doc.line_count().as_coord()
     }
     pub fn get_save_buffer(&self) -> Buf {
         let mut buf = Buf::default();
-        for row in self.rows.iter() {
+        for row in self.doc.iter_lines() {
             buf.append(row);
             buf.append("\n");
         }
@@ -376,10 +319,13 @@ impl Editor {
     pub fn save_file(&mut self) -> Result<Status> {
         // TODO: write + rename.
         let save_buffer = self.get_save_buffer();
-        if let Some(filename) = &self.filename {
-            let mut f = OpenOptions::new().write(true).create(true).open(filename)?;
+        if let Some(filename) = self.doc.get_filename() {
+            let mut f = OpenOptions::new()
+                .write(true)
+                .create(true)
+                .open(&filename)?;
             f.set_len(0)?;
-            f.seek(io::SeekFrom::Start(0))?;
+            f.seek(SeekFrom::Start(0))?;
             let bytes = save_buffer.to_bytes();
             f.write_all(bytes)?;
             f.flush()?;
@@ -391,13 +337,17 @@ impl Editor {
             Err(Error::new("no filename specified!"))
         }
     }
-}
-fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>
-where
-    P: AsRef<Path>,
-{
-    let file = File::open(filename)?;
-    Ok(io::BufReader::new(file).lines())
+    pub fn insert_newline_above(&mut self) {
+        self.doc.insert_newline(self.cursor.y);
+    }
+    pub fn insert_newline_below(&mut self) {
+        self.doc.insert_newline(self.cursor.y + 1);
+        self.move_cursor(0, 1);
+    }
+    pub fn insert_char(&mut self, ch: char) {
+        self.doc.insert_char(self.cursor, ch);
+        self.move_cursor(1, 0);
+    }
 }
 
 impl Drop for Editor {
