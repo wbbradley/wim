@@ -125,6 +125,7 @@ pub struct Editor {
     render_cursor_x: Coord,
     last_key: Key,
     rows: Vec<Row>,
+    dirty: bool,
     scroll_offset: Pos,
     control_center: Size,
     _status: Status,
@@ -146,6 +147,7 @@ impl Editor {
             render_cursor_x: 0,
             last_key: Key::Ascii(' '),
             rows: Vec::default(),
+            dirty: false,
             scroll_offset: Default::default(),
             control_center: Size {
                 width: 0,
@@ -160,11 +162,12 @@ impl Editor {
         let mut formatted: &str = stackfmt::fmt_truncate(
             &mut stackbuf,
             format_args!(
-                "{}",
+                "{}{}",
                 match self.filename {
                     Some(ref filename) => filename.as_str(),
                     None => "<no filename>",
-                }
+                },
+                if self.dirty { "| +" } else { "" }
             ),
         );
         buf.append(formatted);
@@ -335,15 +338,20 @@ impl Editor {
     pub fn last_valid_row(&self) -> Coord {
         self.rows.len().as_coord()
     }
+    /// TODO: Move to Document
     pub fn insert_newline_above(&mut self) {
         let y = std::cmp::min(self.cursor.y as usize, self.rows.len());
         self.rows.splice(y..y, [Row::from_line("")]);
+        self.dirty = true;
     }
+    /// TODO: Move to Document
     pub fn insert_newline_below(&mut self) {
         let y = std::cmp::min(self.cursor.y as usize + 1, self.rows.len());
         self.rows.splice(y..y, [Row::from_line("")]);
         self.move_cursor(0, 1);
+        self.dirty = true;
     }
+    /// TODO: Move to Document
     pub fn insert_char(&mut self, ch: char) {
         if let Some(row) = self.rows.get_mut(self.cursor.y as usize) {
             row.insert_char(self.cursor.x, ch);
@@ -351,6 +359,7 @@ impl Editor {
             self.rows.push(Row::from_line(&ch.to_string()));
         }
         self.move_cursor(1, 0);
+        self.dirty = true;
     }
     pub fn get_save_buffer(&self) -> Buf {
         let mut buf = Buf::default();
