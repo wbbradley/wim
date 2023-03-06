@@ -1,5 +1,6 @@
 use crate::buf::Buf;
 use crate::editor::{Editor, Status};
+use crate::noun::Noun;
 use crate::read::{read_key, Key};
 use crate::utils::put;
 use anyhow::Result;
@@ -11,6 +12,7 @@ mod doc;
 mod editor;
 mod error;
 mod files;
+mod noun;
 mod read;
 mod row;
 mod termios;
@@ -68,7 +70,11 @@ fn main() -> Result<()> {
                     Key::Ascii('l') => edit.move_cursor(1, 0),
                     Key::Ascii('o') => edit.insert_newline_below(),
                     Key::Ascii('O') => edit.insert_newline_above(),
+                    Key::Ascii('x') => edit.delete_forwards(Noun::Char),
+                    Key::Ascii('X') => edit.delete_backwards(Noun::Char),
                     Key::Ascii(ch) => edit.insert_char(ch),
+                    Key::Ctrl('u') => edit.delete_backwards(Noun::Line),
+                    Key::Ctrl('k') => edit.delete_forwards(Noun::Line),
                     Key::Ctrl(_) => (),
                     Key::Function(_) => (),
                     Key::PrintScreen => (),

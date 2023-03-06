@@ -1,6 +1,7 @@
 use crate::buf::{safe_byte_slice, Buf, ToBufBytes};
 use crate::doc::Doc;
 use crate::error::{Error, Result};
+use crate::noun::Noun;
 use crate::read::{read_u8, Key};
 use crate::termios::Termios;
 use crate::types::{Coord, Pos, SafeCoordCast, Size};
@@ -347,6 +348,14 @@ impl Editor {
     pub fn insert_char(&mut self, ch: char) {
         self.doc.insert_char(self.cursor, ch);
         self.move_cursor(1, 0);
+    }
+    pub fn delete_forwards(&mut self, noun: Noun) {
+        let (cx, cy) = self.doc.delete_forwards(self.cursor, noun);
+        self.jump_cursor(cx, cy);
+    }
+    pub fn delete_backwards(&mut self, noun: Noun) {
+        let (cx, cy) = self.doc.delete_backwards(self.cursor, noun);
+        self.jump_cursor(cx, cy);
     }
 }
 

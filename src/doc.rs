@@ -1,6 +1,7 @@
 use crate::error::Result;
+use crate::noun::Noun;
 use crate::row::Row;
-use crate::types::{Coord, Pos};
+use crate::types::{Coord, Pos, SafeCoordCast};
 use crate::utils::read_lines;
 
 pub struct Doc {
@@ -59,6 +60,49 @@ impl Doc {
             self.rows.push(Row::from_line(&ch.to_string()));
         }
         self.dirty = true;
+    }
+    pub fn delete_forwards(&mut self, cursor: Pos, noun: Noun) -> (Option<Coord>, Option<Coord>) {
+        match noun {
+            Noun::Line => {
+                if let Some(row) = self.rows.get_mut(cursor.y as usize) {
+                    row.splice(cursor.x..row.len().as_coord(), "");
+                    self.dirty = true;
+                }
+                (None, None)
+            }
+            Noun::Char => {
+                if let Some(row) = self.rows.get_mut(cursor.y as usize) {
+                    if cursor.x < row.len().as_coord() {
+                        row.splice(cursor.x..cursor.x + 1, "");
+                        self.dirty = true;
+                    }
+                }
+                (None, None)
+            }
+        }
+    }
+    pub fn delete_backwards(&mut self, cursor: Pos, noun: Noun) -> (Option<Coord>, Option<Coord>) {
+        match noun {
+            Noun::Line => {
+                if let Some(row) = self.rows.get_mut(cursor.y as usize) {
+                    row.splice(0..cursor.x.as_coord(), "");
+                    self.dirty = true;
+                    (Some(0), None)
+                } else {
+                    (None, None)
+                }
+            }
+            Noun::Char => {
+                if let Some(row) = self.rows.get_mut(cursor.y as usize) {
+                    if cursor.x > 0 {
+                        row.splice(cursor.x - 1..cursor.x, "");
+                        self.dirty = true;
+                        return (Some(cursor.x - 1), None);
+                    }
+                }
+                (None, None)
+            }
+        }
     }
 }
 
