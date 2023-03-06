@@ -50,14 +50,12 @@ impl SafeCoordCast for u16 {
     }
 }
 
-#[allow(dead_code)]
 #[derive(Copy, Clone, Debug)]
 pub struct Size {
     pub width: Coord,
     pub height: Coord,
 }
 
-#[allow(dead_code)]
 #[derive(Default, Copy, Clone, Debug)]
 pub struct Pos {
     pub x: Coord,
@@ -70,5 +68,20 @@ impl From<Pos> for Size {
             width: coord.x,
             height: coord.y,
         }
+    }
+}
+
+#[allow(dead_code)]
+#[derive(Default, Copy, Clone, Debug)]
+pub struct Rect {
+    pub x: Coord,
+    pub y: Coord,
+    pub width: Coord,
+    pub height: Coord,
+}
+
+impl Rect {
+    pub fn area(&self) -> Coord {
+        self.width * self.height
     }
 }

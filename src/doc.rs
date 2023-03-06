@@ -4,6 +4,7 @@ use crate::row::Row;
 use crate::types::{Coord, Pos, SafeCoordCast};
 use crate::utils::read_lines;
 
+#[derive(Debug)]
 pub struct Doc {
     filename: Option<String>,
     rows: Vec<Row>,

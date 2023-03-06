@@ -64,6 +64,7 @@ fn main() -> Result<()> {
                     Key::PageDown => edit.move_cursor(0, edit.screen_size.height as RelCoord),
                     Key::PageUp => edit.move_cursor(0, -(edit.screen_size.height as RelCoord)),
                     Key::Home => edit.jump_cursor(Some(0), None),
+                    Key::Ascii(':') => edit.enter_command_mode(),
                     Key::End => edit.jump_cursor(Some(Coord::MAX), None),
                     Key::Ascii('h') => edit.move_cursor(-1, 0),
                     Key::Ascii('j') => edit.move_cursor(0, 1),
@@ -85,7 +86,7 @@ fn main() -> Result<()> {
                 updated = true;
             }
             None => {
-                updated = edit.expired_status();
+                updated = false; //edit.expired_status();
             }
         }
     }

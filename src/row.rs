@@ -3,7 +3,7 @@ use crate::types::{Coord, SafeCoordCast};
 use std::ops::Range;
 
 #[allow(dead_code)]
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct Row {
     buf: Buf,
     render: Buf,

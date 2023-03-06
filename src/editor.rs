@@ -4,11 +4,13 @@ use crate::error::{Error, Result};
 use crate::noun::Noun;
 use crate::read::{read_u8, Key};
 use crate::termios::Termios;
-use crate::types::{Coord, Pos, RelCoord, SafeCoordCast, Size};
+use crate::types::{Coord, Pos, Rect, RelCoord, SafeCoordCast, Size};
 use crate::utils::put;
 use crate::VERSION;
+use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io::{Seek, SeekFrom, Write};
+use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 fn get_cursor_position() -> Option<Pos> {
@@ -92,17 +94,129 @@ pub enum Status {
     None,
 }
 
+#[derive(Debug)]
+pub struct CommandLine {}
+
+#[derive(Debug)]
+pub enum Mode {
+    Normal(Status),
+    Command(CommandLine),
+}
+
+pub struct CommandCenter {
+    current_filename: Option<String>,
+    current_view_key: ViewKey,
+    cursor: Coord,
+    render_cursor: Coord,
+    scroll_offset: Coord,
+    text: String,
+}
+impl Renderable for CommandCenter {
+    type Cache = Buf;
+    fn draw_renderable<'a>(&self, buf: &'a mut Self::Cache, frame: Rect) -> &'a Buf {
+        buf.truncate();
+        buf.reserve(frame.area() * 4);
+        buf.append("\x1b[7m");
+        let mut stackbuf = [0u8; 1024];
+        let mut formatted: &str = stackfmt::fmt_truncate(
+            &mut stackbuf,
+            format_args!(
+                "{}",
+                match self.current_filename {
+                    Some(ref filename) => filename.as_str(),
+                    None => "<no filename>",
+                },
+                // if self.doc.is_dirty() { "| +" } else { "" }
+            ),
+        );
+        buf.append(formatted);
+        let mut remaining_len = frame.width - formatted.len().as_coord();
+        /*
+        formatted = stackfmt::fmt_truncate(
+            &mut stackbuf,
+            format_args!(
+                "[scroll_offset: {:?}. cursor=(line: {}, col: {})]",
+                self.scroll_offset,
+                self.cursor.y + 1,
+                self.cursor.x + 1
+            ),
+        );
+        remaining_len -= formatted.len().as_coord();
+        */
+        for _ in 0..remaining_len {
+            buf.append(" ");
+        }
+        buf.append(formatted);
+        buf.append("\x1b[m\r\n");
+        // TODO: render prompt...
+        buf.append("\x1b[K");
+        buf
+    }
+}
+
+pub struct View {
+    key: ViewKey,
+    cursor: Pos,
+    render_cursor_x: Coord,
+    doc: Doc,
+    scroll_offset: Pos,
+}
+
+impl View {
+    pub fn get_view_key(&self) -> ViewKey {
+        self.key.clone()
+    }
+}
+
+pub trait Renderable {
+    type Cache;
+
+    /// Contract is that the cursor must be at the upper left corner of the render rect when
+    /// `draw_renderable` is called.
+    fn draw_renderable<'a>(&self, cache: &'a mut Self::Cache, screen: Rect) -> &'a Buf;
+}
+
+impl InputHandler for View {
+    fn dispatch(&mut self, key: Key) -> Result<()> {
+        Ok(())
+    }
+}
+
+pub trait InputHandler {
+    fn dispatch(&mut self, key: Key) -> Result<()>;
+}
+pub type ViewKey = String;
 #[allow(dead_code)]
 pub struct Editor {
     termios: Termios,
     pub screen_size: Size,
-    cursor: Pos,
-    render_cursor_x: Coord,
     last_key: Key,
-    doc: Doc,
-    scroll_offset: Pos,
-    control_center: Size,
-    _status: Status,
+    views: HashMap<ViewKey, Rc<View>>,
+    view_key_gen: ViewKeyGenerator,
+    focused_view: Rc<View>,
+    command_center: Rc<CommandCenter>,
+}
+
+fn build_view_map(views: Vec<Rc<View>>) -> HashMap<ViewKey, Rc<View>> {
+    views
+        .iter()
+        .map(|view| (view.get_view_key(), view.clone()))
+        .collect()
+}
+
+pub struct ViewKeyGenerator {
+    iter: std::ops::RangeFrom<i64>,
+}
+
+impl ViewKeyGenerator {
+    pub fn new() -> Self {
+        Self {
+            iter: (0 as i64..).into_iter(),
+        }
+    }
+    pub fn next(&mut self) -> ViewKey {
+        format!("{}", self.iter.next().unwrap())
+    }
 }
 
 impl Editor {
@@ -113,75 +227,50 @@ impl Editor {
         }
     }
     pub fn new() -> Self {
-        Self {
-            termios: Termios::enter_raw_mode(),
-            screen_size: get_window_size(),
+        let mut view_key_gen = ViewKeyGenerator::new();
+
+        let views = vec![Rc::new(View {
+            key: view_key_gen.next(),
             cursor: Default::default(),
             render_cursor_x: 0,
-            last_key: Key::Ascii(' '),
             doc: Doc::empty(),
             scroll_offset: Default::default(),
-            control_center: Size {
-                width: 0,
-                height: 2,
-            },
-            _status: Self::welcome_status(),
-        }
-    }
-    pub fn draw_control_center(&self, buf: &mut Buf) {
-        buf.append("\x1b[7m");
-        let mut stackbuf = [0u8; 1024];
-        let mut formatted: &str = stackfmt::fmt_truncate(
-            &mut stackbuf,
-            format_args!(
-                "{}{}",
-                match self.doc.get_filename() {
-                    Some(ref filename) => filename.as_str(),
-                    None => "<no filename>",
-                },
-                if self.doc.is_dirty() { "| +" } else { "" }
-            ),
-        );
-        buf.append(formatted);
-        let mut remaining_len = self.screen_size.width - formatted.len().as_coord();
-        formatted = stackfmt::fmt_truncate(
-            &mut stackbuf,
-            format_args!(
-                "[Last key: {}. scroll_offset: {:?}. cursor=(line: {}, col: {})]",
-                self.last_key,
-                self.scroll_offset,
-                self.cursor.y + 1,
-                self.cursor.x + 1
-            ),
-        );
-        remaining_len -= formatted.len().as_coord();
-        for _ in 0..remaining_len {
-            buf.append(" ");
-        }
-        buf.append(formatted);
-        buf.append("\x1b[m\r\n");
-
-        if let Status::Message {
-            ref message,
-            expiry,
-        } = self._status
-        {
-            if expiry > Instant::now() {
-                buf.append(message);
-            }
-        }
-        buf.append("\x1b[K");
+        })];
+        let focused_view = views[0].clone();
+        let mut editor = Self {
+            termios: Termios::enter_raw_mode(),
+            screen_size: get_window_size(),
+            last_key: Key::Ascii(' '),
+            views: build_view_map(views),
+            view_key_gen,
+            focused_view,
+            command_center: Rc::new(CommandCenter {
+                current_filename: None,
+                current_view_key: focused_view.get_view_key(),
+                cursor: 0,
+                render_cursor: 0,
+                scroll_offset: 0,
+                text: String::new(),
+            }),
+        };
+        editor
     }
 
+    /*
     pub fn expired_status(&mut self) -> bool {
-        if let Status::Message { message: _, expiry } = self._status {
-            if expiry <= Instant::now() {
-                self._status = Status::None;
-                return true;
+        match self.mode {
+            Mode::Normal(Status::None) => false,
+            Mode::Normal(Status::Message { message: _, expiry }) => {
+                if expiry <= Instant::now() {
+                    self.mode = Mode::Normal(Status::None);
+                    return true;
+                }
+                false
             }
+            Mode::Command(_) => false,
         }
-        false
     }
+    */
 
     pub fn refresh_screen(&self, buf: &mut Buf) {
         buf.truncate();
@@ -205,26 +294,21 @@ impl Editor {
     fn draw_rows(&self, buf: &mut Buf) -> Coord {
         let screen_height = self.screen_size.height - self.control_center.height;
         let mut count = 0;
-        for (i, row) in self
-            .doc
-            .iter_lines()
-            .enumerate()
-            .skip(self.scroll_offset.y as usize)
-        {
+        for (i, row) in self.doc.iter_lines().enumerate().skip(self.scroll_offset.y) {
             if i.as_coord() - self.scroll_offset.y >= screen_height {
                 break;
             }
             let slice = safe_byte_slice(
                 row.render_buf(),
-                self.scroll_offset.x as usize,
-                self.screen_size.width as usize - 1,
+                self.scroll_offset.x,
+                self.screen_size.width - 1,
             );
             buf.append_with_max_len(slice, self.screen_size.width - 1);
             buf.append("\x1b[K\r\n");
             count += 1;
         }
-        for y in self.doc.line_count()..screen_height as usize {
-            if self.doc.is_empty() && y == self.screen_size.height as usize / 3 {
+        for y in self.doc.line_count()..screen_height {
+            if self.doc.is_empty() && y == self.screen_size.height / 3 {
                 let welcome = format!("Wim editor -- version {}", VERSION);
                 let mut welcome_len = welcome.len().as_coord();
                 if welcome_len > self.screen_size.width {
@@ -238,13 +322,13 @@ impl Editor {
                 for _ in 0..padding {
                     buf.append(" ");
                 }
-                buf.append_with_max_len(&welcome, welcome_len as usize);
+                buf.append_with_max_len(&welcome, welcome_len);
             } else {
                 buf.append("~");
             }
 
             buf.append("\x1b[K");
-            if y < screen_height as usize - 1 {
+            if y < screen_height - 1 {
                 buf.append("\r\n");
                 count += 1;
             }
@@ -314,8 +398,8 @@ impl Editor {
         buf
     }
     pub fn set_status(&mut self, status: Status) {
-        self._status = status;
-        log::trace!("Status Updated: {:?}", self._status);
+        self.mode = Mode::Normal(status);
+        log::trace!("Status Updated: {:?}", self.mode);
     }
     pub fn save_file(&mut self) -> Result<Status> {
         // TODO: write + rename.
@@ -359,6 +443,15 @@ impl Editor {
     }
     pub fn join_line(&mut self) {
         self.doc.join_lines(self.cursor.y..self.cursor.y + 1);
+    }
+
+    pub fn enter_command_mode(&mut self) {
+        match self.mode {
+            Mode::Command(_) => (),
+            Mode::Normal(_) => {
+                self.mode = Mode::Command(CommandLine {});
+            }
+        }
     }
 }
 

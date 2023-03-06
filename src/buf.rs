@@ -1,6 +1,6 @@
 use crate::types::{Coord, SafeCoordCast};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Buf {
     b: Vec<u8>,
 }
@@ -38,6 +38,9 @@ impl ToBufBytes for &String {
 impl Buf {
     pub fn truncate(&mut self) {
         self.b.truncate(0);
+    }
+    pub fn reserve(&mut self, size: usize) {
+        self.b.reserve(size);
     }
     pub fn append<T>(&mut self, text: T)
     where
