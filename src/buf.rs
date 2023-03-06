@@ -1,5 +1,6 @@
 use crate::types::{Coord, SafeCoordCast};
 
+#[derive(Clone)]
 pub struct Buf {
     b: Vec<u8>,
 }

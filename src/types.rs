@@ -1,4 +1,5 @@
-pub type Coord = i64;
+pub type Coord = usize;
+pub type RelCoord = isize;
 
 pub trait SafeCoordCast {
     fn as_coord(self) -> Coord;

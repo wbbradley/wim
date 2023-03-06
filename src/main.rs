@@ -2,6 +2,7 @@ use crate::buf::Buf;
 use crate::editor::{Editor, Status};
 use crate::noun::Noun;
 use crate::read::{read_key, Key};
+use crate::types::{Coord, RelCoord};
 use crate::utils::put;
 use anyhow::Result;
 use log::LevelFilter;
@@ -60,12 +61,13 @@ fn main() -> Result<()> {
                     Key::Down => edit.move_cursor(0, 1),
                     Key::Up => edit.move_cursor(0, -1),
                     Key::Right => edit.move_cursor(1, 0),
-                    Key::PageDown => edit.move_cursor(0, edit.screen_size.height),
-                    Key::PageUp => edit.move_cursor(0, -edit.screen_size.height),
+                    Key::PageDown => edit.move_cursor(0, edit.screen_size.height as RelCoord),
+                    Key::PageUp => edit.move_cursor(0, -(edit.screen_size.height as RelCoord)),
                     Key::Home => edit.jump_cursor(Some(0), None),
-                    Key::End => edit.jump_cursor(Some(i64::MAX), None),
+                    Key::End => edit.jump_cursor(Some(Coord::MAX), None),
                     Key::Ascii('h') => edit.move_cursor(-1, 0),
                     Key::Ascii('j') => edit.move_cursor(0, 1),
+                    Key::Ascii('J') => edit.join_line(),
                     Key::Ascii('k') => edit.move_cursor(0, -1),
                     Key::Ascii('l') => edit.move_cursor(1, 0),
                     Key::Ascii('o') => edit.insert_newline_below(),

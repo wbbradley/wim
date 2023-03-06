@@ -3,6 +3,7 @@ use crate::types::{Coord, SafeCoordCast};
 use std::ops::Range;
 
 #[allow(dead_code)]
+#[derive(Clone, Default)]
 pub struct Row {
     buf: Buf,
     render: Buf,
@@ -12,6 +13,7 @@ pub struct Row {
 impl Row {
     #[inline]
     pub fn append(&mut self, text: &str) {
+        assert!(false);
         self.buf.append(text)
     }
     pub fn render_buf(&self) -> &Buf {
@@ -58,6 +60,10 @@ impl Row {
         T: ToBufBytes,
     {
         self.buf.splice(range, text.to_bytes());
+        self.render = Buf::render_from_bytes(self.buf.to_bytes());
+    }
+    pub fn append_row(&mut self, row: &Self) {
+        self.buf.append(row);
         self.render = Buf::render_from_bytes(self.buf.to_bytes());
     }
 }

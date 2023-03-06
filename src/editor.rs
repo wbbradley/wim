@@ -4,7 +4,7 @@ use crate::error::{Error, Result};
 use crate::noun::Noun;
 use crate::read::{read_u8, Key};
 use crate::termios::Termios;
-use crate::types::{Coord, Pos, SafeCoordCast, Size};
+use crate::types::{Coord, Pos, RelCoord, SafeCoordCast, Size};
 use crate::utils::put;
 use crate::VERSION;
 use std::fs::OpenOptions;
@@ -273,23 +273,23 @@ impl Editor {
         self.last_key = key;
     }
 
-    pub fn move_cursor(&mut self, x: Coord, y: Coord) {
-        self.cursor.y += y;
-        self.cursor.x += x;
+    pub fn move_cursor(&mut self, x: RelCoord, y: RelCoord) {
+        self.cursor.y = (self.cursor.y as RelCoord + y).clamp(0, RelCoord::MAX) as Coord;
+        self.cursor.x = (self.cursor.x as RelCoord + x).clamp(0, RelCoord::MAX) as Coord;
         self.clamp_cursor();
     }
 
     fn clamp_cursor(&mut self) {
         self.cursor.y = self.cursor.y.clamp(0, self.last_valid_row());
         if let Some(row) = self.doc.get_line_buf(self.cursor.y) {
-            self.cursor.x = self.cursor.x.clamp(0, row.len() as i64);
+            self.cursor.x = self.cursor.x.clamp(0, row.len());
             self.render_cursor_x = row.cursor_to_render_col(self.cursor.x);
         } else {
             self.cursor.x = 0;
             self.render_cursor_x = 0;
         };
     }
-    pub fn jump_cursor(&mut self, x: Option<i64>, y: Option<i64>) {
+    pub fn jump_cursor(&mut self, x: Option<Coord>, y: Option<Coord>) {
         if let Some(y) = y {
             self.cursor.y = y;
         }
@@ -356,6 +356,9 @@ impl Editor {
     pub fn delete_backwards(&mut self, noun: Noun) {
         let (cx, cy) = self.doc.delete_backwards(self.cursor, noun);
         self.jump_cursor(cx, cy);
+    }
+    pub fn join_line(&mut self) {
+        self.doc.join_lines(self.cursor.y..self.cursor.y + 1);
     }
 }
 

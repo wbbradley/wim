@@ -84,7 +84,7 @@ impl Doc {
     pub fn delete_backwards(&mut self, cursor: Pos, noun: Noun) -> (Option<Coord>, Option<Coord>) {
         match noun {
             Noun::Line => {
-                if let Some(row) = self.rows.get_mut(cursor.y as usize) {
+                if let Some(row) = self.rows.get_mut(cursor.y) {
                     row.splice(0..cursor.x.as_coord(), "");
                     self.dirty = true;
                     (Some(0), None)
@@ -93,7 +93,7 @@ impl Doc {
                 }
             }
             Noun::Char => {
-                if let Some(row) = self.rows.get_mut(cursor.y as usize) {
+                if let Some(row) = self.rows.get_mut(cursor.y) {
                     if cursor.x > 0 {
                         row.splice(cursor.x - 1..cursor.x, "");
                         self.dirty = true;
@@ -103,6 +103,18 @@ impl Doc {
                 (None, None)
             }
         }
+    }
+    pub fn join_lines(&mut self, range: std::ops::Range<Coord>) {
+        if self.rows.len() <= 1 {
+            return;
+        }
+
+        let mut new_row = Row::default();
+        for _ in range.start..=std::cmp::min(range.end, self.rows.len() - 1) {
+            let row = self.rows.remove(range.start);
+            new_row.append_row(&row);
+        }
+        self.rows.insert(range.start, new_row);
     }
 }
 
