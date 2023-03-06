@@ -36,7 +36,7 @@ impl Doc {
         self.rows.len()
     }
     pub fn get_line_buf(&self, y: Coord) -> Option<&Row> {
-        self.rows.get(y as usize)
+        self.rows.get(y)
     }
     pub fn open(filename: String) -> Result<Self> {
         let mut doc = Doc::empty();
@@ -49,12 +49,12 @@ impl Doc {
         Ok(doc)
     }
     pub fn insert_newline(&mut self, y: Coord) {
-        let y = std::cmp::min(y as usize, self.rows.len());
+        let y = std::cmp::min(y, self.rows.len());
         self.rows.splice(y..y, [Row::from_line("")]);
         self.dirty = true;
     }
     pub fn insert_char(&mut self, cursor: Pos, ch: char) {
-        if let Some(row) = self.rows.get_mut(cursor.y as usize) {
+        if let Some(row) = self.rows.get_mut(cursor.y) {
             row.insert_char(cursor.x, ch);
         } else {
             self.rows.push(Row::from_line(&ch.to_string()));
@@ -64,14 +64,14 @@ impl Doc {
     pub fn delete_forwards(&mut self, cursor: Pos, noun: Noun) -> (Option<Coord>, Option<Coord>) {
         match noun {
             Noun::Line => {
-                if let Some(row) = self.rows.get_mut(cursor.y as usize) {
+                if let Some(row) = self.rows.get_mut(cursor.y) {
                     row.splice(cursor.x..row.len().as_coord(), "");
                     self.dirty = true;
                 }
                 (None, None)
             }
             Noun::Char => {
-                if let Some(row) = self.rows.get_mut(cursor.y as usize) {
+                if let Some(row) = self.rows.get_mut(cursor.y) {
                     if cursor.x < row.len().as_coord() {
                         row.splice(cursor.x..cursor.x + 1, "");
                         self.dirty = true;
