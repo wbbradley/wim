@@ -1,13 +1,14 @@
 use crate::buf::Buf;
-use crate::editor::Editor;
+use crate::editor::{Editor, Status};
 use crate::read::{read_key, Key};
 use crate::utils::put;
+use anyhow::Result;
 use log::LevelFilter;
 use std::env;
-use std::io;
-
+use std::time::{Duration, Instant};
 mod buf;
 mod editor;
+mod error;
 mod files;
 mod read;
 mod row;
@@ -17,7 +18,7 @@ mod utils;
 
 pub static VERSION: &str = "v0.1.0";
 
-fn main() -> io::Result<()> {
+fn main() -> Result<()> {
     simple_logging::log_to_file("wim.log", LevelFilter::Trace)?;
     let args: Vec<String> = env::args().collect();
     log::trace!("wim run with args: {:?}", args);
@@ -41,7 +42,16 @@ fn main() -> io::Result<()> {
                     Key::EscSeq1(_) => continue,
                     Key::EscSeq2(_, _) => continue,
                     Key::Ctrl('w') => break,
-                    Key::Ctrl('s') => edit.save_file()?,
+                    Key::Ctrl('s') => {
+                        let status = edit.save_file();
+                        edit.set_status(match status {
+                            Ok(status) => status,
+                            Err(error) => Status::Message {
+                                message: format!("error during save: {}", error),
+                                expiry: Instant::now() + Duration::from_secs(4),
+                            },
+                        });
+                    }
                     Key::Del => continue,
                     Key::Left => edit.move_cursor(-1, 0),
                     Key::Down => edit.move_cursor(0, 1),

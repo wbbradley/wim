@@ -1,4 +1,5 @@
 use crate::buf::{safe_byte_slice, Buf, ToBufBytes};
+use crate::error::{Error, Result};
 use crate::read::{read_u8, Key};
 use crate::row::Row;
 use crate::termios::Termios;
@@ -126,10 +127,16 @@ pub struct Editor {
     rows: Vec<Row>,
     scroll_offset: Pos,
     control_center: Size,
-    status: Status,
+    _status: Status,
 }
 
 impl Editor {
+    pub fn welcome_status() -> Status {
+        Status::Message {
+            message: String::from("<C-w> to quit..."),
+            expiry: Instant::now() + Duration::from_secs(5),
+        }
+    }
     pub fn new() -> Self {
         Self {
             termios: Termios::enter_raw_mode(),
@@ -144,10 +151,7 @@ impl Editor {
                 width: 0,
                 height: 2,
             },
-            status: Status::Message {
-                message: String::from("<C-w> to quit..."),
-                expiry: Instant::now() + Duration::from_secs(5),
-            },
+            _status: Self::welcome_status(),
         }
     }
     pub fn draw_control_center(&self, buf: &mut Buf) {
@@ -185,7 +189,7 @@ impl Editor {
         if let Status::Message {
             ref message,
             expiry,
-        } = self.status
+        } = self._status
         {
             if expiry > Instant::now() {
                 buf.append(message);
@@ -195,9 +199,9 @@ impl Editor {
     }
 
     pub fn expired_status(&mut self) -> bool {
-        if let Status::Message { message: _, expiry } = self.status {
+        if let Status::Message { message: _, expiry } = self._status {
             if expiry <= Instant::now() {
-                self.status = Status::None;
+                self._status = Status::None;
                 return true;
             }
         }
@@ -319,7 +323,7 @@ impl Editor {
         }
         self.clamp_cursor();
     }
-    pub fn open(&mut self, filename: String) -> io::Result<()> {
+    pub fn open(&mut self, filename: String) -> Result<()> {
         self.rows.truncate(0);
         let lines = read_lines(&filename)?;
         for line in lines {
@@ -356,7 +360,11 @@ impl Editor {
         }
         buf
     }
-    pub fn save_file(&mut self) -> io::Result<()> {
+    pub fn set_status(&mut self, status: Status) {
+        self._status = status;
+        log::trace!("Status Updated: {:?}", self._status);
+    }
+    pub fn save_file(&mut self) -> Result<Status> {
         // TODO: write + rename.
         let save_buffer = self.get_save_buffer();
         if let Some(filename) = &self.filename {
@@ -366,12 +374,13 @@ impl Editor {
             let bytes = save_buffer.to_bytes();
             f.write_all(bytes)?;
             f.flush()?;
-            self.status = Status::Message {
+            Ok(Status::Message {
                 message: format!("{} saved [{}b]!", filename, bytes.len()),
                 expiry: Instant::now() + Duration::from_secs(2),
-            };
+            })
+        } else {
+            Err(Error::new("no filename specified!"))
         }
-        Ok(())
     }
 }
 fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>
