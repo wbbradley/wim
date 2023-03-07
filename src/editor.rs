@@ -1,12 +1,12 @@
-use crate::buf::{safe_byte_slice, Buf, ToBufBytes};
+use crate::buf::{safe_byte_slice, Buf, ToBufBytes, BLANKS};
 use crate::doc::Doc;
 use crate::error::{Error, Result};
+use crate::keygen::KeyGenerator;
 use crate::noun::Noun;
 use crate::read::{read_u8, Key};
 use crate::termios::Termios;
 use crate::types::{Coord, Pos, Rect, RelCoord, SafeCoordCast, Size};
 use crate::utils::put;
-use crate::VERSION;
 use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io::{Seek, SeekFrom, Write};
@@ -110,12 +110,16 @@ pub struct CommandCenter {
     render_cursor: Coord,
     scroll_offset: Coord,
     text: String,
+    frame: Rect,
 }
-impl Renderable for CommandCenter {
-    type Cache = Buf;
-    fn draw_renderable<'a>(&self, buf: &'a mut Self::Cache, frame: Rect) -> &'a Buf {
-        buf.truncate();
-        buf.reserve(frame.area() * 4);
+
+impl View for CommandCenter {
+    fn layout(&mut self, frame: Rect) {
+        self.frame = frame;
+    }
+
+    fn display(&self, buf: &mut Buf) {
+        buf_fmt!(buf, "\x1b[{};{}H", self.frame.y + 1, self.frame.x + 1);
         buf.append("\x1b[7m");
         let mut stackbuf = [0u8; 1024];
         let mut formatted: &str = stackfmt::fmt_truncate(
@@ -130,7 +134,7 @@ impl Renderable for CommandCenter {
             ),
         );
         buf.append(formatted);
-        let mut remaining_len = frame.width - formatted.len().as_coord();
+        let mut remaining_len = self.frame.width - formatted.len().as_coord();
         /*
         formatted = stackfmt::fmt_truncate(
             &mut stackbuf,
@@ -143,40 +147,98 @@ impl Renderable for CommandCenter {
         );
         remaining_len -= formatted.len().as_coord();
         */
-        for _ in 0..remaining_len {
-            buf.append(" ");
-        }
+        buf.append(&BLANKS[..remaining_len]);
         buf.append(formatted);
-        buf.append("\x1b[m\r\n");
+        buf.append("\x1b[m");
+        buf_fmt!(buf, "\x1b[{};{}H", self.frame.y + 2, self.frame.x + 1);
         // TODO: render prompt...
-        buf.append("\x1b[K");
-        buf
+        buf.append(&BLANKS[..self.frame.width]);
     }
 }
 
-pub struct View {
+pub struct DocView {
     key: ViewKey,
     cursor: Pos,
     render_cursor_x: Coord,
     doc: Doc,
     scroll_offset: Pos,
+    frame: Rect,
 }
 
-impl View {
+impl DocView {
     pub fn get_view_key(&self) -> ViewKey {
         self.key.clone()
     }
 }
 
-pub trait Renderable {
-    type Cache;
-
-    /// Contract is that the cursor must be at the upper left corner of the render rect when
-    /// `draw_renderable` is called.
-    fn draw_renderable<'a>(&self, cache: &'a mut Self::Cache, screen: Rect) -> &'a Buf;
+impl View for DocView {
+    fn layout(&mut self, frame: Rect) {
+        self.frame = frame;
+    }
+    fn display(&self, buf: &mut Buf) {
+        let rows_drawn = self.draw_rows(buf, self.frame);
+        for y in rows_drawn..self.frame.height {
+            buf_fmt!(buf, "\x1b[{};{}H~", self.frame.y + y + 1, self.frame.x + 1);
+            buf.append(&BLANKS[0..self.frame.width - 1]);
+        }
+    }
 }
 
-impl InputHandler for View {
+impl DocView {
+    fn draw_rows(&self, buf: &mut Buf, frame: Rect) -> Coord {
+        let mut count = 0;
+        for (i, row) in self.doc.iter_lines().enumerate().skip(self.scroll_offset.y) {
+            if i.as_coord() - self.scroll_offset.y >= frame.height {
+                break;
+            }
+            let slice = safe_byte_slice(row.render_buf(), self.scroll_offset.x, frame.width - 1);
+            buf_fmt!(buf, "\x1b[{};{}H", frame.y + count + 1, frame.x + 1);
+            buf.append_with_max_len(slice, frame.width - 1);
+            buf.append("..todo..clear");
+            count += 1;
+        }
+        for y in self.doc.line_count()..frame.height {
+            buf_fmt!(buf, "\x1b[{};{}H", frame.y + count + 1, frame.x + 1);
+            buf.append("~");
+            buf.append(&BLANKS[0..frame.width - 1]);
+            count += 1;
+        }
+        count
+    }
+}
+
+pub trait View {
+    fn layout(&mut self, frame: Rect);
+    fn display(&self, buf: &mut Buf);
+}
+
+pub struct VStack {
+    views: Vec<Rc<dyn View>>,
+}
+
+impl View for VStack {
+    fn layout(&mut self, frame: Rect) {
+        let per_view_height = std::cmp::max(1, frame.height / self.views.len());
+        let mut remaining = frame.height;
+        let mut used = 0;
+        for view in self.views {
+            if remaining < per_view_height {
+                break;
+            }
+            view.layout(Rect {
+                x: frame.x,
+                y: used,
+                width: frame.width,
+                height: per_view_height,
+            });
+        }
+    }
+    fn display(&self, buf: &mut Buf) {
+        self.views.iter().map(|view| view.display(buf));
+    }
+}
+
+impl InputHandler for DocView {
     fn dispatch(&mut self, key: Key) -> Result<()> {
         Ok(())
     }
@@ -185,39 +247,28 @@ impl InputHandler for View {
 pub trait InputHandler {
     fn dispatch(&mut self, key: Key) -> Result<()>;
 }
+
 pub type ViewKey = String;
 #[allow(dead_code)]
 pub struct Editor {
     termios: Termios,
     pub screen_size: Size,
     last_key: Key,
-    views: HashMap<ViewKey, Rc<View>>,
+    views: HashMap<ViewKey, Rc<DocView>>,
     view_key_gen: ViewKeyGenerator,
-    focused_view: Rc<View>,
+    focused_view: Rc<DocView>,
+    root_view: Rc<dyn View>,
     command_center: Rc<CommandCenter>,
 }
 
-fn build_view_map(views: Vec<Rc<View>>) -> HashMap<ViewKey, Rc<View>> {
+fn build_view_map(views: Vec<Rc<DocView>>) -> HashMap<ViewKey, Rc<DocView>> {
     views
         .iter()
         .map(|view| (view.get_view_key(), view.clone()))
         .collect()
 }
 
-pub struct ViewKeyGenerator {
-    iter: std::ops::RangeFrom<i64>,
-}
-
-impl ViewKeyGenerator {
-    pub fn new() -> Self {
-        Self {
-            iter: (0 as i64..).into_iter(),
-        }
-    }
-    pub fn next(&mut self) -> ViewKey {
-        format!("{}", self.iter.next().unwrap())
-    }
-}
+type ViewKeyGenerator = KeyGenerator;
 
 impl Editor {
     pub fn welcome_status() -> Status {
@@ -229,12 +280,13 @@ impl Editor {
     pub fn new() -> Self {
         let mut view_key_gen = ViewKeyGenerator::new();
 
-        let views = vec![Rc::new(View {
-            key: view_key_gen.next(),
+        let views = vec![Rc::new(DocView {
+            key: view_key_gen.next_key_string(),
             cursor: Default::default(),
             render_cursor_x: 0,
             doc: Doc::empty(),
             scroll_offset: Default::default(),
+            frame: Rect::zero(),
         })];
         let focused_view = views[0].clone();
         let mut editor = Self {
@@ -244,6 +296,7 @@ impl Editor {
             views: build_view_map(views),
             view_key_gen,
             focused_view,
+            root_view: focused_view,
             command_center: Rc::new(CommandCenter {
                 current_filename: None,
                 current_view_key: focused_view.get_view_key(),
@@ -272,14 +325,17 @@ impl Editor {
     }
     */
 
-    pub fn refresh_screen(&self, buf: &mut Buf) {
+    pub fn refresh_screen(&mut self, buf: &mut Buf) {
+        let frame = Rect {
+            x: 0,
+            y: 0,
+            width: self.screen_size.width,
+            height: self.screen_size.height,
+        };
         buf.truncate();
-        buf.append("\x1b[?25l\x1b[H");
-        let rows_drawn = self.draw_rows(buf);
-        for _ in rows_drawn..self.screen_size.height - self.control_center.height {
-            buf.append("~\x1b[K\r\n");
-        }
-        self.draw_control_center(buf);
+        // Hide the cursor.
+        buf.append("\x1b[?25l");
+        self.root_view.rasterize(buf, frame);
 
         buf_fmt!(
             buf,
@@ -291,50 +347,6 @@ impl Editor {
         buf.write_to(libc::STDIN_FILENO);
     }
 
-    fn draw_rows(&self, buf: &mut Buf) -> Coord {
-        let screen_height = self.screen_size.height - self.control_center.height;
-        let mut count = 0;
-        for (i, row) in self.doc.iter_lines().enumerate().skip(self.scroll_offset.y) {
-            if i.as_coord() - self.scroll_offset.y >= screen_height {
-                break;
-            }
-            let slice = safe_byte_slice(
-                row.render_buf(),
-                self.scroll_offset.x,
-                self.screen_size.width - 1,
-            );
-            buf.append_with_max_len(slice, self.screen_size.width - 1);
-            buf.append("\x1b[K\r\n");
-            count += 1;
-        }
-        for y in self.doc.line_count()..screen_height {
-            if self.doc.is_empty() && y == self.screen_size.height / 3 {
-                let welcome = format!("Wim editor -- version {}", VERSION);
-                let mut welcome_len = welcome.len().as_coord();
-                if welcome_len > self.screen_size.width {
-                    welcome_len = self.screen_size.width;
-                }
-                let mut padding = (self.screen_size.width - welcome_len) / 2;
-                if padding != 0 {
-                    buf.append("~");
-                    padding -= 1;
-                }
-                for _ in 0..padding {
-                    buf.append(" ");
-                }
-                buf.append_with_max_len(&welcome, welcome_len);
-            } else {
-                buf.append("~");
-            }
-
-            buf.append("\x1b[K");
-            if y < screen_height - 1 {
-                buf.append("\r\n");
-                count += 1;
-            }
-        }
-        count
-    }
     pub fn scroll(&mut self) {
         if self.cursor.y < self.scroll_offset.y {
             self.scroll_offset.y = self.cursor.y;

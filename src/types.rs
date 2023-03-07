@@ -62,6 +62,21 @@ pub struct Pos {
     pub y: Coord,
 }
 
+impl Pos {
+    pub fn clamp(&self, r: &Rect) -> Self {
+        Self {
+            x: self.x.clamp(r.x, r.x + r.width),
+            y: self.y.clamp(r.y, r.y + r.height),
+        }
+    }
+}
+
+impl From<&Pos> for Pos {
+    fn from(v: &Pos) -> Self {
+        v.clone()
+    }
+}
+
 impl From<Pos> for Size {
     fn from(coord: Pos) -> Self {
         Self {
@@ -81,7 +96,22 @@ pub struct Rect {
 }
 
 impl Rect {
-    pub fn area(&self) -> Coord {
+    pub fn zero() -> Self {
+        std::mem::zeroed()
+    }
+    pub fn area(self) -> Coord {
         self.width * self.height
+    }
+    fn mid_x(self) -> Coord {
+        ((self.x * 2) + self.width) / 2
+    }
+    fn mid_y(self) -> Coord {
+        ((self.y * 2) + self.height) / 2
+    }
+    fn max_x(self) -> Coord {
+        self.x + self.width
+    }
+    fn max_y(self) -> Coord {
+        self.y + self.height
     }
 }

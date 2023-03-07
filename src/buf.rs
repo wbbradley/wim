@@ -104,15 +104,22 @@ impl Buf {
         }
         Self { b }
     }
+
     pub fn len(&self) -> usize {
         self.b.len()
     }
 }
 
-pub static TAB: &[u8] = &[b' '; 32];
+pub static BLANKS: &[u8] = &[b' '; 1024 * 2];
 pub static TAB_STOP_SIZE: usize = 4;
 
 impl ToBufBytes for Buf {
+    fn to_bytes(&self) -> &[u8] {
+        &self.b
+    }
+}
+
+impl ToBufBytes for &Buf {
     fn to_bytes(&self) -> &[u8] {
         &self.b
     }

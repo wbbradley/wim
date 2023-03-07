@@ -1,4 +1,5 @@
 use crate::buf::Buf;
+
 use crate::editor::{Editor, Status};
 use crate::noun::Noun;
 use crate::read::{read_key, Key};
@@ -13,7 +14,9 @@ mod doc;
 mod editor;
 mod error;
 mod files;
+mod keygen;
 mod noun;
+mod raster;
 mod read;
 mod row;
 mod termios;
