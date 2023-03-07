@@ -154,6 +154,12 @@ impl View for CommandCenter {
         // TODO: render prompt...
         buf.append(&BLANKS[..self.frame.width]);
     }
+    fn get_cursor_pos(&self) -> Option<Pos> {
+        Some(Pos {
+            x: self.frame.x + 1,
+            y: self.frame.y + 2,
+        })
+    }
 }
 
 pub struct DocView {
@@ -169,6 +175,103 @@ impl DocView {
     pub fn get_view_key(&self) -> ViewKey {
         self.key.clone()
     }
+    pub fn scroll(&mut self) {
+        if self.cursor.y < self.scroll_offset.y {
+            self.scroll_offset.y = self.cursor.y;
+        }
+        if self.cursor.y >= self.scroll_offset.y + self.frame.height {
+            self.scroll_offset.y = self.cursor.y - self.frame.height + 1;
+        }
+        if self.render_cursor_x < self.scroll_offset.x {
+            self.scroll_offset.x = self.render_cursor_x;
+        }
+        if self.render_cursor_x >= self.scroll_offset.x + self.frame.width {
+            self.scroll_offset.x = self.render_cursor_x - self.frame.width + 1;
+        }
+    }
+    pub fn move_cursor(&mut self, x: RelCoord, y: RelCoord) {
+        self.cursor.y = (self.cursor.y as RelCoord + y).clamp(0, RelCoord::MAX) as Coord;
+        self.cursor.x = (self.cursor.x as RelCoord + x).clamp(0, RelCoord::MAX) as Coord;
+        self.clamp_cursor();
+    }
+
+    pub fn last_valid_row(&self) -> Coord {
+        self.doc.line_count().as_coord()
+    }
+    fn clamp_cursor(&mut self) {
+        self.cursor.y = self.cursor.y.clamp(0, self.last_valid_row());
+        if let Some(row) = self.doc.get_line_buf(self.cursor.y) {
+            self.cursor.x = self.cursor.x.clamp(0, row.len());
+            self.render_cursor_x = row.cursor_to_render_col(self.cursor.x);
+        } else {
+            self.cursor.x = 0;
+            self.render_cursor_x = 0;
+        };
+    }
+    pub fn jump_cursor(&mut self, x: Option<Coord>, y: Option<Coord>) {
+        if let Some(y) = y {
+            self.cursor.y = y;
+        }
+        if let Some(x) = x {
+            self.cursor.x = x;
+        }
+        self.clamp_cursor();
+    }
+    pub fn open(&mut self, filename: String) -> Result<()> {
+        self.doc = Doc::open(filename)?;
+        Ok(())
+    }
+    pub fn save_file(&mut self) -> Result<Status> {
+        // TODO: write + rename.
+        let save_buffer = self.get_save_buffer();
+        if let Some(filename) = self.doc.get_filename() {
+            let mut f = OpenOptions::new()
+                .write(true)
+                .create(true)
+                .open(&filename)?;
+            f.set_len(0)?;
+            f.seek(SeekFrom::Start(0))?;
+            let bytes = save_buffer.to_bytes();
+            f.write_all(bytes)?;
+            f.flush()?;
+            Ok(Status::Message {
+                message: format!("{} saved [{}b]!", filename, bytes.len()),
+                expiry: Instant::now() + Duration::from_secs(2),
+            })
+        } else {
+            Err(Error::new("no filename specified!"))
+        }
+    }
+    pub fn insert_newline_above(&mut self) {
+        self.doc.insert_newline(self.cursor.y);
+    }
+    pub fn insert_newline_below(&mut self) {
+        self.doc.insert_newline(self.cursor.y + 1);
+        self.move_cursor(0, 1);
+    }
+    pub fn insert_char(&mut self, ch: char) {
+        self.doc.insert_char(self.cursor, ch);
+        self.move_cursor(1, 0);
+    }
+    pub fn delete_forwards(&mut self, noun: Noun) {
+        let (cx, cy) = self.doc.delete_forwards(self.cursor, noun);
+        self.jump_cursor(cx, cy);
+    }
+    pub fn delete_backwards(&mut self, noun: Noun) {
+        let (cx, cy) = self.doc.delete_backwards(self.cursor, noun);
+        self.jump_cursor(cx, cy);
+    }
+    pub fn join_line(&mut self) {
+        self.doc.join_lines(self.cursor.y..self.cursor.y + 1);
+    }
+    pub fn get_save_buffer(&self) -> Buf {
+        let mut buf = Buf::default();
+        for row in self.doc.iter_lines() {
+            buf.append(row);
+            buf.append("\n");
+        }
+        buf
+    }
 }
 
 impl View for DocView {
@@ -181,6 +284,12 @@ impl View for DocView {
             buf_fmt!(buf, "\x1b[{};{}H~", self.frame.y + y + 1, self.frame.x + 1);
             buf.append(&BLANKS[0..self.frame.width - 1]);
         }
+    }
+    fn get_cursor_pos(&self) -> Option<Pos> {
+        Some(Pos {
+            x: self.frame.x + self.render_cursor_x - self.scroll_offset.x + 1,
+            y: self.frame.y + self.cursor.y - self.scroll_offset.y + 1,
+        })
     }
 }
 
@@ -210,6 +319,7 @@ impl DocView {
 pub trait View {
     fn layout(&mut self, frame: Rect);
     fn display(&self, buf: &mut Buf);
+    fn get_cursor_pos(&self) -> Option<Pos>;
 }
 
 pub struct VStack {
@@ -235,6 +345,10 @@ impl View for VStack {
     }
     fn display(&self, buf: &mut Buf) {
         self.views.iter().map(|view| view.display(buf));
+    }
+    fn get_cursor_pos(&self) -> Option<Pos> {
+        assert!(false, "VStack should not be focused!");
+        None
     }
 }
 
@@ -304,6 +418,7 @@ impl Editor {
                 render_cursor: 0,
                 scroll_offset: 0,
                 text: String::new(),
+                frame: Rect::zero(),
             }),
         };
         editor
@@ -326,135 +441,37 @@ impl Editor {
     */
 
     pub fn refresh_screen(&mut self, buf: &mut Buf) {
-        let frame = Rect {
+        self.root_view.layout(Rect {
             x: 0,
             y: 0,
             width: self.screen_size.width,
             height: self.screen_size.height,
-        };
+        });
+
         buf.truncate();
         // Hide the cursor.
         buf.append("\x1b[?25l");
-        self.root_view.rasterize(buf, frame);
 
-        buf_fmt!(
-            buf,
-            "\x1b[{};{}H",
-            self.cursor.y - self.scroll_offset.y + 1,
-            self.render_cursor_x - self.scroll_offset.x + 1
-        );
+        if let Some(cursor_pos) = self.focused_view.get_cursor_pos() {
+            buf_fmt!(buf, "\x1b[{};{}H", cursor_pos.y, cursor_pos.x);
+        } else {
+            buf_fmt!(
+                buf,
+                "\x1b[{};{}H",
+                self.screen_size.height,
+                self.screen_size.width
+            );
+        }
         buf.append("\x1b[?25h");
         buf.write_to(libc::STDIN_FILENO);
-    }
-
-    pub fn scroll(&mut self) {
-        if self.cursor.y < self.scroll_offset.y {
-            self.scroll_offset.y = self.cursor.y;
-        }
-        if self.cursor.y
-            >= self.scroll_offset.y + self.screen_size.height - self.control_center.height
-        {
-            self.scroll_offset.y =
-                self.cursor.y - (self.screen_size.height - self.control_center.height) + 1;
-        }
-        if self.render_cursor_x < self.scroll_offset.x {
-            self.scroll_offset.x = self.render_cursor_x;
-        }
-        if self.render_cursor_x >= self.scroll_offset.x + self.screen_size.width {
-            self.scroll_offset.x = self.render_cursor_x - self.screen_size.width + 1;
-        }
     }
 
     pub fn set_last_key(&mut self, key: Key) {
         self.last_key = key;
     }
-
-    pub fn move_cursor(&mut self, x: RelCoord, y: RelCoord) {
-        self.cursor.y = (self.cursor.y as RelCoord + y).clamp(0, RelCoord::MAX) as Coord;
-        self.cursor.x = (self.cursor.x as RelCoord + x).clamp(0, RelCoord::MAX) as Coord;
-        self.clamp_cursor();
-    }
-
-    fn clamp_cursor(&mut self) {
-        self.cursor.y = self.cursor.y.clamp(0, self.last_valid_row());
-        if let Some(row) = self.doc.get_line_buf(self.cursor.y) {
-            self.cursor.x = self.cursor.x.clamp(0, row.len());
-            self.render_cursor_x = row.cursor_to_render_col(self.cursor.x);
-        } else {
-            self.cursor.x = 0;
-            self.render_cursor_x = 0;
-        };
-    }
-    pub fn jump_cursor(&mut self, x: Option<Coord>, y: Option<Coord>) {
-        if let Some(y) = y {
-            self.cursor.y = y;
-        }
-        if let Some(x) = x {
-            self.cursor.x = x;
-        }
-        self.clamp_cursor();
-    }
-    pub fn open(&mut self, filename: String) -> Result<()> {
-        self.doc = Doc::open(filename)?;
-        Ok(())
-    }
-    pub fn last_valid_row(&self) -> Coord {
-        self.doc.line_count().as_coord()
-    }
-    pub fn get_save_buffer(&self) -> Buf {
-        let mut buf = Buf::default();
-        for row in self.doc.iter_lines() {
-            buf.append(row);
-            buf.append("\n");
-        }
-        buf
-    }
     pub fn set_status(&mut self, status: Status) {
         self.mode = Mode::Normal(status);
         log::trace!("Status Updated: {:?}", self.mode);
-    }
-    pub fn save_file(&mut self) -> Result<Status> {
-        // TODO: write + rename.
-        let save_buffer = self.get_save_buffer();
-        if let Some(filename) = self.doc.get_filename() {
-            let mut f = OpenOptions::new()
-                .write(true)
-                .create(true)
-                .open(&filename)?;
-            f.set_len(0)?;
-            f.seek(SeekFrom::Start(0))?;
-            let bytes = save_buffer.to_bytes();
-            f.write_all(bytes)?;
-            f.flush()?;
-            Ok(Status::Message {
-                message: format!("{} saved [{}b]!", filename, bytes.len()),
-                expiry: Instant::now() + Duration::from_secs(2),
-            })
-        } else {
-            Err(Error::new("no filename specified!"))
-        }
-    }
-    pub fn insert_newline_above(&mut self) {
-        self.doc.insert_newline(self.cursor.y);
-    }
-    pub fn insert_newline_below(&mut self) {
-        self.doc.insert_newline(self.cursor.y + 1);
-        self.move_cursor(0, 1);
-    }
-    pub fn insert_char(&mut self, ch: char) {
-        self.doc.insert_char(self.cursor, ch);
-        self.move_cursor(1, 0);
-    }
-    pub fn delete_forwards(&mut self, noun: Noun) {
-        let (cx, cy) = self.doc.delete_forwards(self.cursor, noun);
-        self.jump_cursor(cx, cy);
-    }
-    pub fn delete_backwards(&mut self, noun: Noun) {
-        let (cx, cy) = self.doc.delete_backwards(self.cursor, noun);
-        self.jump_cursor(cx, cy);
-    }
-    pub fn join_line(&mut self) {
-        self.doc.join_lines(self.cursor.y..self.cursor.y + 1);
     }
 
     pub fn enter_command_mode(&mut self) {
