@@ -1,26 +1,17 @@
-use crate::buf::{Buf, BLANKS};
+use crate::buf::{buf_fmt, Buf, BLANKS};
 use crate::command::Command;
-use crate::doc::Doc;
+use crate::dk::DK;
 use crate::docview::DocView;
 use crate::error::{Error, Result};
 use crate::read::{read_key, Key};
 use crate::status::Status;
 use crate::termios::Termios;
 use crate::types::{Coord, Pos, Rect, SafeCoordCast};
-use crate::view::{View, ViewKey, ViewKeyGenerator, DK};
+use crate::view::{View, ViewKey, ViewKeyGenerator};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
-
-macro_rules! buf_fmt {
-    ($buf:expr, $($args:expr),+) => {{
-        let mut stackbuf = [0u8; 1024];
-        let formatted: &str = stackfmt::fmt_truncate(&mut stackbuf, format_args!($($args),+));
-        $buf.append(formatted);
-    }};
-}
-pub(crate) use buf_fmt;
 
 #[derive(Debug)]
 pub struct CommandLine {}
@@ -145,7 +136,7 @@ pub struct Editor {
     view_key_gen: ViewKeyGenerator,
     focused_view: Rc<RefCell<dyn View>>,
     root_view: Rc<RefCell<dyn View>>,
-    command_center: Rc<RefCell<CommandCenter>>,
+    command_line: Rc<RefCell<CommandCenter>>,
     frame: Rect,
 }
 
@@ -212,14 +203,9 @@ impl Editor {
     pub fn new(termios: Termios) -> Self {
         let mut view_key_gen = ViewKeyGenerator::new();
 
-        let views = vec![Rc::new(RefCell::new(DocView {
-            key: view_key_gen.next_key_string(),
-            cursor: Default::default(),
-            render_cursor_x: 0,
-            doc: Doc::empty(),
-            scroll_offset: Default::default(),
-            frame: Rect::zero(),
-        }))];
+        let views = vec![Rc::new(RefCell::new(DocView::new(
+            view_key_gen.next_key_string(),
+        )))];
         let focused_view = views[0].clone();
         Self {
             termios,
@@ -229,7 +215,7 @@ impl Editor {
             view_key_gen,
             focused_view: focused_view.clone(),
             root_view: focused_view.clone(),
-            command_center: Rc::new(RefCell::new(CommandCenter {
+            command_line: Rc::new(RefCell::new(CommandCenter {
                 current_filename: None,
                 current_view_key: focused_view.clone().borrow().get_view_key(),
                 cursor: 0,
@@ -252,11 +238,11 @@ impl Editor {
 
     pub fn set_status(&mut self, status: Status) {
         log::trace!("Status Updated: {:?}", &status);
-        self.command_center.borrow_mut().set_status(status);
+        self.command_line.borrow_mut().set_status(status);
     }
 
     pub fn enter_command_mode(&mut self) {
-        self.focused_view = self.command_center.clone();
+        self.focused_view = self.command_line.clone();
     }
 }
 

@@ -135,3 +135,12 @@ where
     }
     &bytes[start..std::cmp::min(bytes.len(), start + max_len)]
 }
+
+macro_rules! buf_fmt {
+    ($buf:expr, $($args:expr),+) => {{
+        let mut stackbuf = [0u8; 1024];
+        let formatted: &str = stackfmt::fmt_truncate(&mut stackbuf, format_args!($($args),+));
+        $buf.append(formatted);
+    }};
+}
+pub(crate) use buf_fmt;

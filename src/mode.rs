@@ -2,6 +2,6 @@
 #[derive(Debug)]
 pub enum Mode {
     Insert,
-    Visual { block: bool },
-    Command,
+    Visual { block_mode: bool },
+    Normal,
 }

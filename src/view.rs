@@ -1,5 +1,6 @@
 use crate::buf::Buf;
 use crate::command::Command;
+use crate::dk::DK;
 use crate::error::{Error, Result};
 use crate::keygen::KeyGenerator;
 use crate::read::Key;
@@ -27,13 +28,4 @@ pub trait View {
             key
         )))
     }
-}
-
-#[allow(dead_code)]
-pub enum DK {
-    CommandLine,
-    Expansion(Vec<Key>),
-    Err(Error),
-    CloseView,
-    NoOp,
 }

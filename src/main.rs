@@ -1,17 +1,19 @@
 use crate::buf::Buf;
 use crate::command::Command;
+use crate::dk::DK;
 use crate::editor::Editor;
 use crate::error::Result;
 use crate::read::{read_key, Key};
 use crate::termios::Termios;
 use crate::types::Rect;
 use crate::utils::put;
-use crate::view::{View, DK};
+use crate::view::View;
 use log::LevelFilter;
 use std::collections::VecDeque;
 use std::env;
 mod buf;
 mod command;
+mod dk;
 mod doc;
 mod docview;
 mod editor;
@@ -65,7 +67,7 @@ fn main() -> Result<()> {
             }
         };
         match edit.dispatch_key(key) {
-            DK::Mapping(next_keys) => {
+            DK::Expansion(next_keys) => {
                 next_keys.iter().rev().for_each(|&key| keys.push_front(key));
                 should_refresh = true;
             }
@@ -73,6 +75,15 @@ fn main() -> Result<()> {
             DK::CloseView => {
                 break;
             }
+            DK::Command(command) => {
+                edit.dispatch_command(command)?;
+                should_refresh = true;
+            }
+            DK::CommandLine => {
+                edit.enter_command_mode();
+                should_refresh = true;
+            }
+            DK::Noop => {}
         };
     }
     put!("\x1b[2J");
