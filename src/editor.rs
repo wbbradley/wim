@@ -1,9 +1,11 @@
 use crate::buf::{safe_byte_slice, Buf, ToBufBytes, BLANKS};
+use crate::command::Command;
 use crate::doc::Doc;
 use crate::error::{Error, Result};
 use crate::keygen::KeyGenerator;
 use crate::noun::Noun;
 use crate::read::{read_u8, Key};
+use crate::status::Status;
 use crate::termios::Termios;
 use crate::types::{Coord, Pos, Rect, RelCoord, SafeCoordCast, Size};
 use crate::utils::put;
@@ -12,6 +14,8 @@ use std::fs::OpenOptions;
 use std::io::{Seek, SeekFrom, Write};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
+
+type ViewKeyGenerator = KeyGenerator;
 
 fn get_cursor_position() -> Option<Pos> {
     let mut buf = [0u8; 32];
@@ -89,19 +93,7 @@ macro_rules! buf_fmt {
 pub(crate) use buf_fmt;
 
 #[derive(Debug)]
-pub enum Status {
-    Message { message: String, expiry: Instant },
-    None,
-}
-
-#[derive(Debug)]
 pub struct CommandLine {}
-
-#[derive(Debug)]
-pub enum Mode {
-    Normal(Status),
-    Command(CommandLine),
-}
 
 pub struct CommandCenter {
     current_filename: Option<String>,
@@ -111,6 +103,14 @@ pub struct CommandCenter {
     scroll_offset: Coord,
     text: String,
     frame: Rect,
+    status: Status,
+}
+
+impl CommandCenter {
+    pub fn set_status(&mut self, status: Status) {
+        log::trace!("Status Updated: {:?}", &status);
+        self.status = status;
+    }
 }
 
 impl View for CommandCenter {
@@ -277,6 +277,7 @@ impl DocView {
 impl View for DocView {
     fn layout(&mut self, frame: Rect) {
         self.frame = frame;
+        self.scroll();
     }
     fn display(&self, buf: &mut Buf) {
         let rows_drawn = self.draw_rows(buf, self.frame);
@@ -320,6 +321,13 @@ pub trait View {
     fn layout(&mut self, frame: Rect);
     fn display(&self, buf: &mut Buf);
     fn get_cursor_pos(&self) -> Option<Pos>;
+    fn execute_command(&mut self, command: Command) -> Result<Status> {
+        Err(Error::not_impl(format!(
+            "{} does not yet implement {:?}",
+            std::any::type_name::<Self>(),
+            command
+        )))
+    }
 }
 
 pub struct VStack {
@@ -350,6 +358,9 @@ impl View for VStack {
         assert!(false, "VStack should not be focused!");
         None
     }
+    fn execute_command(&mut self, command: Command) -> Result<Status> {
+        Err(Error::new("Command {:?} not implemented for VStack"))
+    }
 }
 
 impl InputHandler for DocView {
@@ -370,7 +381,7 @@ pub struct Editor {
     last_key: Key,
     views: HashMap<ViewKey, Rc<DocView>>,
     view_key_gen: ViewKeyGenerator,
-    focused_view: Rc<DocView>,
+    focused_view: Rc<dyn View>,
     root_view: Rc<dyn View>,
     command_center: Rc<CommandCenter>,
 }
@@ -382,9 +393,12 @@ fn build_view_map(views: Vec<Rc<DocView>>) -> HashMap<ViewKey, Rc<DocView>> {
         .collect()
 }
 
-type ViewKeyGenerator = KeyGenerator;
-
 impl Editor {
+    pub fn read_key(&mut self) -> Option<Key> {
+        let key = read_key();
+        self.set_last_key(key);
+        key
+    }
     pub fn welcome_status() -> Status {
         Status::Message {
             message: String::from("<C-w> to quit..."),
@@ -419,9 +433,14 @@ impl Editor {
                 scroll_offset: 0,
                 text: String::new(),
                 frame: Rect::zero(),
+                status: Status::None,
             }),
         };
         editor
+    }
+
+    pub fn dispatch_command(&mut self, command: Command) -> Result<Status> {
+        self.root_view.execute_command(command)
     }
 
     /*
@@ -469,18 +488,14 @@ impl Editor {
     pub fn set_last_key(&mut self, key: Key) {
         self.last_key = key;
     }
+
     pub fn set_status(&mut self, status: Status) {
-        self.mode = Mode::Normal(status);
-        log::trace!("Status Updated: {:?}", self.mode);
+        log::trace!("Status Updated: {:?}", &status);
+        self.command_center.set_status(status);
     }
 
     pub fn enter_command_mode(&mut self) {
-        match self.mode {
-            Mode::Command(_) => (),
-            Mode::Normal(_) => {
-                self.mode = Mode::Command(CommandLine {});
-            }
-        }
+        self.focused_view = self.command_center.clone();
     }
 }
 

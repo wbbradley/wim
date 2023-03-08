@@ -96,7 +96,7 @@ impl Buf {
             b.reserve(bytes.len() + tabs * (TAB_STOP_SIZE - 1));
             for &ch in bytes.to_bytes() {
                 if ch == b'\t' {
-                    b.extend_from_slice(&TAB[..TAB_STOP_SIZE]);
+                    b.extend_from_slice(&BLANKS[..TAB_STOP_SIZE]);
                 } else {
                     b.push(ch);
                 }
