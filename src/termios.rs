@@ -1,4 +1,6 @@
-use crate::utils::die;
+use crate::read::read_u8;
+use crate::types::{Coord, Pos, SafeCoordCast, Size};
+use crate::utils::{die, put};
 
 pub struct Termios {
     pub orig: libc::termios,
@@ -61,6 +63,72 @@ impl Drop for Termios {
         } == -1
         {
             die!("Termios::drop");
+        }
+    }
+}
+
+fn get_cursor_position() -> Option<Pos> {
+    let mut buf = [0u8; 32];
+    let mut i: usize = 0;
+
+    // Write the "get position" command.
+    if put!("\x1b[6n") != 4 {
+        return None;
+    }
+    loop {
+        if i >= 32 - 1 {
+            break;
+        }
+        if let Some(ch) = read_u8() {
+            buf[i] = ch;
+            if ch == b'R' {
+                break;
+            }
+            i += 1;
+        } else {
+            return None;
+        }
+    }
+    buf[i] = 0;
+    if buf[0] != 0x1b || buf[1] != b'[' {
+        return None;
+    }
+    let buf = &buf[2..i];
+    let semicolon_position = buf.iter().position(|x| *x == b';').unwrap();
+    let y: Coord = lexical::parse(&buf[0..semicolon_position]).unwrap();
+    let x: Coord = lexical::parse(&buf[semicolon_position + 1..]).unwrap();
+    Some(Pos { y, x })
+}
+
+pub fn get_window_size() -> Size {
+    let mut ws: libc::winsize = unsafe { std::mem::zeroed() };
+    if unsafe {
+        libc::ioctl(
+            libc::STDOUT_FILENO,
+            libc::TIOCGWINSZ,
+            &mut ws as *mut libc::winsize as *mut libc::c_void,
+        )
+    } == -1
+        || ws.ws_col == 0
+    {
+        if put!("\x1b[999C\x1b[999B") != 12 {
+            read_u8();
+            Size {
+                width: 80,
+                height: 24,
+            }
+        } else if let Some(coord) = get_cursor_position() {
+            coord.into()
+        } else {
+            Size {
+                width: 80,
+                height: 24,
+            }
+        }
+    } else {
+        Size {
+            width: ws.ws_col.as_coord(),
+            height: ws.ws_row.as_coord(),
         }
     }
 }

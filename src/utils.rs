@@ -24,6 +24,26 @@ pub mod errors {
     }
 }
 
+macro_rules! function {
+    () => {{
+        fn f() {}
+        fn type_name_of<T>(_: T) -> &'static str {
+            std::any::type_name::<T>()
+        }
+        let name = type_name_of(f);
+        &name[..name.len() - 3]
+    }};
+}
+pub(crate) use function;
+
+macro_rules! trace_fn {
+    ($($args:expr),+) => {{
+        log::trace!("[{} called] {}", function!(),
+            format!($($args),+));
+    }};
+}
+pub(crate) use trace_fn;
+
 macro_rules! die {
     ($message:expr) => {
         panic!("error: {}: {}", $message, $crate::utils::Errno::latest())

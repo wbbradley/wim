@@ -4,11 +4,13 @@ use crate::doc::Doc;
 use crate::error::{Error, Result};
 use crate::keygen::KeyGenerator;
 use crate::noun::Noun;
-use crate::read::{read_u8, Key};
+use crate::read::{read_key, read_u8, Key};
 use crate::status::Status;
 use crate::termios::Termios;
 use crate::types::{Coord, Pos, Rect, RelCoord, SafeCoordCast, Size};
-use crate::utils::put;
+use crate::utils::{put, trace_fn};
+use crate::view::View;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io::{Seek, SeekFrom, Write};
@@ -16,72 +18,6 @@ use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 type ViewKeyGenerator = KeyGenerator;
-
-fn get_cursor_position() -> Option<Pos> {
-    let mut buf = [0u8; 32];
-    let mut i: usize = 0;
-
-    // Write the "get position" command.
-    if put!("\x1b[6n") != 4 {
-        return None;
-    }
-    loop {
-        if i >= 32 - 1 {
-            break;
-        }
-        if let Some(ch) = read_u8() {
-            buf[i] = ch;
-            if ch == b'R' {
-                break;
-            }
-            i += 1;
-        } else {
-            return None;
-        }
-    }
-    buf[i] = 0;
-    if buf[0] != 0x1b || buf[1] != b'[' {
-        return None;
-    }
-    let buf = &buf[2..i];
-    let semicolon_position = buf.iter().position(|x| *x == b';').unwrap();
-    let y: Coord = lexical::parse(&buf[0..semicolon_position]).unwrap();
-    let x: Coord = lexical::parse(&buf[semicolon_position + 1..]).unwrap();
-    Some(Pos { y, x })
-}
-
-fn get_window_size() -> Size {
-    let mut ws: libc::winsize = unsafe { std::mem::zeroed() };
-    if unsafe {
-        libc::ioctl(
-            libc::STDOUT_FILENO,
-            libc::TIOCGWINSZ,
-            &mut ws as *mut libc::winsize as *mut libc::c_void,
-        )
-    } == -1
-        || ws.ws_col == 0
-    {
-        if put!("\x1b[999C\x1b[999B") != 12 {
-            read_u8();
-            Size {
-                width: 80,
-                height: 24,
-            }
-        } else if let Some(coord) = get_cursor_position() {
-            coord.into()
-        } else {
-            Size {
-                width: 80,
-                height: 24,
-            }
-        }
-    } else {
-        Size {
-            width: ws.ws_col.as_coord(),
-            height: ws.ws_row.as_coord(),
-        }
-    }
-}
 
 macro_rules! buf_fmt {
     ($buf:expr, $($args:expr),+) => {{
@@ -122,7 +58,7 @@ impl View for CommandCenter {
         buf_fmt!(buf, "\x1b[{};{}H", self.frame.y + 1, self.frame.x + 1);
         buf.append("\x1b[7m");
         let mut stackbuf = [0u8; 1024];
-        let mut formatted: &str = stackfmt::fmt_truncate(
+        let formatted: &str = stackfmt::fmt_truncate(
             &mut stackbuf,
             format_args!(
                 "{}",
@@ -134,7 +70,7 @@ impl View for CommandCenter {
             ),
         );
         buf.append(formatted);
-        let mut remaining_len = self.frame.width - formatted.len().as_coord();
+        let remaining_len = self.frame.width - formatted.len().as_coord();
         /*
         formatted = stackfmt::fmt_truncate(
             &mut stackbuf,
@@ -307,7 +243,7 @@ impl DocView {
             buf.append("..todo..clear");
             count += 1;
         }
-        for y in self.doc.line_count()..frame.height {
+        for _ in self.doc.line_count()..frame.height {
             buf_fmt!(buf, "\x1b[{};{}H", frame.y + count + 1, frame.x + 1);
             buf.append("~");
             buf.append(&BLANKS[0..frame.width - 1]);
@@ -317,10 +253,93 @@ impl DocView {
     }
 }
 
-pub trait View {
-    fn layout(&mut self, frame: Rect);
-    fn display(&self, buf: &mut Buf);
-    fn get_cursor_pos(&self) -> Option<Pos>;
+pub struct VStack {
+    views: Vec<Rc<RefCell<dyn View>>>,
+}
+
+impl View for VStack {
+    fn layout(&mut self, frame: Rect) {
+        let expected_per_view_height = std::cmp::max(1, frame.height / self.views.len());
+        let mut used = 0;
+        for view in self.views.iter() {
+            if frame.height - used < expected_per_view_height {
+                break;
+            }
+            let view_height = if used + expected_per_view_height * 2 > frame.height {
+                frame.height - used
+            } else {
+                expected_per_view_height
+            };
+
+            view.borrow_mut().layout(Rect {
+                x: frame.x,
+                y: used,
+                width: frame.width,
+                height: view_height,
+            });
+            used += view_height;
+        }
+    }
+    fn display(&self, buf: &mut Buf) {
+        self.views.iter().map(|view| view.borrow().display(buf));
+    }
+    fn get_cursor_pos(&self) -> Option<Pos> {
+        assert!(false, "VStack should not be focused!");
+        None
+    }
+    fn execute_command(&mut self, command: Command) -> Result<Status> {
+        Err(Error::new(format!(
+            "Command {:?} not implemented for VStack",
+            command
+        )))
+    }
+}
+
+pub trait InputHandler {
+    fn dispatch_key(&mut self, key: Key) -> Result<Vec<Key>>;
+}
+
+pub type ViewKey = String;
+#[allow(dead_code)]
+pub struct Editor {
+    termios: Termios,
+    last_key: Option<Key>,
+    views: HashMap<ViewKey, Rc<RefCell<DocView>>>,
+    view_key_gen: ViewKeyGenerator,
+    focused_view: Rc<RefCell<dyn View>>,
+    root_view: Rc<RefCell<dyn View>>,
+    command_center: Rc<RefCell<CommandCenter>>,
+    frame: Rect,
+}
+
+impl View for Editor {
+    fn layout(&mut self, frame: Rect) {
+        self.frame = frame;
+        self.root_view.borrow_mut().layout(Rect {
+            x: 0,
+            y: 0,
+            width: frame.width,
+            height: frame.height,
+        });
+    }
+    fn display(&self, buf: &mut Buf) {
+        buf.truncate();
+        // Hide the cursor.
+        buf.append("\x1b[?25l");
+
+        if let Some(cursor_pos) = self.focused_view.borrow().get_cursor_pos() {
+            buf_fmt!(buf, "\x1b[{};{}H", cursor_pos.y, cursor_pos.x);
+        } else {
+            buf_fmt!(buf, "\x1b[{};{}H", self.frame.height, self.frame.width);
+        }
+        buf.append("\x1b[?25h");
+        buf.write_to(libc::STDIN_FILENO);
+    }
+
+    fn get_cursor_pos(&self) -> Option<Pos> {
+        assert!(false);
+        None
+    }
     fn execute_command(&mut self, command: Command) -> Result<Status> {
         Err(Error::not_impl(format!(
             "{} does not yet implement {:?}",
@@ -328,68 +347,19 @@ pub trait View {
             command
         )))
     }
-}
-
-pub struct VStack {
-    views: Vec<Rc<dyn View>>,
-}
-
-impl View for VStack {
-    fn layout(&mut self, frame: Rect) {
-        let per_view_height = std::cmp::max(1, frame.height / self.views.len());
-        let mut remaining = frame.height;
-        let mut used = 0;
-        for view in self.views {
-            if remaining < per_view_height {
-                break;
-            }
-            view.layout(Rect {
-                x: frame.x,
-                y: used,
-                width: frame.width,
-                height: per_view_height,
-            });
-        }
-    }
-    fn display(&self, buf: &mut Buf) {
-        self.views.iter().map(|view| view.display(buf));
-    }
-    fn get_cursor_pos(&self) -> Option<Pos> {
-        assert!(false, "VStack should not be focused!");
-        None
-    }
-    fn execute_command(&mut self, command: Command) -> Result<Status> {
-        Err(Error::new("Command {:?} not implemented for VStack"))
+    fn dispatch_key(&mut self, key: Key) -> Result<Vec<Key>> {
+        Err(Error::new(format!(
+            "{} does not (yet?) handle dispatch_key [key={:?}]",
+            std::any::type_name::<Self>(),
+            key
+        )))
     }
 }
 
-impl InputHandler for DocView {
-    fn dispatch(&mut self, key: Key) -> Result<()> {
-        Ok(())
-    }
-}
-
-pub trait InputHandler {
-    fn dispatch(&mut self, key: Key) -> Result<()>;
-}
-
-pub type ViewKey = String;
-#[allow(dead_code)]
-pub struct Editor {
-    termios: Termios,
-    pub screen_size: Size,
-    last_key: Key,
-    views: HashMap<ViewKey, Rc<DocView>>,
-    view_key_gen: ViewKeyGenerator,
-    focused_view: Rc<dyn View>,
-    root_view: Rc<dyn View>,
-    command_center: Rc<CommandCenter>,
-}
-
-fn build_view_map(views: Vec<Rc<DocView>>) -> HashMap<ViewKey, Rc<DocView>> {
+fn build_view_map(views: Vec<Rc<RefCell<DocView>>>) -> HashMap<ViewKey, Rc<RefCell<DocView>>> {
     views
         .iter()
-        .map(|view| (view.get_view_key(), view.clone()))
+        .map(|view| (view.borrow().get_view_key(), view.clone()))
         .collect()
 }
 
@@ -408,90 +378,47 @@ impl Editor {
     pub fn new() -> Self {
         let mut view_key_gen = ViewKeyGenerator::new();
 
-        let views = vec![Rc::new(DocView {
+        let views = vec![Rc::new(RefCell::new(DocView {
             key: view_key_gen.next_key_string(),
             cursor: Default::default(),
             render_cursor_x: 0,
             doc: Doc::empty(),
             scroll_offset: Default::default(),
             frame: Rect::zero(),
-        })];
+        }))];
         let focused_view = views[0].clone();
-        let mut editor = Self {
+        Self {
             termios: Termios::enter_raw_mode(),
             screen_size: get_window_size(),
-            last_key: Key::Ascii(' '),
+            last_key: None,
             views: build_view_map(views),
             view_key_gen,
-            focused_view,
-            root_view: focused_view,
-            command_center: Rc::new(CommandCenter {
+            focused_view: focused_view.clone(),
+            root_view: focused_view.clone(),
+            command_center: Rc::new(RefCell::new(CommandCenter {
                 current_filename: None,
-                current_view_key: focused_view.get_view_key(),
+                current_view_key: focused_view.borrow().get_view_key(),
                 cursor: 0,
                 render_cursor: 0,
                 scroll_offset: 0,
                 text: String::new(),
                 frame: Rect::zero(),
                 status: Status::None,
-            }),
-        };
-        editor
+            })),
+        }
     }
 
     pub fn dispatch_command(&mut self, command: Command) -> Result<Status> {
-        self.root_view.execute_command(command)
+        self.root_view.borrow_mut().execute_command(command)
     }
 
-    /*
-    pub fn expired_status(&mut self) -> bool {
-        match self.mode {
-            Mode::Normal(Status::None) => false,
-            Mode::Normal(Status::Message { message: _, expiry }) => {
-                if expiry <= Instant::now() {
-                    self.mode = Mode::Normal(Status::None);
-                    return true;
-                }
-                false
-            }
-            Mode::Command(_) => false,
-        }
-    }
-    */
-
-    pub fn refresh_screen(&mut self, buf: &mut Buf) {
-        self.root_view.layout(Rect {
-            x: 0,
-            y: 0,
-            width: self.screen_size.width,
-            height: self.screen_size.height,
-        });
-
-        buf.truncate();
-        // Hide the cursor.
-        buf.append("\x1b[?25l");
-
-        if let Some(cursor_pos) = self.focused_view.get_cursor_pos() {
-            buf_fmt!(buf, "\x1b[{};{}H", cursor_pos.y, cursor_pos.x);
-        } else {
-            buf_fmt!(
-                buf,
-                "\x1b[{};{}H",
-                self.screen_size.height,
-                self.screen_size.width
-            );
-        }
-        buf.append("\x1b[?25h");
-        buf.write_to(libc::STDIN_FILENO);
-    }
-
-    pub fn set_last_key(&mut self, key: Key) {
+    pub fn set_last_key(&mut self, key: Option<Key>) {
         self.last_key = key;
     }
 
     pub fn set_status(&mut self, status: Status) {
         log::trace!("Status Updated: {:?}", &status);
-        self.command_center.set_status(status);
+        self.command_center.borrow_mut().set_status(status);
     }
 
     pub fn enter_command_mode(&mut self) {
