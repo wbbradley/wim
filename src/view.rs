@@ -1,9 +1,13 @@
 use crate::buf::Buf;
 use crate::command::Command;
 use crate::error::{Error, Result};
+use crate::keygen::KeyGenerator;
 use crate::read::Key;
 use crate::status::Status;
 use crate::types::{Pos, Rect};
+
+pub type ViewKey = String;
+pub type ViewKeyGenerator = KeyGenerator;
 
 pub trait View {
     fn layout(&mut self, frame: Rect);
@@ -27,7 +31,9 @@ pub trait View {
 
 #[allow(dead_code)]
 pub enum DK {
-    Mapping(Vec<Key>),
+    CommandLine,
+    Expansion(Vec<Key>),
     Err(Error),
     CloseView,
+    NoOp,
 }
