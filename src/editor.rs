@@ -4,12 +4,11 @@ use crate::doc::Doc;
 use crate::error::{Error, Result};
 use crate::keygen::KeyGenerator;
 use crate::noun::Noun;
-use crate::read::{read_key, read_u8, Key};
+use crate::read::{read_key, Key};
 use crate::status::Status;
 use crate::termios::Termios;
-use crate::types::{Coord, Pos, Rect, RelCoord, SafeCoordCast, Size};
-use crate::utils::{put, trace_fn};
-use crate::view::View;
+use crate::types::{Coord, Pos, Rect, RelCoord, SafeCoordCast};
+use crate::view::{View, DK};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fs::OpenOptions;
@@ -31,6 +30,7 @@ pub(crate) use buf_fmt;
 #[derive(Debug)]
 pub struct CommandLine {}
 
+#[allow(dead_code)]
 pub struct CommandCenter {
     current_filename: Option<String>,
     current_view_key: ViewKey,
@@ -42,6 +42,7 @@ pub struct CommandCenter {
     status: Status,
 }
 
+#[allow(dead_code)]
 impl CommandCenter {
     pub fn set_status(&mut self, status: Status) {
         log::trace!("Status Updated: {:?}", &status);
@@ -107,6 +108,7 @@ pub struct DocView {
     frame: Rect,
 }
 
+#[allow(dead_code)]
 impl DocView {
     pub fn get_view_key(&self) -> ViewKey {
         self.key.clone()
@@ -281,11 +283,12 @@ impl View for VStack {
         }
     }
     fn display(&self, buf: &mut Buf) {
-        self.views.iter().map(|view| view.borrow().display(buf));
+        self.views
+            .iter()
+            .for_each(|view| view.borrow().display(buf));
     }
     fn get_cursor_pos(&self) -> Option<Pos> {
-        assert!(false, "VStack should not be focused!");
-        None
+        panic!("VStack should not be focused!");
     }
     fn execute_command(&mut self, command: Command) -> Result<Status> {
         Err(Error::new(format!(
@@ -347,8 +350,8 @@ impl View for Editor {
             command
         )))
     }
-    fn dispatch_key(&mut self, key: Key) -> Result<Vec<Key>> {
-        Err(Error::new(format!(
+    fn dispatch_key(&mut self, key: Key) -> DK {
+        DK::Err(Error::new(format!(
             "{} does not (yet?) handle dispatch_key [key={:?}]",
             std::any::type_name::<Self>(),
             key
@@ -363,8 +366,9 @@ fn build_view_map(views: Vec<Rc<RefCell<DocView>>>) -> HashMap<ViewKey, Rc<RefCe
         .collect()
 }
 
+#[allow(dead_code)]
 impl Editor {
-    pub fn read_key(&mut self) -> Option<Key> {
+    pub fn _read_key(&mut self) -> Option<Key> {
         let key = read_key();
         self.set_last_key(key);
         key
@@ -375,7 +379,7 @@ impl Editor {
             expiry: Instant::now() + Duration::from_secs(5),
         }
     }
-    pub fn new() -> Self {
+    pub fn new(termios: Termios) -> Self {
         let mut view_key_gen = ViewKeyGenerator::new();
 
         let views = vec![Rc::new(RefCell::new(DocView {
@@ -388,8 +392,8 @@ impl Editor {
         }))];
         let focused_view = views[0].clone();
         Self {
-            termios: Termios::enter_raw_mode(),
-            screen_size: get_window_size(),
+            termios,
+            frame: Rect::zero(),
             last_key: None,
             views: build_view_map(views),
             view_key_gen,
@@ -397,7 +401,7 @@ impl Editor {
             root_view: focused_view.clone(),
             command_center: Rc::new(RefCell::new(CommandCenter {
                 current_filename: None,
-                current_view_key: focused_view.borrow().get_view_key(),
+                current_view_key: focused_view.clone().borrow().get_view_key(),
                 cursor: 0,
                 render_cursor: 0,
                 scroll_offset: 0,
@@ -428,6 +432,6 @@ impl Editor {
 
 impl Drop for Editor {
     fn drop(&mut self) {
-        println!("Closing wim.\r\n  Screen size was {:?}\r", self.screen_size);
+        println!("Closing wim.\r\n  Screen size was {:?}\r", self.frame);
     }
 }

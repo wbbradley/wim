@@ -5,12 +5,14 @@ use crate::types::{Coord, Pos, SafeCoordCast};
 use crate::utils::read_lines;
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct Doc {
     filename: Option<String>,
     rows: Vec<Row>,
     dirty: bool,
 }
 
+#[allow(dead_code)]
 impl Doc {
     pub fn get_filename(&self) -> Option<String> {
         self.filename.clone()

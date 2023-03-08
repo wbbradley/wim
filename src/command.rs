@@ -1,6 +1,7 @@
 use crate::mode::Mode;
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum Command {
     Open { filename: String },
     Save,
@@ -9,6 +10,7 @@ pub enum Command {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum Direction {
     Up,
     Down,

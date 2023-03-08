@@ -1,6 +1,7 @@
 pub type Coord = usize;
 pub type RelCoord = isize;
 
+#[allow(clippy::wrong_self_convention)]
 pub trait SafeCoordCast {
     fn as_coord(self) -> Coord;
 }
@@ -62,6 +63,7 @@ pub struct Pos {
     pub y: Coord,
 }
 
+#[allow(dead_code)]
 impl Pos {
     pub fn clamp(&self, r: &Rect) -> Self {
         Self {
@@ -73,7 +75,7 @@ impl Pos {
 
 impl From<&Pos> for Pos {
     fn from(v: &Pos) -> Self {
-        v.clone()
+        *v
     }
 }
 
@@ -86,7 +88,6 @@ impl From<Pos> for Size {
     }
 }
 
-#[allow(dead_code)]
 #[derive(Default, Copy, Clone, Debug)]
 pub struct Rect {
     pub x: Coord,
@@ -95,9 +96,10 @@ pub struct Rect {
     pub height: Coord,
 }
 
+#[allow(dead_code)]
 impl Rect {
     pub fn zero() -> Self {
-        std::mem::zeroed()
+        unsafe { std::mem::zeroed() }
     }
     pub fn area(self) -> Coord {
         self.width * self.height
@@ -113,5 +115,16 @@ impl Rect {
     }
     fn max_y(self) -> Coord {
         self.y + self.height
+    }
+}
+
+impl From<Size> for Rect {
+    fn from(s: Size) -> Self {
+        Self {
+            x: 0,
+            y: 0,
+            width: s.width,
+            height: s.height,
+        }
     }
 }

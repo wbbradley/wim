@@ -1,13 +1,14 @@
 use crate::buf::Buf;
-use crate::command::{Command, Direction};
+use crate::command::Command;
 use crate::editor::Editor;
-use crate::error::{Error, Result};
-use crate::read::Key;
-use crate::termios::get_window_size;
-use crate::trigger::Trigger;
+use crate::error::Result;
+use crate::read::{read_key, Key};
+use crate::termios::Termios;
+use crate::types::Rect;
 use crate::utils::put;
+use crate::view::{View, DK};
 use log::LevelFilter;
-use queues::{queue, Queue};
+use std::collections::VecDeque;
 use std::env;
 mod buf;
 mod command;
@@ -16,9 +17,9 @@ mod editor;
 mod error;
 mod files;
 mod keygen;
+mod mode;
 mod noun;
 mod read;
-use mode;
 mod row;
 mod status;
 mod termios;
@@ -84,7 +85,10 @@ fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
     log::trace!("wim run with args: {:?}", args);
 
-    let mut edit = Editor::new();
+    let termios = Termios::enter_raw_mode();
+    let frame: Rect = termios.get_window_size().into();
+
+    let mut edit = Editor::new(termios);
     if args.len() > 1 {
         edit.dispatch_command(Command::Open {
             filename: args[1].clone(),
@@ -92,29 +96,31 @@ fn main() -> Result<()> {
     }
     let mut buf = Buf::default();
     let mut should_refresh = true;
-    let mut keys: Vec<Key> = Vec::new();
-    let frame = get_window_size();
+    let mut keys: VecDeque<Key> = Default::default();
     loop {
         if should_refresh {
-            edit.layout(&frame);
+            edit.layout(frame);
             edit.display(&mut buf);
             should_refresh = false;
         }
-        let Some(key) = if keys.remove(0) {
-            keys.splice(0..0, &edit.dispatch_key(key)?);
-        } else if Some(key) = read_key() {
-            keys.insert(0, key);
+        let key = match keys.pop_front() {
+            Some(key) => key,
+            None => {
+                if let Some(key) = read_key() {
+                    key
+                } else {
+                    continue;
+                }
+            }
         };
-        match trigger {
-            Trigger::Exit => {
-                break;
-            }
-            Trigger::Noop => {
-                continue;
-            }
-            Trigger::Command(command) => {
-                edit.dispatch_command(command)?;
+        match edit.dispatch_key(key) {
+            DK::Mapping(next_keys) => {
+                next_keys.iter().rev().for_each(|&key| keys.push_front(key));
                 should_refresh = true;
+            }
+            DK::Err(error) => return Err(error),
+            DK::CloseView => {
+                break;
             }
         };
     }

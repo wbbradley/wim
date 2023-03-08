@@ -50,6 +50,39 @@ impl Termios {
         termios.enable_raw_mode();
         termios
     }
+
+    pub fn get_window_size(&self) -> Size {
+        let mut ws: libc::winsize = unsafe { std::mem::zeroed() };
+        if unsafe {
+            libc::ioctl(
+                libc::STDOUT_FILENO,
+                libc::TIOCGWINSZ,
+                &mut ws as *mut libc::winsize as *mut libc::c_void,
+            )
+        } == -1
+            || ws.ws_col == 0
+        {
+            if put!("\x1b[999C\x1b[999B") != 12 {
+                read_u8();
+                Size {
+                    width: 80,
+                    height: 24,
+                }
+            } else if let Some(coord) = get_cursor_position() {
+                coord.into()
+            } else {
+                Size {
+                    width: 80,
+                    height: 24,
+                }
+            }
+        } else {
+            Size {
+                width: ws.ws_col.as_coord(),
+                height: ws.ws_row.as_coord(),
+            }
+        }
+    }
 }
 
 impl Drop for Termios {
@@ -98,37 +131,4 @@ fn get_cursor_position() -> Option<Pos> {
     let y: Coord = lexical::parse(&buf[0..semicolon_position]).unwrap();
     let x: Coord = lexical::parse(&buf[semicolon_position + 1..]).unwrap();
     Some(Pos { y, x })
-}
-
-pub fn get_window_size() -> Size {
-    let mut ws: libc::winsize = unsafe { std::mem::zeroed() };
-    if unsafe {
-        libc::ioctl(
-            libc::STDOUT_FILENO,
-            libc::TIOCGWINSZ,
-            &mut ws as *mut libc::winsize as *mut libc::c_void,
-        )
-    } == -1
-        || ws.ws_col == 0
-    {
-        if put!("\x1b[999C\x1b[999B") != 12 {
-            read_u8();
-            Size {
-                width: 80,
-                height: 24,
-            }
-        } else if let Some(coord) = get_cursor_position() {
-            coord.into()
-        } else {
-            Size {
-                width: 80,
-                height: 24,
-            }
-        }
-    } else {
-        Size {
-            width: ws.ws_col.as_coord(),
-            height: ws.ws_row.as_coord(),
-        }
-    }
 }

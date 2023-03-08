@@ -35,6 +35,7 @@ impl ToBufBytes for &String {
     }
 }
 
+#[allow(dead_code)]
 impl Buf {
     pub fn truncate(&mut self) {
         self.b.truncate(0);
@@ -55,7 +56,7 @@ impl Buf {
     {
         let slice = text.to_bytes();
         self.b
-            .extend_from_slice(&slice[0..std::cmp::min(max_len.as_coord() as usize, slice.len())]);
+            .extend_from_slice(&slice[0..std::cmp::min(max_len.as_coord(), slice.len())]);
     }
 
     pub fn splice<T>(&mut self, range: std::ops::Range<Coord>, text: T)
@@ -65,10 +66,7 @@ impl Buf {
         // Note: `<=` because it's valid to insert after everything
         // which would be equivalent to push.
         let bytes = text.to_bytes();
-        self.b.splice(
-            range.start as usize..range.end as usize,
-            bytes.iter().copied(),
-        );
+        self.b.splice(range, bytes.iter().copied());
     }
 
     pub fn write_to(&self, fd: libc::c_int) {

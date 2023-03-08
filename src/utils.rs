@@ -24,6 +24,7 @@ pub mod errors {
     }
 }
 
+#[allow(unused_macros)]
 macro_rules! function {
     () => {{
         fn f() {}
@@ -34,14 +35,17 @@ macro_rules! function {
         &name[..name.len() - 3]
     }};
 }
+#[allow(unused_imports)]
 pub(crate) use function;
 
+#[allow(unused_macros)]
 macro_rules! trace_fn {
     ($($args:expr),+) => {{
         log::trace!("[{} called] {}", function!(),
             format!($($args),+));
     }};
 }
+#[allow(unused_imports)]
 pub(crate) use trace_fn;
 
 macro_rules! die {
