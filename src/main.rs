@@ -13,6 +13,7 @@ use std::env;
 mod buf;
 mod command;
 mod commandline;
+mod consts;
 mod dk;
 mod doc;
 mod docview;

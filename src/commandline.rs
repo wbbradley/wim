@@ -1,4 +1,5 @@
 use crate::buf::{buf_fmt, Buf, BLANKS};
+use crate::consts::{PROP_DOCVIEW_CURSOR_POS, PROP_DOC_FILENAME, PROP_DOC_IS_MODIFIED};
 use crate::status::Status;
 use crate::types::{Coord, Pos, Rect, SafeCoordCast};
 use crate::view::{View, ViewContext};
@@ -39,17 +40,17 @@ impl View for CommandLine {
     fn display(&self, buf: &mut Buf, context: &dyn ViewContext) {
         buf_fmt!(buf, "\x1b[{};{}H", self.frame.y + 1, self.frame.x + 1);
         buf.append("\x1b[7m");
-        let is_dirty = context.get_property_bool("doc-is-modified?", false);
-        let current_filename = context.get_property_string("doc-filename", "<no filename>");
-        let cursor_pos = context.get_property_pos("docview-cursor-pos");
+        let is_dirty = context.get_property_bool(PROP_DOC_IS_MODIFIED, false);
+        let current_filename = context.get_property_string(PROP_DOC_FILENAME, "<no filename>");
+        let cursor_pos = context.get_property_pos(PROP_DOCVIEW_CURSOR_POS);
 
         let mut stackbuf = [0u8; 1024];
         let mut formatted: &str = stackfmt::fmt_truncate(
             &mut stackbuf,
             format_args!(
-                "{} |{}",
+                " {} {}|",
                 current_filename,
-                if is_dirty { " (modified)" } else { "" }
+                if is_dirty { "(modified) " } else { "" }
             ),
         );
         buf.append(formatted);

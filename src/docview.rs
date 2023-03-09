@@ -1,5 +1,6 @@
 use crate::buf::{buf_fmt, safe_byte_slice, Buf, ToBufBytes, BLANKS};
 use crate::command::{Command, Direction};
+use crate::consts::{PROP_DOCVIEW_CURSOR_POS, PROP_DOC_FILENAME, PROP_DOC_IS_MODIFIED};
 use crate::dk::DK;
 use crate::doc::Doc;
 use crate::error::{Error, Result};
@@ -158,6 +159,7 @@ impl View for DocView {
         match self.mode {
             Mode::Normal => {
                 Ok(match key {
+                    Key::Esc => DK::Noop,
                     Key::Ctrl('w') => DK::CloseView,
                     Key::Ctrl('s') => DK::Command(Command::Save),
                     Key::Del => DK::Noop,
@@ -199,21 +201,23 @@ impl View for DocView {
                     }
                 })
             }
-            Mode::Insert => match key {
+            Mode::Insert => Ok(match key {
                 Key::Esc => {
                     self.mode = Mode::Normal;
-                    Ok(DK::Noop)
+                    DK::Noop
                 }
                 Key::Ascii(ch) => {
                     self.insert_char(ch)?;
-                    Ok(DK::Noop)
+                    DK::Noop
                 }
-                Key::Backspace => Ok(DK::Command(Command::DeleteBackwards)),
-                _ => Err(Error::not_impl(format!(
-                    "DocView: Nothing to do for {:?} in insert mode.",
-                    key
-                ))),
-            },
+                Key::Backspace => DK::Command(Command::DeleteBackwards),
+                _ => {
+                    return Err(Error::not_impl(format!(
+                        "DocView: Nothing to do for {:?} in insert mode.",
+                        key
+                    )));
+                }
+            }),
             Mode::Visual { block_mode } => Err(Error::not_impl(format!(
                 "DocView: Nothing to do for {:?} in visual{} mode.",
                 key,
@@ -245,13 +249,13 @@ impl View for DocView {
 
 impl ViewContext for DocView {
     fn get_property(&self, property: &str) -> Option<PropertyValue> {
-        if property == "doc-is-modified?" {
+        if property == PROP_DOC_IS_MODIFIED {
             Some(PropertyValue::Bool(self.doc.is_dirty()))
-        } else if property == "doc-filename" {
+        } else if property == PROP_DOC_FILENAME {
             self.doc
                 .get_filename()
                 .map(|filename| PropertyValue::String(filename.to_string()))
-        } else if property == "docview-cursor-pos" {
+        } else if property == PROP_DOCVIEW_CURSOR_POS {
             Some(PropertyValue::Pos(self.cursor))
         } else {
             log::trace!("DocView::get_property unhandled request for '{}'", property);
