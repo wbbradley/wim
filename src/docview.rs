@@ -83,10 +83,7 @@ impl DocView {
         // TODO: write + rename.
         let save_buffer = self.get_save_buffer();
         if let Some(filename) = self.doc.get_filename() {
-            let mut f = OpenOptions::new()
-                .write(true)
-                .create(true)
-                .open(&filename)?;
+            let mut f = OpenOptions::new().write(true).create(true).open(filename)?;
             f.set_len(0)?;
             f.seek(SeekFrom::Start(0))?;
             let bytes = save_buffer.to_bytes();
@@ -247,11 +244,18 @@ impl View for DocView {
 }
 
 impl ViewContext for DocView {
-    fn get_property<'a>(&self, property: &str) -> PropertyValue<'a> {
+    fn get_property(&self, property: &str) -> Option<PropertyValue> {
         if property == "doc-is-modified?" {
-            PropertyValue::Bool(self.doc.is_dirty())
+            Some(PropertyValue::Bool(self.doc.is_dirty()))
+        } else if property == "doc-filename" {
+            self.doc
+                .get_filename()
+                .map(|filename| PropertyValue::String(filename.to_string()))
+        } else if property == "docview-cursor-pos" {
+            Some(PropertyValue::Pos(self.cursor))
         } else {
-            PropertyValue::NoAnswer
+            log::trace!("DocView::get_property unhandled request for '{}'", property);
+            None
         }
     }
 }

@@ -14,9 +14,6 @@ pub struct Doc {
 
 #[allow(dead_code)]
 impl Doc {
-    pub fn get_filename(&self) -> Option<String> {
-        self.filename.clone()
-    }
     pub fn empty() -> Self {
         Self {
             filename: None,
@@ -29,6 +26,12 @@ impl Doc {
     }
     pub fn is_dirty(&self) -> bool {
         self.dirty
+    }
+    pub fn get_filename(&self) -> Option<&str> {
+        match self.filename {
+            Some(ref filename) => Some(filename.as_str()),
+            None => None,
+        }
     }
     pub fn iter_lines(&self) -> IterLines {
         IterLines {

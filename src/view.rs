@@ -11,34 +11,33 @@ pub type ViewKey = String;
 pub type ViewKeyGenerator = KeyGenerator;
 
 #[allow(dead_code)]
-pub enum PropertyValue<'a> {
+pub enum PropertyValue {
     Int(i64),
     Float(f64),
-    String(&'a str),
+    String(String),
     Bool(bool),
     Pos(Pos),
-    NoAnswer,
 }
 
 pub trait ViewContext {
-    fn get_property<'a>(&self, _property: &str) -> PropertyValue<'a> {
-        PropertyValue::NoAnswer
+    fn get_property(&self, _property: &str) -> Option<PropertyValue> {
+        None
     }
     fn get_property_bool(&self, property: &str, default: bool) -> bool {
         match self.get_property(property) {
-            PropertyValue::Bool(b) => b,
+            Some(PropertyValue::Bool(b)) => b,
             _ => default,
         }
     }
-    fn get_property_string<'a>(&'a self, property: &str, default: &'a str) -> &'a str {
+    fn get_property_string(&self, property: &str, default: &str) -> String {
         match self.get_property(property) {
-            PropertyValue::String(b) => b,
-            _ => default,
+            Some(PropertyValue::String(b)) => b,
+            _ => default.to_string(),
         }
     }
     fn get_property_pos(&self, property: &str) -> Option<Pos> {
         match self.get_property(property) {
-            PropertyValue::Pos(b) => Some(b),
+            Some(PropertyValue::Pos(b)) => Some(b),
             _ => None,
         }
     }

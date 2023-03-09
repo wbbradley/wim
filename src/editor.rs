@@ -117,7 +117,7 @@ impl View for Editor {
 }
 
 impl ViewContext for Editor {
-    fn get_property<'a>(&self, property: &str) -> PropertyValue<'a> {
+    fn get_property(&self, property: &str) -> Option<PropertyValue> {
         self.focused_view.borrow().get_property(property)
     }
 }

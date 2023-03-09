@@ -41,7 +41,7 @@ impl View for CommandLine {
         buf.append("\x1b[7m");
         let is_dirty = context.get_property_bool("doc-is-modified?", false);
         let current_filename = context.get_property_string("doc-filename", "<no filename>");
-        let cursor_pos = context.get_property_pos("doc-cursor_pos");
+        let cursor_pos = context.get_property_pos("docview-cursor-pos");
 
         let mut stackbuf = [0u8; 1024];
         let mut formatted: &str = stackfmt::fmt_truncate(
