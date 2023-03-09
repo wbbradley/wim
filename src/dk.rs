@@ -1,5 +1,5 @@
 use crate::command::Command;
-use crate::read::Key;
+use crate::key::Key;
 
 #[allow(dead_code)]
 pub enum DK {

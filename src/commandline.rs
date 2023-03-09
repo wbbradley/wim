@@ -2,6 +2,9 @@ use crate::buf::{place_cursor, Buf, BLANKS};
 use crate::consts::{
     PROP_CMDLINE_FOCUSED, PROP_DOCVIEW_CURSOR_POS, PROP_DOC_FILENAME, PROP_DOC_IS_MODIFIED,
 };
+use crate::dk::DK;
+use crate::error::{Error, Result};
+use crate::key::Key;
 use crate::line::{line_fmt, Line};
 use crate::status::Status;
 use crate::types::{Coord, Pos, Rect, SafeCoordCast};
@@ -82,14 +85,27 @@ impl View for CommandLine {
         if context.get_property_bool(PROP_CMDLINE_FOCUSED, false) {
             line_fmt!(line, ":{}", self.text);
         }
-        line.flush();
+    }
+
+    fn dispatch_key(&mut self, key: Key) -> Result<DK> {
+        match key {
+            Key::Ascii(ch) => {
+                self.text.push(ch);
+                self.cursor += 1;
+                Ok(DK::Noop)
+            }
+            _ => Err(Error::not_impl(format!(
+                "command line doesn't yet support {} key",
+                key
+            ))),
+        }
     }
     fn get_view_key(&self) -> &ViewKey {
         &self.view_key
     }
     fn get_cursor_pos(&self) -> Option<Pos> {
         Some(Pos {
-            x: self.frame.x,
+            x: self.frame.x + 1 + self.cursor - self.scroll_offset,
             y: self.frame.y + 1,
         })
     }

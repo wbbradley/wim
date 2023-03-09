@@ -4,9 +4,9 @@ use crate::consts::{PROP_DOCVIEW_CURSOR_POS, PROP_DOC_FILENAME, PROP_DOC_IS_MODI
 use crate::dk::DK;
 use crate::doc::Doc;
 use crate::error::{Error, Result};
+use crate::key::Key;
 use crate::mode::Mode;
 use crate::noun::Noun;
-use crate::read::Key;
 use crate::status::Status;
 use crate::types::{Coord, Pos, Rect, RelCoord, SafeCoordCast};
 use crate::utils::wcwidth;

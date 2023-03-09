@@ -115,6 +115,7 @@ where
     let file = File::open(filename)?;
     Ok(BufReader::new(file).lines())
 }
+
 pub fn wcwidth(buf: &[u8]) -> usize {
     let utf8_str = std::str::from_utf8(buf).unwrap();
     utf8_str
