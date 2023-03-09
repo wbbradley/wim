@@ -9,7 +9,7 @@ use crate::read::Key;
 use crate::status::Status;
 use crate::types::{Coord, Pos, Rect, RelCoord, SafeCoordCast};
 use crate::utils::wcwidth;
-use crate::view::{View, ViewContext, ViewKey};
+use crate::view::{PropertyValue, View, ViewContext, ViewKey};
 use std::fs::OpenOptions;
 use std::io::{Seek, SeekFrom, Write};
 use std::time::{Duration, Instant};
@@ -242,6 +242,16 @@ impl View for DocView {
                 "DocView::execute_command needs to handle {:?}.",
                 command,
             ))),
+        }
+    }
+}
+
+impl ViewContext for DocView {
+    fn get_property<'a>(&self, property: &str) -> PropertyValue<'a> {
+        if property == "doc-is-modified?" {
+            PropertyValue::Bool(self.doc.is_dirty())
+        } else {
+            PropertyValue::NoAnswer
         }
     }
 }

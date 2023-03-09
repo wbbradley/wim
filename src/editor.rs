@@ -18,6 +18,7 @@ pub struct VStack {
     views: Vec<Rc<RefCell<dyn View>>>,
 }
 
+impl ViewContext for VStack {}
 impl View for VStack {
     fn layout(&mut self, frame: Rect) {
         let expected_per_view_height = std::cmp::max(1, frame.height / self.views.len());
@@ -116,16 +117,8 @@ impl View for Editor {
 }
 
 impl ViewContext for Editor {
-    fn get_property<'a>(&self, property: &str) -> Result<PropertyValue<'a>> {
-        if property == "current-filename" {
-            Ok(PropertyValue::String("test-filename"))
-        } else {
-            Err(Error::new(format!(
-                "{}::get_property(property={:?}) is not implemented?",
-                std::any::type_name::<Self>(),
-                property
-            )))
-        }
+    fn get_property<'a>(&self, property: &str) -> PropertyValue<'a> {
+        self.focused_view.borrow().get_property(property)
     }
 }
 
@@ -156,7 +149,7 @@ impl Editor {
             view_key_gen.next_key_string(),
         )))];
         let focused_view = views[0].clone();
-        let edit = Self {
+        Self {
             termios,
             frame: Rect::zero(),
             last_key: None,
@@ -165,12 +158,8 @@ impl Editor {
             focused_view: focused_view.clone(),
             root_view: focused_view.clone(),
             command_line: Rc::new(RefCell::new(CommandLine::new())),
-        };
+        }
         // Initialize the command line cur info.
-        edit.command_line
-            .borrow_mut()
-            .set_cur_info(None, Some(focused_view.borrow().get_view_key()));
-        edit
     }
 
     pub fn dispatch_command(&mut self, command: Command) -> Result<Status> {

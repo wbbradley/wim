@@ -15,13 +15,36 @@ pub enum PropertyValue<'a> {
     Int(i64),
     Float(f64),
     String(&'a str),
+    Bool(bool),
+    Pos(Pos),
+    NoAnswer,
 }
 
 pub trait ViewContext {
-    fn get_property<'a>(&self, property: &str) -> Result<PropertyValue<'a>>;
+    fn get_property<'a>(&self, _property: &str) -> PropertyValue<'a> {
+        PropertyValue::NoAnswer
+    }
+    fn get_property_bool(&self, property: &str, default: bool) -> bool {
+        match self.get_property(property) {
+            PropertyValue::Bool(b) => b,
+            _ => default,
+        }
+    }
+    fn get_property_string<'a>(&'a self, property: &str, default: &'a str) -> &'a str {
+        match self.get_property(property) {
+            PropertyValue::String(b) => b,
+            _ => default,
+        }
+    }
+    fn get_property_pos(&self, property: &str) -> Option<Pos> {
+        match self.get_property(property) {
+            PropertyValue::Pos(b) => Some(b),
+            _ => None,
+        }
+    }
 }
 
-pub trait View {
+pub trait View: ViewContext {
     fn layout(&mut self, frame: Rect);
     fn display(&self, buf: &mut Buf, context: &dyn ViewContext);
     fn get_cursor_pos(&self) -> Option<Pos>;
@@ -37,16 +60,6 @@ pub trait View {
             "{} does not (yet?) handle dispatch_key [key={:?}]",
             std::any::type_name::<Self>(),
             key
-        )))
-    }
-}
-
-impl ViewContext for dyn View {
-    fn get_property<'a>(&self, property: &str) -> Result<PropertyValue<'a>> {
-        Err(Error::new(format!(
-            "{} does not (yet?) implement get_property [property={:?}]",
-            std::any::type_name::<Self>(),
-            property
         )))
     }
 }
