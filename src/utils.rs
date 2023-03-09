@@ -1,4 +1,5 @@
 use crate::error::Result;
+use crate::widechar_width::WcWidth;
 use libc::strerror;
 use std::ffi::CStr;
 use std::fs::File;
@@ -113,4 +114,17 @@ where
 {
     let file = File::open(filename)?;
     Ok(BufReader::new(file).lines())
+}
+pub fn wcwidth(buf: &[u8]) -> usize {
+    let utf8_str = std::str::from_utf8(buf).unwrap();
+    utf8_str
+        .chars()
+        .map(|ch| match WcWidth::from_char(ch) {
+            WcWidth::One => 1,
+            WcWidth::Two => 2,
+            WcWidth::Ambiguous => 1,
+            WcWidth::WidenedIn9 => 2,
+            _ => 0,
+        })
+        .sum()
 }

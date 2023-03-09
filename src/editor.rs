@@ -1,89 +1,18 @@
-use crate::buf::{buf_fmt, Buf, BLANKS};
+use crate::buf::{buf_fmt, Buf};
 use crate::command::Command;
+use crate::commandline::CommandLine;
 use crate::dk::DK;
 use crate::docview::DocView;
 use crate::error::{Error, Result};
 use crate::read::{read_key, Key};
 use crate::status::Status;
 use crate::termios::Termios;
-use crate::types::{Coord, Pos, Rect, SafeCoordCast};
+use crate::types::{Pos, Rect};
 use crate::view::{View, ViewKey, ViewKeyGenerator};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
-
-#[derive(Debug)]
-pub struct CommandLine {}
-
-#[allow(dead_code)]
-pub struct CommandCenter {
-    current_filename: Option<String>,
-    current_view_key: ViewKey,
-    cursor: Coord,
-    render_cursor: Coord,
-    scroll_offset: Coord,
-    text: String,
-    frame: Rect,
-    status: Status,
-}
-
-#[allow(dead_code)]
-impl CommandCenter {
-    pub fn set_status(&mut self, status: Status) {
-        log::trace!("Status Updated: {:?}", &status);
-        self.status = status;
-    }
-}
-
-impl View for CommandCenter {
-    fn layout(&mut self, frame: Rect) {
-        self.frame = frame;
-    }
-
-    fn display(&self, buf: &mut Buf) {
-        buf_fmt!(buf, "\x1b[{};{}H", self.frame.y + 1, self.frame.x + 1);
-        buf.append("\x1b[7m");
-        let mut stackbuf = [0u8; 1024];
-        let formatted: &str = stackfmt::fmt_truncate(
-            &mut stackbuf,
-            format_args!(
-                "{}",
-                match self.current_filename {
-                    Some(ref filename) => filename.as_str(),
-                    None => "<no filename>",
-                },
-                // if self.doc.is_dirty() { "| +" } else { "" }
-            ),
-        );
-        buf.append(formatted);
-        let remaining_len = self.frame.width - formatted.len().as_coord();
-        /*
-        formatted = stackfmt::fmt_truncate(
-            &mut stackbuf,
-            format_args!(
-                "[scroll_offset: {:?}. cursor=(line: {}, col: {})]",
-                self.scroll_offset,
-                self.cursor.y + 1,
-                self.cursor.x + 1
-            ),
-        );
-        remaining_len -= formatted.len().as_coord();
-        */
-        buf.append(&BLANKS[..remaining_len]);
-        buf.append(formatted);
-        buf.append("\x1b[m");
-        buf_fmt!(buf, "\x1b[{};{}H", self.frame.y + 2, self.frame.x + 1);
-        // TODO: render prompt...
-        buf.append(&BLANKS[..self.frame.width]);
-    }
-    fn get_cursor_pos(&self) -> Option<Pos> {
-        Some(Pos {
-            x: self.frame.x + 1,
-            y: self.frame.y + 2,
-        })
-    }
-}
 
 pub struct VStack {
     views: Vec<Rc<RefCell<dyn View>>>,
@@ -136,7 +65,7 @@ pub struct Editor {
     view_key_gen: ViewKeyGenerator,
     focused_view: Rc<RefCell<dyn View>>,
     root_view: Rc<RefCell<dyn View>>,
-    command_line: Rc<RefCell<CommandCenter>>,
+    command_line: Rc<RefCell<CommandLine>>,
     frame: Rect,
 }
 
@@ -151,10 +80,9 @@ impl View for Editor {
         });
     }
     fn display(&self, buf: &mut Buf) {
-        buf.truncate();
         // Hide the cursor.
         buf.append("\x1b[?25l");
-
+        self.root_view.borrow().display(buf);
         if let Some(cursor_pos) = self.focused_view.borrow().get_cursor_pos() {
             buf_fmt!(buf, "\x1b[{};{}H", cursor_pos.y, cursor_pos.x);
         } else {
@@ -165,9 +93,9 @@ impl View for Editor {
     }
 
     fn get_cursor_pos(&self) -> Option<Pos> {
-        assert!(false);
-        None
+        self.focused_view.borrow().get_cursor_pos()
     }
+
     fn execute_command(&mut self, command: Command) -> Result<Status> {
         Err(Error::not_impl(format!(
             "{} does not yet implement {:?}",
@@ -207,7 +135,7 @@ impl Editor {
             view_key_gen.next_key_string(),
         )))];
         let focused_view = views[0].clone();
-        Self {
+        let edit = Self {
             termios,
             frame: Rect::zero(),
             last_key: None,
@@ -215,17 +143,13 @@ impl Editor {
             view_key_gen,
             focused_view: focused_view.clone(),
             root_view: focused_view.clone(),
-            command_line: Rc::new(RefCell::new(CommandCenter {
-                current_filename: None,
-                current_view_key: focused_view.clone().borrow().get_view_key(),
-                cursor: 0,
-                render_cursor: 0,
-                scroll_offset: 0,
-                text: String::new(),
-                frame: Rect::zero(),
-                status: Status::None,
-            })),
-        }
+            command_line: Rc::new(RefCell::new(CommandLine::new())),
+        };
+        // Initialize the command line cur info.
+        edit.command_line
+            .borrow_mut()
+            .set_cur_info(None, Some(focused_view.borrow().get_view_key()));
+        edit
     }
 
     pub fn dispatch_command(&mut self, command: Command) -> Result<Status> {

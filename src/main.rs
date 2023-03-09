@@ -13,6 +13,7 @@ use std::collections::VecDeque;
 use std::env;
 mod buf;
 mod command;
+mod commandline;
 mod dk;
 mod doc;
 mod docview;
@@ -30,6 +31,7 @@ mod trigger;
 mod types;
 mod utils;
 mod view;
+mod widechar_width;
 
 pub static VERSION: &str = "v0.1.0";
 
@@ -53,6 +55,7 @@ fn main() -> Result<()> {
     loop {
         if should_refresh {
             edit.layout(frame);
+            buf.truncate();
             edit.display(&mut buf);
             should_refresh = false;
         }

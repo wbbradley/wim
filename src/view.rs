@@ -16,7 +16,7 @@ pub trait View {
     fn get_cursor_pos(&self) -> Option<Pos>;
     fn execute_command(&mut self, command: Command) -> Result<Status> {
         Err(Error::not_impl(format!(
-            "{} does not yet implement {:?}",
+            "{}::execute_command does not yet exist. Needs to handle {:?}.",
             std::any::type_name::<Self>(),
             command
         )))

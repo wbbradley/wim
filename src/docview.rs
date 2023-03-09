@@ -8,6 +8,7 @@ use crate::noun::Noun;
 use crate::read::Key;
 use crate::status::Status;
 use crate::types::{Coord, Pos, Rect, RelCoord, SafeCoordCast};
+use crate::utils::wcwidth;
 use crate::view::{View, ViewKey};
 use std::fs::OpenOptions;
 use std::io::{Seek, SeekFrom, Write};
@@ -129,11 +130,14 @@ impl DocView {
 
 impl View for DocView {
     fn layout(&mut self, frame: Rect) {
+        log::trace!("docview frame is {:?}", frame);
         self.frame = frame;
         self.scroll();
     }
     fn display(&self, buf: &mut Buf) {
-        let rows_drawn = self.draw_rows(buf, self.frame);
+        log::trace!("docview displaying...");
+        let rows_drawn = self.draw_rows(buf);
+        log::trace!("rows_drawn={}", rows_drawn);
         for y in rows_drawn..self.frame.height {
             buf_fmt!(buf, "\x1b[{};{}H~", self.frame.y + y + 1, self.frame.x + 1);
             buf.append(&BLANKS[0..self.frame.width - 1]);
@@ -201,6 +205,21 @@ impl View for DocView {
             ))),
         }
     }
+    fn execute_command(&mut self, command: Command) -> Result<Status> {
+        match command {
+            Command::Open { filename } => {
+                self.open(filename.clone())?;
+                Ok(Status::Message {
+                    message: format!("Opened '{}'.", filename),
+                    expiry: Instant::now() + Duration::from_secs(2),
+                })
+            }
+            _ => Err(Error::not_impl(format!(
+                "DocView::execute_command needs to handle {:?}.",
+                command,
+            ))),
+        }
+    }
 }
 
 impl DocView {
@@ -216,7 +235,8 @@ impl DocView {
         }
     }
 
-    fn draw_rows(&self, buf: &mut Buf, frame: Rect) -> Coord {
+    fn draw_rows(&self, buf: &mut Buf) -> Coord {
+        let frame = self.frame;
         let mut count = 0;
         for (i, row) in self.doc.iter_lines().enumerate().skip(self.scroll_offset.y) {
             if i.as_coord() - self.scroll_offset.y >= frame.height {
@@ -224,8 +244,10 @@ impl DocView {
             }
             let slice = safe_byte_slice(row.render_buf(), self.scroll_offset.x, frame.width - 1);
             buf_fmt!(buf, "\x1b[{};{}H", frame.y + count + 1, frame.x + 1);
-            buf.append_with_max_len(slice, frame.width - 1);
-            buf.append("..todo..clear");
+            assert!(slice.len() < frame.width);
+            buf.append(slice);
+            let written_graphemes = wcwidth(slice);
+            buf.append(&BLANKS[..frame.width - 1 - written_graphemes]);
             count += 1;
         }
         for _ in self.doc.line_count()..frame.height {
