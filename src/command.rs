@@ -7,6 +7,11 @@ pub enum Command {
     Save,
     Move(Direction),
     SwitchMode(Mode),
+    JoinLines,
+    NewlineAbove,
+    NewlineBelow,
+    DeleteForwards,
+    DeleteBackwards,
 }
 
 #[derive(Debug)]

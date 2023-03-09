@@ -26,7 +26,7 @@ impl CommandLine {
             scroll_offset: 0,
             text: String::new(),
             frame: Rect::zero(),
-            status: Status::None,
+            status: Status::Cleared,
         }
     }
     pub fn set_status(&mut self, status: Status) {

@@ -21,8 +21,8 @@ pub trait View {
             command
         )))
     }
-    fn dispatch_key(&mut self, key: Key) -> DK {
-        DK::Err(Error::new(format!(
+    fn dispatch_key(&mut self, key: Key) -> Result<DK> {
+        Err(Error::new(format!(
             "{} does not (yet?) handle dispatch_key [key={:?}]",
             std::any::type_name::<Self>(),
             key

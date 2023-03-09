@@ -43,10 +43,11 @@ impl DocView {
             self.scroll_offset.x = self.render_cursor_x - self.frame.width + 1;
         }
     }
-    pub fn move_cursor(&mut self, x: RelCoord, y: RelCoord) {
+    pub fn move_cursor(&mut self, x: RelCoord, y: RelCoord) -> Result<Status> {
         self.cursor.y = (self.cursor.y as RelCoord + y).clamp(0, RelCoord::MAX) as Coord;
         self.cursor.x = (self.cursor.x as RelCoord + x).clamp(0, RelCoord::MAX) as Coord;
         self.clamp_cursor();
+        Ok(Status::NothingToSay)
     }
 
     pub fn last_valid_row(&self) -> Coord {
@@ -71,9 +72,12 @@ impl DocView {
         }
         self.clamp_cursor();
     }
-    pub fn open(&mut self, filename: String) -> Result<()> {
-        self.doc = Doc::open(filename)?;
-        Ok(())
+    pub fn open(&mut self, filename: String) -> Result<Status> {
+        self.doc = Doc::open(filename.clone())?;
+        Ok(Status::Message {
+            message: format!("Opened '{}'.", filename),
+            expiry: Instant::now() + Duration::from_secs(2),
+        })
     }
     pub fn save_file(&mut self) -> Result<Status> {
         // TODO: write + rename.
@@ -96,27 +100,31 @@ impl DocView {
             Err(Error::new("no filename specified!"))
         }
     }
-    pub fn insert_newline_above(&mut self) {
+    pub fn insert_newline_above(&mut self) -> Result<Status> {
         self.doc.insert_newline(self.cursor.y);
+        Ok(Status::NothingToSay)
     }
-    pub fn insert_newline_below(&mut self) {
+    pub fn insert_newline_below(&mut self) -> Result<Status> {
         self.doc.insert_newline(self.cursor.y + 1);
-        self.move_cursor(0, 1);
+        self.move_cursor(0, 1)
     }
-    pub fn insert_char(&mut self, ch: char) {
+    pub fn insert_char(&mut self, ch: char) -> Result<Status> {
         self.doc.insert_char(self.cursor, ch);
-        self.move_cursor(1, 0);
+        self.move_cursor(1, 0)
     }
-    pub fn delete_forwards(&mut self, noun: Noun) {
+    pub fn delete_forwards(&mut self, noun: Noun) -> Result<Status> {
         let (cx, cy) = self.doc.delete_forwards(self.cursor, noun);
         self.jump_cursor(cx, cy);
+        Ok(Status::NothingToSay)
     }
-    pub fn delete_backwards(&mut self, noun: Noun) {
+    pub fn delete_backwards(&mut self, noun: Noun) -> Result<Status> {
         let (cx, cy) = self.doc.delete_backwards(self.cursor, noun);
         self.jump_cursor(cx, cy);
+        Ok(Status::NothingToSay)
     }
-    pub fn join_line(&mut self) {
+    pub fn join_line(&mut self) -> Result<Status> {
         self.doc.join_lines(self.cursor.y..self.cursor.y + 1);
+        Ok(Status::NothingToSay)
     }
     pub fn get_save_buffer(&self) -> Buf {
         let mut buf = Buf::default();
@@ -149,32 +157,36 @@ impl View for DocView {
             y: self.frame.y + self.cursor.y - self.scroll_offset.y + 1,
         })
     }
-    fn dispatch_key(&mut self, key: Key) -> DK {
+    fn dispatch_key(&mut self, key: Key) -> Result<DK> {
         match self.mode {
             Mode::Normal => {
                 match key {
-                    Key::Ctrl('w') => DK::CloseView,
-                    Key::Ctrl('s') => DK::Command(Command::Save),
-                    Key::Del => DK::Noop,
-                    Key::Left => DK::Command(Command::Move(Direction::Left)),
-                    Key::Right => DK::Command(Command::Move(Direction::Right)),
-                    Key::Up => DK::Command(Command::Move(Direction::Up)),
-                    Key::Down => DK::Command(Command::Move(Direction::Down)),
+                    Key::Ctrl('w') => Ok(DK::CloseView),
+                    Key::Ctrl('s') => Ok(DK::Command(Command::Save)),
+                    Key::Del => Ok(DK::Noop),
+                    Key::Left => Ok(DK::Command(Command::Move(Direction::Left))),
+                    Key::Right => Ok(DK::Command(Command::Move(Direction::Right))),
+                    Key::Up => Ok(DK::Command(Command::Move(Direction::Up))),
+                    Key::Down => Ok(DK::Command(Command::Move(Direction::Down))),
+                    Key::Ascii('i') => {
+                        self.mode = Mode::Insert;
+                        Ok(DK::Noop)
+                    }
+                    Key::Ascii('h') => Ok(DK::Command(Command::Move(Direction::Left))),
+                    Key::Ascii('j') => Ok(DK::Command(Command::Move(Direction::Down))),
+                    Key::Ascii('k') => Ok(DK::Command(Command::Move(Direction::Up))),
+                    Key::Ascii('l') => Ok(DK::Command(Command::Move(Direction::Right))),
+                    Key::Ascii('J') => Ok(DK::Command(Command::JoinLines)),
+                    Key::Ascii('o') => Ok(DK::Command(Command::NewlineBelow)),
+                    Key::Ascii('O') => Ok(DK::Command(Command::NewlineAbove)),
+                    Key::Ascii('x') => Ok(DK::Command(Command::DeleteForwards)),
+                    Key::Ascii('X') => Ok(DK::Command(Command::DeleteBackwards)),
                     // Key::PageDown => (), // { triggers.extend_from_slice(&[push(Command::Ok(Trigger::Command(Command::Moveedit.move_cursor(0, edit.screen_size.height as RelCoord),
                     /*
                     Key::PageUp => edit.move_cursor(0, -(edit.screen_size.height as RelCoord)),
                     Key::Home => edit.jump_cursor(Some(0), None),
                     Key::Ascii(':') => edit.enter_command_mode(),
                     Key::End => edit.jump_cursor(Some(Coord::MAX), None),
-                    Key::Ascii('h') => edit.move_cursor(-1, 0),
-                    Key::Ascii('j') => edit.move_cursor(0, 1),
-                    Key::Ascii('J') => edit.join_line(),
-                    Key::Ascii('k') => edit.move_cursor(0, -1),
-                    Key::Ascii('l') => edit.move_cursor(1, 0),
-                    Key::Ascii('o') => edit.insert_newline_below(),
-                    Key::Ascii('O') => edit.insert_newline_above(),
-                    Key::Ascii('x') => edit.delete_forwards(Noun::Char),
-                    Key::Ascii('X') => edit.delete_backwards(Noun::Char),
                     Key::Ascii(ch) => edit.insert_char(ch),
                     Key::Ctrl('u') => edit.delete_backwards(Noun::Line),
                     Key::Ctrl('k') => edit.delete_forwards(Noun::Line),
@@ -182,23 +194,28 @@ impl View for DocView {
                     Key::Function(_) => (),
                     Key::PrintScreen => (),
                     Key::Backspace => (),*/
-                    _ => DK::Err(Error::not_impl(format!(
+                    _ => Err(Error::not_impl(format!(
                         "DocView: Nothing to do for {:?} in normal mode.",
                         key
                     ))),
                 }
             }
             Mode::Insert => match key {
-                Key::Ascii(ch) => {
-                    self.insert_char(ch);
-                    DK::Noop
+                Key::Esc => {
+                    self.mode = Mode::Normal;
+                    Ok(DK::Noop)
                 }
-                _ => DK::Err(Error::not_impl(format!(
+                Key::Ascii(ch) => {
+                    self.insert_char(ch)?;
+                    Ok(DK::Noop)
+                }
+                Key::Backspace => Ok(DK::Command(Command::DeleteBackwards)),
+                _ => Err(Error::not_impl(format!(
                     "DocView: Nothing to do for {:?} in insert mode.",
                     key
                 ))),
             },
-            Mode::Visual { block_mode } => DK::Err(Error::not_impl(format!(
+            Mode::Visual { block_mode } => Err(Error::not_impl(format!(
                 "DocView: Nothing to do for {:?} in visual{} mode.",
                 key,
                 if block_mode { " block" } else { "" }
@@ -207,13 +224,18 @@ impl View for DocView {
     }
     fn execute_command(&mut self, command: Command) -> Result<Status> {
         match command {
-            Command::Open { filename } => {
-                self.open(filename.clone())?;
-                Ok(Status::Message {
-                    message: format!("Opened '{}'.", filename),
-                    expiry: Instant::now() + Duration::from_secs(2),
-                })
-            }
+            Command::Open { filename } => self.open(filename.clone()),
+            Command::Move(direction) => match direction {
+                Direction::Up => self.move_cursor(0, -1),
+                Direction::Down => self.move_cursor(0, 1),
+                Direction::Left => self.move_cursor(-1, 0),
+                Direction::Right => self.move_cursor(1, 0),
+            },
+            Command::JoinLines => self.join_line(),
+            Command::NewlineAbove => self.insert_newline_above(),
+            Command::NewlineBelow => self.insert_newline_below(),
+            Command::DeleteForwards => self.delete_forwards(Noun::Char),
+            Command::DeleteBackwards => self.delete_backwards(Noun::Char),
             _ => Err(Error::not_impl(format!(
                 "DocView::execute_command needs to handle {:?}.",
                 command,
@@ -242,12 +264,12 @@ impl DocView {
             if i.as_coord() - self.scroll_offset.y >= frame.height {
                 break;
             }
-            let slice = safe_byte_slice(row.render_buf(), self.scroll_offset.x, frame.width - 1);
+            let slice = safe_byte_slice(row.render_buf(), self.scroll_offset.x, frame.width);
             buf_fmt!(buf, "\x1b[{};{}H", frame.y + count + 1, frame.x + 1);
             assert!(slice.len() < frame.width);
             buf.append(slice);
             let written_graphemes = wcwidth(slice);
-            buf.append(&BLANKS[..frame.width - 1 - written_graphemes]);
+            buf.append(&BLANKS[..frame.width - written_graphemes]);
             count += 1;
         }
         for _ in self.doc.line_count()..frame.height {

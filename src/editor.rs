@@ -103,7 +103,7 @@ impl View for Editor {
             command
         )))
     }
-    fn dispatch_key(&mut self, key: Key) -> DK {
+    fn dispatch_key(&mut self, key: Key) -> Result<DK> {
         self.focused_view.borrow_mut().dispatch_key(key)
     }
 }

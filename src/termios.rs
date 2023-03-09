@@ -97,6 +97,8 @@ impl Drop for Termios {
         {
             die!("Termios::drop");
         }
+        put!("\x1b[2J");
+        put!("\x1b[H");
     }
 }
 

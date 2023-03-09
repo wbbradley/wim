@@ -6,7 +6,6 @@ use crate::error::Result;
 use crate::read::{read_key, Key};
 use crate::termios::Termios;
 use crate::types::Rect;
-use crate::utils::put;
 use crate::view::View;
 use log::LevelFilter;
 use std::collections::VecDeque;
@@ -69,12 +68,11 @@ fn main() -> Result<()> {
                 }
             }
         };
-        match edit.dispatch_key(key) {
+        match edit.dispatch_key(key)? {
             DK::Expansion(next_keys) => {
                 next_keys.iter().rev().for_each(|&key| keys.push_front(key));
                 should_refresh = true;
             }
-            DK::Err(error) => return Err(error),
             DK::CloseView => {
                 break;
             }
@@ -86,10 +84,10 @@ fn main() -> Result<()> {
                 edit.enter_command_mode();
                 should_refresh = true;
             }
-            DK::Noop => {}
+            DK::Noop => {
+                should_refresh = true;
+            }
         };
     }
-    put!("\x1b[2J");
-    put!("\x1b[H");
     Ok(())
 }
