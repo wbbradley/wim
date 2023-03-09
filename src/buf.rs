@@ -1,4 +1,4 @@
-use crate::types::{Coord, SafeCoordCast};
+use crate::types::{Coord, Pos, SafeCoordCast};
 
 #[derive(Clone, Debug)]
 pub struct Buf {
@@ -141,6 +141,11 @@ macro_rules! buf_fmt {
         let mut stackbuf = [0u8; 1024];
         let formatted: &str = stackfmt::fmt_truncate(&mut stackbuf, format_args!($($args),+));
         $buf.append(formatted);
+        formatted.len()
     }};
 }
 pub(crate) use buf_fmt;
+
+pub fn place_cursor(buf: &mut Buf, pos: Pos) {
+    buf_fmt!(buf, "\x1b[{};{}H", pos.y + 1, pos.x + 1);
+}

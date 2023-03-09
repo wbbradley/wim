@@ -45,7 +45,7 @@ fn main() -> Result<()> {
 
     let mut edit = Editor::new(termios);
     if args.len() > 1 {
-        edit.dispatch_command(Command::Open {
+        edit.execute_command(Command::Open {
             filename: args[1].clone(),
         })?;
     }
@@ -78,7 +78,7 @@ fn main() -> Result<()> {
                 break;
             }
             DK::Command(command) => {
-                edit.dispatch_command(command)?;
+                edit.execute_command(command)?;
                 should_refresh = true;
             }
             DK::CommandLine => {

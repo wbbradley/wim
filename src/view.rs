@@ -6,6 +6,8 @@ use crate::keygen::KeyGenerator;
 use crate::read::Key;
 use crate::status::Status;
 use crate::types::{Pos, Rect};
+use std::cell::RefCell;
+use std::rc::{Rc, Weak};
 
 pub type ViewKey = String;
 pub type ViewKeyGenerator = KeyGenerator;
@@ -46,6 +48,7 @@ pub trait ViewContext {
 pub trait View: ViewContext {
     fn layout(&mut self, frame: Rect);
     fn display(&self, buf: &mut Buf, context: &dyn ViewContext);
+    fn get_view_key(&self) -> &ViewKey;
     fn get_cursor_pos(&self) -> Option<Pos>;
     fn execute_command(&mut self, command: Command) -> Result<Status> {
         Err(Error::not_impl(format!(
@@ -61,4 +64,19 @@ pub trait View: ViewContext {
             key
         )))
     }
+}
+
+pub fn to_view<T>(v: &Rc<RefCell<T>>) -> Rc<RefCell<dyn View>>
+where
+    T: View + 'static,
+{
+    v.clone() as Rc<RefCell<dyn View>>
+}
+
+pub fn to_weak_view<T>(v: Rc<RefCell<T>>) -> Weak<RefCell<dyn View>>
+where
+    T: View + 'static,
+{
+    let v = v as Rc<RefCell<dyn View>>;
+    Rc::downgrade(&v)
 }

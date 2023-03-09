@@ -7,6 +7,7 @@ pub enum Command {
     Save,
     Move(Direction),
     SwitchMode(Mode),
+    ChangeFocus(FocusTarget),
     JoinLines,
     NewlineAbove,
     NewlineBelow,
@@ -21,4 +22,16 @@ pub enum Direction {
     Down,
     Left,
     Right,
+}
+
+#[derive(Debug)]
+#[allow(dead_code)]
+pub enum FocusTarget {
+    CommandLine,
+    Up,
+    Down,
+    Left,
+    Right,
+    Previous,
+    Next,
 }

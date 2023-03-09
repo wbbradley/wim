@@ -1,6 +1,7 @@
-use crate::buf::{buf_fmt, Buf};
-use crate::command::Command;
+use crate::buf::{place_cursor, Buf};
+use crate::command::{Command, FocusTarget};
 use crate::commandline::CommandLine;
+use crate::consts::PROP_CMDLINE_FOCUSED;
 use crate::dk::DK;
 use crate::docview::DocView;
 use crate::error::{Error, Result};
@@ -8,13 +9,16 @@ use crate::read::{read_key, Key};
 use crate::status::Status;
 use crate::termios::Termios;
 use crate::types::{Pos, Rect};
-use crate::view::{PropertyValue, View, ViewContext, ViewKey, ViewKeyGenerator};
+use crate::view::{
+    to_view, to_weak_view, PropertyValue, View, ViewContext, ViewKey, ViewKeyGenerator,
+};
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 use std::time::{Duration, Instant};
 
 pub struct VStack {
+    view_key: ViewKey,
     views: Vec<Rc<RefCell<dyn View>>>,
 }
 
@@ -42,6 +46,9 @@ impl View for VStack {
             used += view_height;
         }
     }
+    fn get_view_key(&self) -> &ViewKey {
+        &self.view_key
+    }
     fn display(&self, buf: &mut Buf, context: &dyn ViewContext) {
         self.views
             .iter()
@@ -61,11 +68,12 @@ impl View for VStack {
 #[allow(dead_code)]
 pub struct Editor {
     termios: Termios,
+    view_key: ViewKey,
     last_key: Option<Key>,
     views: HashMap<ViewKey, Rc<RefCell<DocView>>>,
     view_key_gen: ViewKeyGenerator,
-    focused_view: Rc<RefCell<dyn View>>,
     root_view: Rc<RefCell<dyn View>>,
+    previous_views: Vec<Weak<RefCell<dyn View>>>,
     command_line: Rc<RefCell<CommandLine>>,
     frame: Rect,
 }
@@ -86,46 +94,76 @@ impl View for Editor {
             height: 2,
         });
     }
+
     fn display(&self, buf: &mut Buf, context: &dyn ViewContext) {
         // Hide the cursor.
         buf.append("\x1b[?25l");
         self.root_view.borrow().display(buf, context);
         self.command_line.borrow().display(buf, context);
-        if let Some(cursor_pos) = self.focused_view.borrow().get_cursor_pos() {
-            buf_fmt!(buf, "\x1b[{};{}H", cursor_pos.y, cursor_pos.x);
+        if let Some(cursor_pos) = self.focused_view().borrow().get_cursor_pos() {
+            place_cursor(buf, cursor_pos);
         } else {
-            buf_fmt!(buf, "\x1b[{};{}H", self.frame.height, self.frame.width);
+            place_cursor(
+                buf,
+                Pos {
+                    x: self.frame.width - 1,
+                    y: self.frame.height - 1,
+                },
+            );
         }
         buf.append("\x1b[?25h");
         buf.write_to(libc::STDIN_FILENO);
     }
 
+    fn get_view_key(&self) -> &ViewKey {
+        &self.view_key
+    }
+
     fn get_cursor_pos(&self) -> Option<Pos> {
-        self.focused_view.borrow().get_cursor_pos()
+        self.focused_view().borrow().get_cursor_pos()
     }
 
     fn execute_command(&mut self, command: Command) -> Result<Status> {
-        Err(Error::not_impl(format!(
-            "{} does not yet implement {:?}",
-            std::any::type_name::<Self>(),
-            command
-        )))
+        match command {
+            Command::ChangeFocus(FocusTarget::CommandLine) => {
+                self.enter_command_mode();
+                Ok(Status::Cleared)
+            }
+            Command::ChangeFocus(FocusTarget::Previous) => {
+                self.goto_previous_view();
+                Ok(Status::Cleared)
+            }
+            _ => self.root_view.borrow_mut().execute_command(command),
+        }
     }
     fn dispatch_key(&mut self, key: Key) -> Result<DK> {
-        self.focused_view.borrow_mut().dispatch_key(key)
+        self.focused_view().borrow_mut().dispatch_key(key)
     }
 }
 
 impl ViewContext for Editor {
     fn get_property(&self, property: &str) -> Option<PropertyValue> {
-        self.focused_view.borrow().get_property(property)
+        log::trace!("Editor::get_property({}) called...", property);
+        if property == PROP_CMDLINE_FOCUSED {
+            log::trace!(
+                "Looks like [{} vs {}]",
+                self.focused_view().borrow().get_view_key(),
+                self.command_line.borrow().get_view_key()
+            );
+            Some(PropertyValue::Bool(
+                self.focused_view().borrow().get_view_key()
+                    == self.command_line.borrow().get_view_key(),
+            ))
+        } else {
+            self.focused_view().borrow().get_property(property)
+        }
     }
 }
 
 fn build_view_map(views: Vec<Rc<RefCell<DocView>>>) -> HashMap<ViewKey, Rc<RefCell<DocView>>> {
     views
         .iter()
-        .map(|view| (view.borrow().get_view_key(), view.clone()))
+        .map(|view| (view.borrow().get_view_key().to_string(), view.clone()))
         .collect()
 }
 
@@ -135,6 +173,10 @@ impl Editor {
         let key = read_key();
         self.set_last_key(key);
         key
+    }
+    fn focused_view(&self) -> Rc<RefCell<dyn View>> {
+        assert!(!self.previous_views.is_empty());
+        self.previous_views.last().unwrap().upgrade().unwrap()
     }
     pub fn welcome_status() -> Status {
         Status::Message {
@@ -151,19 +193,16 @@ impl Editor {
         let focused_view = views[0].clone();
         Self {
             termios,
+            view_key: view_key_gen.next_key_string(),
             frame: Rect::zero(),
             last_key: None,
             views: build_view_map(views),
             view_key_gen,
-            focused_view: focused_view.clone(),
-            root_view: focused_view.clone(),
+            previous_views: vec![to_weak_view(focused_view.clone())],
+            root_view: focused_view,
             command_line: Rc::new(RefCell::new(CommandLine::new())),
         }
         // Initialize the command line cur info.
-    }
-
-    pub fn dispatch_command(&mut self, command: Command) -> Result<Status> {
-        self.root_view.borrow_mut().execute_command(command)
     }
 
     pub fn set_last_key(&mut self, key: Option<Key>) {
@@ -175,8 +214,31 @@ impl Editor {
         self.command_line.borrow_mut().set_status(status);
     }
 
+    pub fn goto_previous_view(&mut self) {
+        if let Some(view) = self.previous_views.pop() {
+            if let Some(view) = view.upgrade() {
+                self.set_focus(view);
+            }
+        }
+    }
     pub fn enter_command_mode(&mut self) {
-        self.focused_view = self.command_line.clone();
+        self.set_focus(to_view(&self.command_line));
+    }
+
+    fn set_focus(&mut self, view_to_focus: Rc<RefCell<dyn View>>) {
+        let view_key = view_to_focus.borrow().get_view_key().clone();
+        log::trace!("focusing view '{}'", view_key);
+        self.previous_views.retain(|view| {
+            // Keep the views that still exist and that aren't the intended one so we can move it
+            // to the top of the stack..
+            if let Some(view) = view.upgrade() {
+                *view.borrow().get_view_key() != view_key
+            } else {
+                false
+            }
+        });
+
+        self.previous_views.push(Rc::downgrade(&view_to_focus));
     }
 }
 

@@ -104,6 +104,12 @@ impl Rect {
     pub fn area(self) -> Coord {
         self.width * self.height
     }
+    pub fn top_left(self) -> Pos {
+        Pos {
+            x: self.x,
+            y: self.y,
+        }
+    }
     fn mid_x(self) -> Coord {
         ((self.x * 2) + self.width) / 2
     }

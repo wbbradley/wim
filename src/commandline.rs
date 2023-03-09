@@ -1,11 +1,14 @@
-use crate::buf::{buf_fmt, Buf, BLANKS};
-use crate::consts::{PROP_DOCVIEW_CURSOR_POS, PROP_DOC_FILENAME, PROP_DOC_IS_MODIFIED};
+use crate::buf::{buf_fmt, place_cursor, Buf, BLANKS};
+use crate::consts::{
+    PROP_CMDLINE_FOCUSED, PROP_DOCVIEW_CURSOR_POS, PROP_DOC_FILENAME, PROP_DOC_IS_MODIFIED,
+};
 use crate::status::Status;
 use crate::types::{Coord, Pos, Rect, SafeCoordCast};
-use crate::view::{View, ViewContext};
+use crate::view::{View, ViewContext, ViewKey};
 
 #[allow(dead_code)]
 pub struct CommandLine {
+    view_key: ViewKey,
     cursor: Coord,
     render_cursor: Coord,
     scroll_offset: Coord,
@@ -18,6 +21,7 @@ pub struct CommandLine {
 impl CommandLine {
     pub fn new() -> Self {
         Self {
+            view_key: "command-line".to_string(),
             cursor: 0,
             render_cursor: 0,
             scroll_offset: 0,
@@ -38,7 +42,7 @@ impl View for CommandLine {
     }
 
     fn display(&self, buf: &mut Buf, context: &dyn ViewContext) {
-        buf_fmt!(buf, "\x1b[{};{}H", self.frame.y + 1, self.frame.x + 1);
+        place_cursor(buf, self.frame.top_left());
         buf.append("\x1b[7m");
         let is_dirty = context.get_property_bool(PROP_DOC_IS_MODIFIED, false);
         let current_filename = context.get_property_string(PROP_DOC_FILENAME, "<no filename>");
@@ -65,14 +69,26 @@ impl View for CommandLine {
         buf.append(&BLANKS[..remaining_len]);
         buf.append(formatted);
         buf.append("\x1b[m");
-        buf_fmt!(buf, "\x1b[{};{}H", self.frame.y + 2, self.frame.x + 1);
+        place_cursor(
+            buf,
+            Pos {
+                x: self.frame.x,
+                y: self.frame.y + 1,
+            },
+        );
         // TODO: render prompt...
+        if context.get_property_bool(PROP_CMDLINE_FOCUSED, false) {
+            buf_fmt!(buf, ":{}", self.text);
+        }
         buf.append(&BLANKS[..self.frame.width]);
+    }
+    fn get_view_key(&self) -> &ViewKey {
+        &self.view_key
     }
     fn get_cursor_pos(&self) -> Option<Pos> {
         Some(Pos {
-            x: self.frame.x + 1,
-            y: self.frame.y + 2,
+            x: self.frame.x,
+            y: self.frame.y + 1,
         })
     }
 }

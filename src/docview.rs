@@ -1,5 +1,5 @@
-use crate::buf::{buf_fmt, safe_byte_slice, Buf, ToBufBytes, BLANKS};
-use crate::command::{Command, Direction};
+use crate::buf::{place_cursor, safe_byte_slice, Buf, ToBufBytes, BLANKS};
+use crate::command::{Command, Direction, FocusTarget};
 use crate::consts::{PROP_DOCVIEW_CURSOR_POS, PROP_DOC_FILENAME, PROP_DOC_IS_MODIFIED};
 use crate::dk::DK;
 use crate::doc::Doc;
@@ -27,9 +27,6 @@ pub struct DocView {
 
 #[allow(dead_code)]
 impl DocView {
-    pub fn get_view_key(&self) -> ViewKey {
-        self.key.clone()
-    }
     pub fn scroll(&mut self) {
         if self.cursor.y < self.scroll_offset.y {
             self.scroll_offset.y = self.cursor.y;
@@ -145,62 +142,58 @@ impl View for DocView {
         let rows_drawn = self.draw_rows(buf);
         log::trace!("rows_drawn={}", rows_drawn);
         for y in rows_drawn..self.frame.height {
-            buf_fmt!(buf, "\x1b[{};{}H~", self.frame.y + y + 1, self.frame.x + 1);
+            place_cursor(
+                buf,
+                Pos {
+                    x: self.frame.x,
+                    y: self.frame.y + y,
+                },
+            );
+            buf.append("~");
             buf.append(&BLANKS[0..self.frame.width - 1]);
         }
     }
+    fn get_view_key(&self) -> &ViewKey {
+        &self.key
+    }
     fn get_cursor_pos(&self) -> Option<Pos> {
         Some(Pos {
-            x: self.frame.x + self.render_cursor_x - self.scroll_offset.x + 1,
-            y: self.frame.y + self.cursor.y - self.scroll_offset.y + 1,
+            x: self.frame.x + self.render_cursor_x - self.scroll_offset.x,
+            y: self.frame.y + self.cursor.y - self.scroll_offset.y,
         })
     }
     fn dispatch_key(&mut self, key: Key) -> Result<DK> {
         match self.mode {
-            Mode::Normal => {
-                Ok(match key {
-                    Key::Esc => DK::Noop,
-                    Key::Ctrl('w') => DK::CloseView,
-                    Key::Ctrl('s') => DK::Command(Command::Save),
-                    Key::Del => DK::Noop,
-                    Key::Left => DK::Command(Command::Move(Direction::Left)),
-                    Key::Right => DK::Command(Command::Move(Direction::Right)),
-                    Key::Up => DK::Command(Command::Move(Direction::Up)),
-                    Key::Down => DK::Command(Command::Move(Direction::Down)),
-                    Key::Ascii('i') => {
-                        self.mode = Mode::Insert;
-                        DK::Noop
-                    }
-                    Key::Ascii('h') => DK::Command(Command::Move(Direction::Left)),
-                    Key::Ascii('j') => DK::Command(Command::Move(Direction::Down)),
-                    Key::Ascii('k') => DK::Command(Command::Move(Direction::Up)),
-                    Key::Ascii('l') => DK::Command(Command::Move(Direction::Right)),
-                    Key::Ascii('J') => DK::Command(Command::JoinLines),
-                    Key::Ascii('o') => DK::Command(Command::NewlineBelow),
-                    Key::Ascii('O') => DK::Command(Command::NewlineAbove),
-                    Key::Ascii('x') => DK::Command(Command::DeleteForwards),
-                    Key::Ascii('X') => DK::Command(Command::DeleteBackwards),
-                    // Key::PageDown => (), // { triggers.extend_from_slice(&[push(Command::Ok(Trigger::Command(Command::Moveedit.move_cursor(0, edit.screen_size.height as RelCoord),
-                    /*
-                    Key::PageUp => edit.move_cursor(0, -(edit.screen_size.height as RelCoord)),
-                    Key::Home => edit.jump_cursor(Some(0), None),
-                    Key::Ascii(':') => edit.enter_command_mode(),
-                    Key::End => edit.jump_cursor(Some(Coord::MAX), None),
-                    Key::Ascii(ch) => edit.insert_char(ch),
-                    Key::Ctrl('u') => edit.delete_backwards(Noun::Line),
-                    Key::Ctrl('k') => edit.delete_forwards(Noun::Line),
-                    Key::Ctrl(_) => (),
-                    Key::Function(_) => (),
-                    Key::PrintScreen => (),
-                    Key::Backspace => (),*/
-                    _ => {
-                        return Err(Error::not_impl(format!(
-                            "DocView: Nothing to do for {:?} in normal mode.",
-                            key
-                        )));
-                    }
-                })
-            }
+            Mode::Normal => Ok(match key {
+                Key::Esc => DK::Noop,
+                Key::Ctrl('w') => DK::CloseView,
+                Key::Ctrl('s') => DK::Command(Command::Save),
+                Key::Del => DK::Noop,
+                Key::Left => DK::Command(Command::Move(Direction::Left)),
+                Key::Right => DK::Command(Command::Move(Direction::Right)),
+                Key::Up => DK::Command(Command::Move(Direction::Up)),
+                Key::Down => DK::Command(Command::Move(Direction::Down)),
+                Key::Ascii('i') => {
+                    self.mode = Mode::Insert;
+                    DK::Noop
+                }
+                Key::Ascii('h') => DK::Command(Command::Move(Direction::Left)),
+                Key::Ascii(':') => DK::Command(Command::ChangeFocus(FocusTarget::CommandLine)),
+                Key::Ascii('j') => DK::Command(Command::Move(Direction::Down)),
+                Key::Ascii('k') => DK::Command(Command::Move(Direction::Up)),
+                Key::Ascii('l') => DK::Command(Command::Move(Direction::Right)),
+                Key::Ascii('J') => DK::Command(Command::JoinLines),
+                Key::Ascii('o') => DK::Command(Command::NewlineBelow),
+                Key::Ascii('O') => DK::Command(Command::NewlineAbove),
+                Key::Ascii('x') => DK::Command(Command::DeleteForwards),
+                Key::Ascii('X') => DK::Command(Command::DeleteBackwards),
+                _ => {
+                    return Err(Error::not_impl(format!(
+                        "DocView: Nothing to do for {:?} in normal mode.",
+                        key
+                    )));
+                }
+            }),
             Mode::Insert => Ok(match key {
                 Key::Esc => {
                     self.mode = Mode::Normal;
@@ -285,7 +278,13 @@ impl DocView {
                 break;
             }
             let slice = safe_byte_slice(row.render_buf(), self.scroll_offset.x, frame.width);
-            buf_fmt!(buf, "\x1b[{};{}H", frame.y + count + 1, frame.x + 1);
+            place_cursor(
+                buf,
+                Pos {
+                    x: frame.x,
+                    y: frame.y + count,
+                },
+            );
             assert!(slice.len() < frame.width);
             buf.append(slice);
             let written_graphemes = wcwidth(slice);
@@ -293,7 +292,13 @@ impl DocView {
             count += 1;
         }
         for _ in self.doc.line_count()..frame.height {
-            buf_fmt!(buf, "\x1b[{};{}H", frame.y + count + 1, frame.x + 1);
+            place_cursor(
+                buf,
+                Pos {
+                    x: frame.x,
+                    y: frame.y + count,
+                },
+            );
             buf.append("~");
             buf.append(&BLANKS[0..frame.width - 1]);
             count += 1;
