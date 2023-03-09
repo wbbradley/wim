@@ -1,7 +1,8 @@
-use crate::buf::{buf_fmt, place_cursor, Buf, BLANKS};
+use crate::buf::{place_cursor, Buf, BLANKS};
 use crate::consts::{
     PROP_CMDLINE_FOCUSED, PROP_DOCVIEW_CURSOR_POS, PROP_DOC_FILENAME, PROP_DOC_IS_MODIFIED,
 };
+use crate::line::{line_fmt, Line};
 use crate::status::Status;
 use crate::types::{Coord, Pos, Rect, SafeCoordCast};
 use crate::view::{View, ViewContext, ViewKey};
@@ -76,11 +77,12 @@ impl View for CommandLine {
                 y: self.frame.y + 1,
             },
         );
+        let mut line: Line = Line::new(buf, self.frame.width);
         // TODO: render prompt...
         if context.get_property_bool(PROP_CMDLINE_FOCUSED, false) {
-            buf_fmt!(buf, ":{}", self.text);
+            line_fmt!(line, ":{}", self.text);
         }
-        buf.append(&BLANKS[..self.frame.width]);
+        line.flush();
     }
     fn get_view_key(&self) -> &ViewKey {
         &self.view_key

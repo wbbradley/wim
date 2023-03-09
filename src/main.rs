@@ -21,6 +21,7 @@ mod editor;
 mod error;
 mod files;
 mod keygen;
+mod line;
 mod mode;
 mod noun;
 mod read;
