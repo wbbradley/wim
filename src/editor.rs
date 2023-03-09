@@ -8,7 +8,7 @@ use crate::read::{read_key, Key};
 use crate::status::Status;
 use crate::termios::Termios;
 use crate::types::{Pos, Rect};
-use crate::view::{View, ViewKey, ViewKeyGenerator};
+use crate::view::{PropertyValue, View, ViewContext, ViewKey, ViewKeyGenerator};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -41,10 +41,10 @@ impl View for VStack {
             used += view_height;
         }
     }
-    fn display(&self, buf: &mut Buf) {
+    fn display(&self, buf: &mut Buf, context: &dyn ViewContext) {
         self.views
             .iter()
-            .for_each(|view| view.borrow().display(buf));
+            .for_each(|view| view.borrow().display(buf, context));
     }
     fn get_cursor_pos(&self) -> Option<Pos> {
         panic!("VStack should not be focused!");
@@ -76,13 +76,20 @@ impl View for Editor {
             x: 0,
             y: 0,
             width: frame.width,
-            height: frame.height,
+            height: frame.height - 2,
+        });
+        self.command_line.borrow_mut().layout(Rect {
+            x: 0,
+            y: frame.height - 2,
+            width: frame.width,
+            height: 2,
         });
     }
-    fn display(&self, buf: &mut Buf) {
+    fn display(&self, buf: &mut Buf, context: &dyn ViewContext) {
         // Hide the cursor.
         buf.append("\x1b[?25l");
-        self.root_view.borrow().display(buf);
+        self.root_view.borrow().display(buf, context);
+        self.command_line.borrow().display(buf, context);
         if let Some(cursor_pos) = self.focused_view.borrow().get_cursor_pos() {
             buf_fmt!(buf, "\x1b[{};{}H", cursor_pos.y, cursor_pos.x);
         } else {
@@ -105,6 +112,20 @@ impl View for Editor {
     }
     fn dispatch_key(&mut self, key: Key) -> Result<DK> {
         self.focused_view.borrow_mut().dispatch_key(key)
+    }
+}
+
+impl ViewContext for Editor {
+    fn get_property<'a>(&self, property: &str) -> Result<PropertyValue<'a>> {
+        if property == "current-filename" {
+            Ok(PropertyValue::String("test-filename"))
+        } else {
+            Err(Error::new(format!(
+                "{}::get_property(property={:?}) is not implemented?",
+                std::any::type_name::<Self>(),
+                property
+            )))
+        }
     }
 }
 

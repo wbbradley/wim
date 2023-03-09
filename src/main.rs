@@ -55,7 +55,7 @@ fn main() -> Result<()> {
         if should_refresh {
             edit.layout(frame);
             buf.truncate();
-            edit.display(&mut buf);
+            edit.display(&mut buf, &edit);
             should_refresh = false;
         }
         let key = match keys.pop_front() {

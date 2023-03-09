@@ -1,7 +1,7 @@
 use crate::buf::{buf_fmt, Buf, BLANKS};
 use crate::status::Status;
 use crate::types::{Coord, Pos, Rect, SafeCoordCast};
-use crate::view::{View, ViewKey};
+use crate::view::{View, ViewContext, ViewKey};
 
 #[allow(dead_code)]
 pub struct CommandLine {
@@ -44,7 +44,7 @@ impl View for CommandLine {
         self.frame = frame;
     }
 
-    fn display(&self, buf: &mut Buf) {
+    fn display(&self, buf: &mut Buf, _context: &dyn ViewContext) {
         buf_fmt!(buf, "\x1b[{};{}H", self.frame.y + 1, self.frame.x + 1);
         buf.append("\x1b[7m");
         let mut stackbuf = [0u8; 1024];

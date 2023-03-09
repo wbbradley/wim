@@ -9,7 +9,7 @@ use crate::read::Key;
 use crate::status::Status;
 use crate::types::{Coord, Pos, Rect, RelCoord, SafeCoordCast};
 use crate::utils::wcwidth;
-use crate::view::{View, ViewKey};
+use crate::view::{View, ViewContext, ViewKey};
 use std::fs::OpenOptions;
 use std::io::{Seek, SeekFrom, Write};
 use std::time::{Duration, Instant};
@@ -142,7 +142,7 @@ impl View for DocView {
         self.frame = frame;
         self.scroll();
     }
-    fn display(&self, buf: &mut Buf) {
+    fn display(&self, buf: &mut Buf, _context: &dyn ViewContext) {
         log::trace!("docview displaying...");
         let rows_drawn = self.draw_rows(buf);
         log::trace!("rows_drawn={}", rows_drawn);
@@ -160,27 +160,27 @@ impl View for DocView {
     fn dispatch_key(&mut self, key: Key) -> Result<DK> {
         match self.mode {
             Mode::Normal => {
-                match key {
-                    Key::Ctrl('w') => Ok(DK::CloseView),
-                    Key::Ctrl('s') => Ok(DK::Command(Command::Save)),
-                    Key::Del => Ok(DK::Noop),
-                    Key::Left => Ok(DK::Command(Command::Move(Direction::Left))),
-                    Key::Right => Ok(DK::Command(Command::Move(Direction::Right))),
-                    Key::Up => Ok(DK::Command(Command::Move(Direction::Up))),
-                    Key::Down => Ok(DK::Command(Command::Move(Direction::Down))),
+                Ok(match key {
+                    Key::Ctrl('w') => DK::CloseView,
+                    Key::Ctrl('s') => DK::Command(Command::Save),
+                    Key::Del => DK::Noop,
+                    Key::Left => DK::Command(Command::Move(Direction::Left)),
+                    Key::Right => DK::Command(Command::Move(Direction::Right)),
+                    Key::Up => DK::Command(Command::Move(Direction::Up)),
+                    Key::Down => DK::Command(Command::Move(Direction::Down)),
                     Key::Ascii('i') => {
                         self.mode = Mode::Insert;
-                        Ok(DK::Noop)
+                        DK::Noop
                     }
-                    Key::Ascii('h') => Ok(DK::Command(Command::Move(Direction::Left))),
-                    Key::Ascii('j') => Ok(DK::Command(Command::Move(Direction::Down))),
-                    Key::Ascii('k') => Ok(DK::Command(Command::Move(Direction::Up))),
-                    Key::Ascii('l') => Ok(DK::Command(Command::Move(Direction::Right))),
-                    Key::Ascii('J') => Ok(DK::Command(Command::JoinLines)),
-                    Key::Ascii('o') => Ok(DK::Command(Command::NewlineBelow)),
-                    Key::Ascii('O') => Ok(DK::Command(Command::NewlineAbove)),
-                    Key::Ascii('x') => Ok(DK::Command(Command::DeleteForwards)),
-                    Key::Ascii('X') => Ok(DK::Command(Command::DeleteBackwards)),
+                    Key::Ascii('h') => DK::Command(Command::Move(Direction::Left)),
+                    Key::Ascii('j') => DK::Command(Command::Move(Direction::Down)),
+                    Key::Ascii('k') => DK::Command(Command::Move(Direction::Up)),
+                    Key::Ascii('l') => DK::Command(Command::Move(Direction::Right)),
+                    Key::Ascii('J') => DK::Command(Command::JoinLines),
+                    Key::Ascii('o') => DK::Command(Command::NewlineBelow),
+                    Key::Ascii('O') => DK::Command(Command::NewlineAbove),
+                    Key::Ascii('x') => DK::Command(Command::DeleteForwards),
+                    Key::Ascii('X') => DK::Command(Command::DeleteBackwards),
                     // Key::PageDown => (), // { triggers.extend_from_slice(&[push(Command::Ok(Trigger::Command(Command::Moveedit.move_cursor(0, edit.screen_size.height as RelCoord),
                     /*
                     Key::PageUp => edit.move_cursor(0, -(edit.screen_size.height as RelCoord)),
@@ -194,11 +194,13 @@ impl View for DocView {
                     Key::Function(_) => (),
                     Key::PrintScreen => (),
                     Key::Backspace => (),*/
-                    _ => Err(Error::not_impl(format!(
-                        "DocView: Nothing to do for {:?} in normal mode.",
-                        key
-                    ))),
-                }
+                    _ => {
+                        return Err(Error::not_impl(format!(
+                            "DocView: Nothing to do for {:?} in normal mode.",
+                            key
+                        )));
+                    }
+                })
             }
             Mode::Insert => match key {
                 Key::Esc => {
@@ -224,7 +226,7 @@ impl View for DocView {
     }
     fn execute_command(&mut self, command: Command) -> Result<Status> {
         match command {
-            Command::Open { filename } => self.open(filename.clone()),
+            Command::Open { filename } => self.open(filename),
             Command::Move(direction) => match direction {
                 Direction::Up => self.move_cursor(0, -1),
                 Direction::Down => self.move_cursor(0, 1),

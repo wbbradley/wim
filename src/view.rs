@@ -10,9 +10,20 @@ use crate::types::{Pos, Rect};
 pub type ViewKey = String;
 pub type ViewKeyGenerator = KeyGenerator;
 
+#[allow(dead_code)]
+pub enum PropertyValue<'a> {
+    Int(i64),
+    Float(f64),
+    String(&'a str),
+}
+
+pub trait ViewContext {
+    fn get_property<'a>(&self, property: &str) -> Result<PropertyValue<'a>>;
+}
+
 pub trait View {
     fn layout(&mut self, frame: Rect);
-    fn display(&self, buf: &mut Buf);
+    fn display(&self, buf: &mut Buf, context: &dyn ViewContext);
     fn get_cursor_pos(&self) -> Option<Pos>;
     fn execute_command(&mut self, command: Command) -> Result<Status> {
         Err(Error::not_impl(format!(
@@ -26,6 +37,16 @@ pub trait View {
             "{} does not (yet?) handle dispatch_key [key={:?}]",
             std::any::type_name::<Self>(),
             key
+        )))
+    }
+}
+
+impl ViewContext for dyn View {
+    fn get_property<'a>(&self, property: &str) -> Result<PropertyValue<'a>> {
+        Err(Error::new(format!(
+            "{} does not (yet?) implement get_property [property={:?}]",
+            std::any::type_name::<Self>(),
+            property
         )))
     }
 }
