@@ -94,6 +94,13 @@ impl View for CommandLine {
                 self.cursor += 1;
                 Ok(DK::Noop)
             }
+            Key::Backspace => {
+                if !self.text.is_empty() {
+                    self.text.pop();
+                    self.cursor -= 1;
+                }
+                Ok(DK::Noop)
+            }
             _ => Err(Error::not_impl(format!(
                 "command line doesn't yet support {} key",
                 key

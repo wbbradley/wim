@@ -187,7 +187,6 @@ impl Editor {
     }
     pub fn new(termios: Termios) -> Self {
         let mut view_key_gen = ViewKeyGenerator::new();
-
         let views = vec![Rc::new(RefCell::new(DocView::new(
             view_key_gen.next_key_string(),
         )))];
