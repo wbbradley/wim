@@ -72,7 +72,7 @@ fn main() -> Result<()> {
                 }
             }
         };
-        match edit.dispatch_key(key)? {
+        match edit.handle_key(key)? {
             DK::Expansion(next_keys) => {
                 next_keys.iter().rev().for_each(|&key| keys.push_front(key));
                 should_refresh = true;

@@ -162,7 +162,7 @@ impl View for DocView {
             y: self.frame.y + self.cursor.y - self.scroll_offset.y,
         })
     }
-    fn dispatch_key(&mut self, key: Key) -> Result<DK> {
+    fn handle_key(&mut self, key: Key) -> Result<DK> {
         match self.mode {
             Mode::Normal => Ok(match key {
                 Key::Esc => DK::Noop,
@@ -189,7 +189,7 @@ impl View for DocView {
                 Key::Ascii('X') => DK::Command(Command::DeleteBackwards),
                 _ => {
                     return Err(Error::not_impl(format!(
-                        "DocView: Nothing to do for {:?} in normal mode.",
+                        "DocView: Nothing to do for {} in normal mode.",
                         key
                     )));
                 }

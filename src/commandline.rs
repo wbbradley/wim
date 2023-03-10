@@ -87,7 +87,7 @@ impl View for CommandLine {
         }
     }
 
-    fn dispatch_key(&mut self, key: Key) -> Result<DK> {
+    fn handle_key(&mut self, key: Key) -> Result<DK> {
         match key {
             Key::Ascii(ch) => {
                 self.text.push(ch);

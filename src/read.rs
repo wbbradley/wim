@@ -60,7 +60,11 @@ pub fn read_key() -> Option<Key> {
                 (_, _) => Some(Key::Esc),
             }
         } else if is_ctrl_key(ch) {
-            Some(Key::Ctrl(decode_ctrl_key(ch)))
+            if ch == 13 {
+                Some(Key::Enter)
+            } else {
+                Some(Key::Ctrl(decode_ctrl_key(ch)))
+            }
         } else if ch < 127 {
             Some(Key::Ascii(ch as char))
         } else if ch == 127 {

@@ -1,4 +1,4 @@
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone)]
 pub enum Key {
     Esc,
     EscSeq1(u8),
@@ -14,6 +14,7 @@ pub enum Key {
     PageDown,
     PrintScreen,
     Backspace,
+    Enter,
     Ctrl(char),
     Ascii(char),
     Function(u8),
@@ -33,6 +34,7 @@ impl std::fmt::Display for Key {
             Key::Right => write!(f, "<Right>"),
             Key::Ctrl(ch) => write!(f, "<C-{}>", ch),
             Key::Ascii(ch) => write!(f, "{}", ch),
+            Key::Enter => write!(f, "<Enter>"),
             Key::Esc => write!(f, "<Esc>"),
             Key::EscSeq1(a) => write!(f, "<Esc-{}>", *a as char),
             Key::EscSeq2(a, b) => write!(f, "<Esc-{}-{}>", *a as char, *b as char),
@@ -40,5 +42,10 @@ impl std::fmt::Display for Key {
             Key::PrintScreen => write!(f, "<PrintScreen>"),
             Key::Backspace => write!(f, "<Backspace>"),
         }
+    }
+}
+impl std::fmt::Debug for Key {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
     }
 }
