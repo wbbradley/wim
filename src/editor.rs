@@ -1,5 +1,5 @@
 use crate::buf::{place_cursor, Buf};
-use crate::command::{Command, FocusTarget};
+use crate::command::Command;
 use crate::commandline::CommandLine;
 use crate::consts::PROP_CMDLINE_FOCUSED;
 use crate::dk::DK;
@@ -126,11 +126,11 @@ impl View for Editor {
 
     fn execute_command(&mut self, command: Command) -> Result<Status> {
         match command {
-            Command::ChangeFocus(FocusTarget::CommandLine) => {
+            Command::FocusCommandLine => {
                 self.enter_command_mode();
                 Ok(Status::Cleared)
             }
-            Command::ChangeFocus(FocusTarget::Previous) => {
+            Command::FocusPrevious => {
                 self.goto_previous_view();
                 Ok(Status::Cleared)
             }
@@ -138,19 +138,18 @@ impl View for Editor {
         }
     }
     fn handle_key(&mut self, key: Key) -> Result<DK> {
+        log::trace!(
+            "[Editor::handle_key] sending key to view {}",
+            self.focused_view().borrow().get_view_key()
+        );
         self.focused_view().borrow_mut().handle_key(key)
     }
 }
 
 impl ViewContext for Editor {
     fn get_property(&self, property: &str) -> Option<PropertyValue> {
-        log::trace!("Editor::get_property({}) called...", property);
+        // log::trace!("Editor::get_property({}) called...", property);
         if property == PROP_CMDLINE_FOCUSED {
-            log::trace!(
-                "Looks like [{} vs {}]",
-                self.focused_view().borrow().get_view_key(),
-                self.command_line.borrow().get_view_key()
-            );
             Some(PropertyValue::Bool(
                 self.focused_view().borrow().get_view_key()
                     == self.command_line.borrow().get_view_key(),
@@ -215,11 +214,7 @@ impl Editor {
     }
 
     pub fn goto_previous_view(&mut self) {
-        if let Some(view) = self.previous_views.pop() {
-            if let Some(view) = view.upgrade() {
-                self.set_focus(view);
-            }
-        }
+        self.previous_views.pop();
     }
     pub fn enter_command_mode(&mut self) {
         self.set_focus(to_view(&self.command_line));

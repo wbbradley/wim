@@ -5,14 +5,21 @@ use crate::mode::Mode;
 pub enum Command {
     Open { filename: String },
     Save,
+    Execute(String),
     Move(Direction),
     SwitchMode(Mode),
-    ChangeFocus(FocusTarget),
+    FocusUp,
+    FocusDown,
+    FocusLeft,
+    FocusRight,
+    FocusPrevious,
+    FocusCommandLine,
     JoinLines,
     NewlineAbove,
     NewlineBelow,
     DeleteForwards,
     DeleteBackwards,
+    Many(Vec<Command>),
 }
 
 #[derive(Debug)]
@@ -22,16 +29,4 @@ pub enum Direction {
     Down,
     Left,
     Right,
-}
-
-#[derive(Debug)]
-#[allow(dead_code)]
-pub enum FocusTarget {
-    CommandLine,
-    Up,
-    Down,
-    Left,
-    Right,
-    Previous,
-    Next,
 }

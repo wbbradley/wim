@@ -1,4 +1,5 @@
 use crate::buf::{place_cursor, Buf, BLANKS};
+use crate::command::Command;
 use crate::consts::{
     PROP_CMDLINE_FOCUSED, PROP_DOCVIEW_CURSOR_POS, PROP_DOC_FILENAME, PROP_DOC_IS_MODIFIED,
 };
@@ -92,14 +93,24 @@ impl View for CommandLine {
             Key::Ascii(ch) => {
                 self.text.push(ch);
                 self.cursor += 1;
-                Ok(DK::Noop)
+                DK::Noop.into()
             }
             Key::Backspace => {
                 if !self.text.is_empty() {
                     self.text.pop();
                     self.cursor -= 1;
                 }
-                Ok(DK::Noop)
+                DK::Noop.into()
+            }
+            Key::Esc => Command::FocusPrevious.into(),
+            Key::Enter => {
+                log::trace!("TODO: run command '{}'", self.text);
+
+                Ok(Command::Many(vec![
+                    Command::FocusPrevious,
+                    Command::Execute(self.text.clone()),
+                ])
+                .into())
             }
             _ => Err(Error::not_impl(format!(
                 "command line doesn't yet support {} key",

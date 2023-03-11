@@ -1,5 +1,5 @@
 use crate::buf::{place_cursor, safe_byte_slice, Buf, ToBufBytes, BLANKS};
-use crate::command::{Command, Direction, FocusTarget};
+use crate::command::{Command, Direction};
 use crate::consts::{PROP_DOCVIEW_CURSOR_POS, PROP_DOC_FILENAME, PROP_DOC_IS_MODIFIED};
 use crate::dk::DK;
 use crate::doc::Doc;
@@ -178,7 +178,7 @@ impl View for DocView {
                     DK::Noop
                 }
                 Key::Ascii('h') => DK::Command(Command::Move(Direction::Left)),
-                Key::Ascii(':') => DK::Command(Command::ChangeFocus(FocusTarget::CommandLine)),
+                Key::Ascii(':') => Command::FocusCommandLine.into(),
                 Key::Ascii('j') => DK::Command(Command::Move(Direction::Down)),
                 Key::Ascii('k') => DK::Command(Command::Move(Direction::Up)),
                 Key::Ascii('l') => DK::Command(Command::Move(Direction::Right)),
