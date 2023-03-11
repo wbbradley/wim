@@ -195,6 +195,10 @@ impl View for DocView {
                 }
             }),
             Mode::Insert => Ok(match key {
+                Key::Enter => {
+                    self.insert_newline_below()?;
+                    DK::Noop
+                }
                 Key::Esc => {
                     self.mode = Mode::Normal;
                     DK::Noop
