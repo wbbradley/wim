@@ -2,10 +2,12 @@ use crate::command::Command;
 use crate::key::Key;
 
 #[allow(dead_code)]
+#[derive(Debug, Clone)]
 pub enum DK {
+    Key(Key),
     CommandLine,
-    Expansion(Vec<Key>),
     Command(Command),
+    Sequence(Vec<DK>),
     CloseView,
     Noop,
 }

@@ -55,7 +55,9 @@ fn main() -> Result<()> {
     let mut buf = Buf::default();
     let mut should_refresh = true;
     let mut keys: VecDeque<Key> = Default::default();
-    loop {
+    let mut dks: VecDeque<DK> = Default::default();
+
+    'outer: loop {
         if should_refresh {
             edit.layout(frame);
             buf.truncate();
@@ -72,26 +74,37 @@ fn main() -> Result<()> {
                 }
             }
         };
-        match edit.handle_key(key)? {
-            DK::Expansion(next_keys) => {
-                next_keys.iter().rev().for_each(|&key| keys.push_front(key));
-                should_refresh = true;
+        assert!(dks.is_empty());
+        dks.push_front(DK::Key(key));
+        while let Some(dk) = dks.pop_front() {
+            match dk {
+                DK::Key(key) => {
+                    dks.push_front(edit.handle_key(key)?);
+                }
+                DK::Sequence(next_dks) => {
+                    next_dks
+                        .iter()
+                        .rev()
+                        .cloned()
+                        .for_each(|dk| dks.push_front(dk));
+                    should_refresh = true;
+                }
+                DK::CloseView => {
+                    break 'outer;
+                }
+                DK::Command(command) => {
+                    edit.execute_command(command)?;
+                    should_refresh = true;
+                }
+                DK::CommandLine => {
+                    edit.enter_command_mode();
+                    should_refresh = true;
+                }
+                DK::Noop => {
+                    should_refresh = true;
+                }
             }
-            DK::CloseView => {
-                break;
-            }
-            DK::Command(command) => {
-                edit.execute_command(command)?;
-                should_refresh = true;
-            }
-            DK::CommandLine => {
-                edit.enter_command_mode();
-                should_refresh = true;
-            }
-            DK::Noop => {
-                should_refresh = true;
-            }
-        };
+        }
     }
     Ok(())
 }

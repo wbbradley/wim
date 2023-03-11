@@ -1,6 +1,6 @@
 use crate::mode::Mode;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub enum Command {
     Open { filename: String },
@@ -22,7 +22,7 @@ pub enum Command {
     Many(Vec<Command>),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 #[allow(dead_code)]
 pub enum Direction {
     Up,
