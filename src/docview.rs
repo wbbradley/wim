@@ -141,6 +141,47 @@ impl DocView {
         self.mode = mode;
         self.clamp_cursor();
     }
+    fn process_normal_mode_key(&mut self, key: Key) -> Result<DK> {
+        let dk = match key {
+            Key::Esc => DK::Noop,
+            Key::Ctrl('w') => DK::CloseView,
+            Key::Ctrl('s') => Command::Save.into(),
+            Key::Del => DK::Noop,
+            Key::Left => Command::Move(Direction::Left).into(),
+            Key::Right => Command::Move(Direction::Right).into(),
+            Key::Up => Command::Move(Direction::Up).into(),
+            Key::Down => Command::Move(Direction::Down).into(),
+            Key::Ascii('b') => Command::MoveRel(Noun::Word, Rel::Prior).into(),
+            Key::Ascii('e') => Command::MoveRel(Noun::Word, Rel::End).into(),
+            Key::Ascii('w') => Command::MoveRel(Noun::Word, Rel::Next).into(),
+            Key::Ascii('i') => Command::SwitchMode(Mode::Insert).into(),
+            Key::Ascii('h') => Command::Move(Direction::Left).into(),
+            Key::Ascii(':') => Command::FocusCommandLine.into(),
+            Key::Ascii('j') => Command::Move(Direction::Down).into(),
+            Key::Ascii('k') => Command::Move(Direction::Up).into(),
+            Key::Ascii('l') => Command::Move(Direction::Right).into(),
+            Key::Ascii('J') => Command::JoinLines.into(),
+            Key::Ascii('o') => DK::Sequence(vec![
+                DK::Command(Command::NewlineBelow),
+                DK::Command(Command::SwitchMode(Mode::Insert)),
+            ]),
+            Key::Ascii('O') => DK::Sequence(vec![
+                DK::Command(Command::NewlineAbove),
+                DK::Command(Command::MoveRel(Noun::Line, Rel::Beginning)),
+                DK::Command(Command::SwitchMode(Mode::Insert)),
+            ]),
+
+            Key::Ascii('x') => DK::Command(Command::DeleteForwards),
+            Key::Ascii('X') => DK::Command(Command::DeleteBackwards),
+            _ => {
+                return Err(Error::not_impl(format!(
+                    "DocView: Nothing to do for {} in normal mode.",
+                    key
+                )));
+            }
+        };
+        Ok(dk)
+    }
 }
 
 impl View for DocView {
@@ -174,44 +215,7 @@ impl View for DocView {
     }
     fn handle_key(&mut self, key: Key) -> Result<DK> {
         match self.mode {
-            Mode::Normal => Ok(match key {
-                Key::Esc => DK::Noop,
-                Key::Ctrl('w') => DK::CloseView,
-                Key::Ctrl('s') => DK::Command(Command::Save),
-                Key::Del => DK::Noop,
-                Key::Left => Command::Move(Direction::Left).into(),
-                Key::Right => Command::Move(Direction::Right).into(),
-                Key::Up => Command::Move(Direction::Up).into(),
-                Key::Down => Command::Move(Direction::Down).into(),
-                Key::Ascii('b') => Command::MoveRel(Noun::Word, Rel::Prior).into(),
-                Key::Ascii('e') => Command::MoveRel(Noun::Word, Rel::End).into(),
-                Key::Ascii('w') => Command::MoveRel(Noun::Word, Rel::Next).into(),
-                Key::Ascii('i') => Command::SwitchMode(Mode::Insert).into(),
-                Key::Ascii('h') => Command::Move(Direction::Left).into(),
-                Key::Ascii(':') => Command::FocusCommandLine.into(),
-                Key::Ascii('j') => Command::Move(Direction::Down).into(),
-                Key::Ascii('k') => Command::Move(Direction::Up).into(),
-                Key::Ascii('l') => Command::Move(Direction::Right).into(),
-                Key::Ascii('J') => Command::JoinLines.into(),
-                Key::Ascii('o') => DK::Sequence(vec![
-                    DK::Command(Command::NewlineBelow),
-                    DK::Command(Command::SwitchMode(Mode::Insert)),
-                ]),
-                Key::Ascii('O') => DK::Sequence(vec![
-                    DK::Command(Command::NewlineAbove),
-                    DK::Command(Command::MoveRel(Noun::Line, Rel::Beginning)),
-                    DK::Command(Command::SwitchMode(Mode::Insert)),
-                ]),
-
-                Key::Ascii('x') => DK::Command(Command::DeleteForwards),
-                Key::Ascii('X') => DK::Command(Command::DeleteBackwards),
-                _ => {
-                    return Err(Error::not_impl(format!(
-                        "DocView: Nothing to do for {} in normal mode.",
-                        key
-                    )));
-                }
-            }),
+            Mode::Normal => self.process_normal_mode_key(key),
             Mode::Insert => Ok(match key {
                 Key::Enter => {
                     self.insert_newline_below()?;
