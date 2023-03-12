@@ -1,4 +1,6 @@
 use crate::mode::Mode;
+use crate::noun::Noun;
+use crate::rel::Rel;
 
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
@@ -7,6 +9,7 @@ pub enum Command {
     Save,
     Execute(String),
     Move(Direction),
+    MoveRel(Noun, Rel),
     SwitchMode(Mode),
     FocusUp,
     FocusDown,
@@ -23,7 +26,6 @@ pub enum Command {
 }
 
 #[derive(Clone, Debug)]
-#[allow(dead_code)]
 pub enum Direction {
     Up,
     Down,

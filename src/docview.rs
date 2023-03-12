@@ -1,12 +1,15 @@
 use crate::buf::{place_cursor, safe_byte_slice, Buf, ToBufBytes, BLANKS};
 use crate::command::{Command, Direction};
-use crate::consts::{PROP_DOCVIEW_CURSOR_POS, PROP_DOC_FILENAME, PROP_DOC_IS_MODIFIED};
+use crate::consts::{
+    PROP_DOCVIEW_CURSOR_POS, PROP_DOCVIEW_STATUS, PROP_DOC_FILENAME, PROP_DOC_IS_MODIFIED,
+};
 use crate::dk::DK;
 use crate::doc::Doc;
 use crate::error::{Error, Result};
 use crate::key::Key;
 use crate::mode::Mode;
 use crate::noun::Noun;
+use crate::rel::Rel;
 use crate::status::Status;
 use crate::types::{Coord, Pos, Rect, RelCoord, SafeCoordCast};
 use crate::utils::wcwidth;
@@ -49,17 +52,22 @@ impl DocView {
     }
 
     pub fn last_valid_row(&self) -> Coord {
-        self.doc.line_count().as_coord()
+        self.doc.line_count()
     }
     fn clamp_cursor(&mut self) {
+        log::trace!("clamp_cursor starts at {:?}", self.cursor);
         self.cursor.y = self.cursor.y.clamp(0, self.last_valid_row());
         if let Some(row) = self.doc.get_line_buf(self.cursor.y) {
-            self.cursor.x = self.cursor.x.clamp(0, row.len());
+            self.cursor.x = self.cursor.x.clamp(
+                0,
+                row.len() - usize::from(row.len() > 0 && self.mode == Mode::Normal),
+            );
             self.render_cursor_x = row.cursor_to_render_col(self.cursor.x);
         } else {
             self.cursor.x = 0;
             self.render_cursor_x = 0;
         };
+        log::trace!("clamp_cursor ends at {:?}", self.cursor);
     }
     pub fn jump_cursor(&mut self, x: Option<Coord>, y: Option<Coord>) {
         if let Some(y) = y {
@@ -129,6 +137,10 @@ impl DocView {
         }
         buf
     }
+    fn switch_mode(&mut self, mode: Mode) {
+        self.mode = mode;
+        self.clamp_cursor();
+    }
 }
 
 impl View for DocView {
@@ -138,9 +150,7 @@ impl View for DocView {
         self.scroll();
     }
     fn display(&self, buf: &mut Buf, _context: &dyn ViewContext) {
-        log::trace!("docview displaying...");
         let rows_drawn = self.draw_rows(buf);
-        log::trace!("rows_drawn={}", rows_drawn);
         for y in rows_drawn..self.frame.height {
             place_cursor(
                 buf,
@@ -169,22 +179,30 @@ impl View for DocView {
                 Key::Ctrl('w') => DK::CloseView,
                 Key::Ctrl('s') => DK::Command(Command::Save),
                 Key::Del => DK::Noop,
-                Key::Left => DK::Command(Command::Move(Direction::Left)),
-                Key::Right => DK::Command(Command::Move(Direction::Right)),
-                Key::Up => DK::Command(Command::Move(Direction::Up)),
-                Key::Down => DK::Command(Command::Move(Direction::Down)),
-                Key::Ascii('i') => {
-                    self.mode = Mode::Insert;
-                    DK::Noop
-                }
-                Key::Ascii('h') => DK::Command(Command::Move(Direction::Left)),
+                Key::Left => Command::Move(Direction::Left).into(),
+                Key::Right => Command::Move(Direction::Right).into(),
+                Key::Up => Command::Move(Direction::Up).into(),
+                Key::Down => Command::Move(Direction::Down).into(),
+                Key::Ascii('b') => Command::MoveRel(Noun::Word, Rel::Prior).into(),
+                Key::Ascii('e') => Command::MoveRel(Noun::Word, Rel::End).into(),
+                Key::Ascii('w') => Command::MoveRel(Noun::Word, Rel::Next).into(),
+                Key::Ascii('i') => Command::SwitchMode(Mode::Insert).into(),
+                Key::Ascii('h') => Command::Move(Direction::Left).into(),
                 Key::Ascii(':') => Command::FocusCommandLine.into(),
-                Key::Ascii('j') => DK::Command(Command::Move(Direction::Down)),
-                Key::Ascii('k') => DK::Command(Command::Move(Direction::Up)),
-                Key::Ascii('l') => DK::Command(Command::Move(Direction::Right)),
-                Key::Ascii('J') => DK::Command(Command::JoinLines),
-                Key::Ascii('o') => DK::Command(Command::NewlineBelow),
-                Key::Ascii('O') => DK::Command(Command::NewlineAbove),
+                Key::Ascii('j') => Command::Move(Direction::Down).into(),
+                Key::Ascii('k') => Command::Move(Direction::Up).into(),
+                Key::Ascii('l') => Command::Move(Direction::Right).into(),
+                Key::Ascii('J') => Command::JoinLines.into(),
+                Key::Ascii('o') => DK::Sequence(vec![
+                    DK::Command(Command::NewlineBelow),
+                    DK::Command(Command::SwitchMode(Mode::Insert)),
+                ]),
+                Key::Ascii('O') => DK::Sequence(vec![
+                    DK::Command(Command::NewlineAbove),
+                    DK::Command(Command::MoveRel(Noun::Line, Rel::Beginning)),
+                    DK::Command(Command::SwitchMode(Mode::Insert)),
+                ]),
+
                 Key::Ascii('x') => DK::Command(Command::DeleteForwards),
                 Key::Ascii('X') => DK::Command(Command::DeleteBackwards),
                 _ => {
@@ -199,10 +217,7 @@ impl View for DocView {
                     self.insert_newline_below()?;
                     DK::Noop
                 }
-                Key::Esc => {
-                    self.mode = Mode::Normal;
-                    DK::Noop
-                }
+                Key::Esc => Command::SwitchMode(Mode::Normal).into(),
                 Key::Ascii(ch) => {
                     self.insert_char(ch)?;
                     DK::Noop
@@ -236,6 +251,14 @@ impl View for DocView {
             Command::NewlineBelow => self.insert_newline_below(),
             Command::DeleteForwards => self.delete_forwards(Noun::Char),
             Command::DeleteBackwards => self.delete_backwards(Noun::Char),
+            Command::SwitchMode(mode) => {
+                self.switch_mode(mode);
+                Ok(Status::NothingToSay)
+            }
+            Command::MoveRel(noun, prior) => Ok(Status::Message {
+                message: format!("todo: impl MoveRel({:?}, {:?})", noun, prior),
+                expiry: Instant::now() + Duration::from_secs(2),
+            }),
             _ => Err(Error::not_impl(format!(
                 "DocView::execute_command needs to handle {:?}.",
                 command,
@@ -254,6 +277,12 @@ impl ViewContext for DocView {
                 .map(|filename| PropertyValue::String(filename.to_string()))
         } else if property == PROP_DOCVIEW_CURSOR_POS {
             Some(PropertyValue::Pos(self.cursor))
+        } else if property == PROP_DOCVIEW_STATUS {
+            Some(PropertyValue::String(format!(
+                "| {}:{} ",
+                self.cursor.y + 1,
+                self.cursor.x + 1
+            )))
         } else {
             log::trace!("DocView::get_property unhandled request for '{}'", property);
             None

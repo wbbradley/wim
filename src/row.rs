@@ -13,8 +13,8 @@ pub struct Row {
 impl Row {
     #[inline]
     pub fn append(&mut self, text: &str) {
-        assert!(false);
-        self.buf.append(text)
+        panic!("not used ({})", text);
+        // self.buf.append(text)
     }
     pub fn render_buf(&self) -> &Buf {
         &self.render
@@ -34,7 +34,7 @@ impl Row {
 
     /// Adjust the render column to account for tabs.
     pub fn cursor_to_render_col(&self, cursor: Coord) -> Coord {
-        let cursor = cursor as usize;
+        let cursor = cursor;
         let mut render_x: usize = 0;
         for (i, &ch) in self.buf.to_bytes().iter().enumerate() {
             if i == cursor {
@@ -65,6 +65,55 @@ impl Row {
     pub fn append_row(&mut self, row: &Self) {
         self.buf.append(row);
         self.render = Buf::render_from_bytes(self.buf.to_bytes());
+    }
+    pub fn next_word_break(&self, x: Coord) -> Coord {
+        if self.buf.len() <= x + 1 {
+            self.buf.len()
+        } else {
+            let bytes = self.buf.to_bytes();
+            let start_class = classify(bytes[x] as char);
+            for (i, &ch) in bytes[x + 1..].iter().enumerate() {
+                let next_class = classify(ch as char);
+                if next_class != start_class {
+                    return x + i + 1;
+                }
+            }
+            self.buf.len()
+        }
+    }
+    pub fn prev_word_break(&self, mut x: Coord) -> Coord {
+        x = x.clamp(0, self.buf.len());
+        if x <= 1 {
+            0
+        } else {
+            let bytes = self.buf.to_bytes();
+            let start_class = classify(bytes[x - 1] as char);
+            for i in 1..=x {
+                let ch = bytes[x - i];
+                let next_class = classify(ch as char);
+                if next_class != start_class {
+                    return x - i + 1;
+                }
+            }
+            0
+        }
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq)]
+pub enum CharType {
+    Text,
+    Punct,
+    Space,
+}
+
+fn classify(ch: char) -> CharType {
+    if unsafe { libc::ispunct(ch as libc::c_int) } != 0 {
+        CharType::Punct
+    } else if unsafe { libc::isspace(ch as libc::c_int) } != 0 {
+        CharType::Space
+    } else {
+        CharType::Text
     }
 }
 

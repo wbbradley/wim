@@ -6,3 +6,9 @@ pub enum Status {
     NothingToSay,
     Cleared,
 }
+
+impl From<()> for Status {
+    fn from(_: ()) -> Self {
+        Status::NothingToSay
+    }
+}

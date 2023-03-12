@@ -139,7 +139,8 @@ impl View for Editor {
     }
     fn handle_key(&mut self, key: Key) -> Result<DK> {
         log::trace!(
-            "[Editor::handle_key] sending key to view {}",
+            "[Editor::handle_key] sending key {} to view {}",
+            key,
             self.focused_view().borrow().get_view_key()
         );
         self.focused_view().borrow_mut().handle_key(key)

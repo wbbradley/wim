@@ -1,7 +1,7 @@
 use crate::error::Result;
 use crate::noun::Noun;
 use crate::row::Row;
-use crate::types::{Coord, Pos, SafeCoordCast};
+use crate::types::{Coord, Pos};
 use crate::utils::read_lines;
 
 #[derive(Debug)]
@@ -68,46 +68,35 @@ impl Doc {
         self.dirty = true;
     }
     pub fn delete_forwards(&mut self, cursor: Pos, noun: Noun) -> (Option<Coord>, Option<Coord>) {
-        match noun {
-            Noun::Line => {
-                if let Some(row) = self.rows.get_mut(cursor.y) {
-                    row.splice(cursor.x..row.len().as_coord(), "");
-                    self.dirty = true;
-                }
-                (None, None)
+        if let Some(row) = self.rows.get_mut(cursor.y) {
+            if row.len() == 0 || cursor.x >= row.len() - 1 {
+                return (None, None);
             }
-            Noun::Char => {
-                if let Some(row) = self.rows.get_mut(cursor.y) {
-                    if cursor.x < row.len().as_coord() {
-                        row.splice(cursor.x..cursor.x + 1, "");
-                        self.dirty = true;
-                    }
-                }
-                (None, None)
-            }
+            let end_index = match noun {
+                Noun::Line => row.len(),
+                Noun::Char => std::cmp::min(cursor.x + 1, row.len() - 1),
+                Noun::Word => row.next_word_break(cursor.x),
+            };
+            row.splice(cursor.x..end_index, "");
+            self.dirty = true;
         }
+        (None, None)
     }
     pub fn delete_backwards(&mut self, cursor: Pos, noun: Noun) -> (Option<Coord>, Option<Coord>) {
-        match noun {
-            Noun::Line => {
-                if let Some(row) = self.rows.get_mut(cursor.y) {
-                    row.splice(0..cursor.x.as_coord(), "");
-                    self.dirty = true;
-                    (Some(0), None)
-                } else {
-                    (None, None)
-                }
+        if let Some(row) = self.rows.get_mut(cursor.y) {
+            if row.len() == 0 || cursor.x == 0 {
+                return (None, None);
             }
-            Noun::Char => {
-                if let Some(row) = self.rows.get_mut(cursor.y) {
-                    if cursor.x > 0 {
-                        row.splice(cursor.x - 1..cursor.x, "");
-                        self.dirty = true;
-                        return (Some(cursor.x - 1), None);
-                    }
-                }
-                (None, None)
-            }
+            let start_index = match noun {
+                Noun::Line => 0,
+                Noun::Char => cursor.x - 1,
+                Noun::Word => row.prev_word_break(cursor.x),
+            };
+            row.splice(start_index..cursor.x, "");
+            self.dirty = true;
+            (Some(start_index), None)
+        } else {
+            (None, None)
         }
     }
     pub fn join_lines(&mut self, range: std::ops::Range<Coord>) {

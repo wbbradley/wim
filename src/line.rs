@@ -21,8 +21,7 @@ impl<'a> Line<'a> {
     }
     pub fn flush(&mut self) {
         if self.max_line_length >= self.cur_offset() {
-            self.buf
-                .append(&BLANKS[..self.max_line_length - self.cur_offset()]);
+            self.buf.append(&BLANKS[..self.remaining_space()]);
         }
     }
     pub fn append<T>(&mut self, b: T)
@@ -30,6 +29,23 @@ impl<'a> Line<'a> {
         T: ToBufBytes,
     {
         self.buf.append(b)
+    }
+    pub fn remaining_space(&self) -> usize {
+        // TODO: have this calculate visible chars, not u8's left.
+        self.max_line_length - self.cur_offset()
+    }
+    pub fn end_with<T>(&mut self, s: T)
+    where
+        T: ToBufBytes,
+    {
+        let b = s.to_bytes();
+        if self.remaining_space() > b.len() {
+            let spaces_needed = self.remaining_space() - b.len();
+            self.buf.append(&BLANKS[..spaces_needed]);
+            self.buf.append(b);
+        } else {
+            log::trace!("ran out of space to put {:?} at the end of a line.", b);
+        }
     }
 }
 
