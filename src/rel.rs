@@ -1,6 +1,6 @@
 use rune::Any;
 
-#[derive(Any, Clone, Debug, Eq, PartialEq)]
+#[derive(Any, Copy, Clone, Debug, Eq, PartialEq)]
 #[allow(dead_code)]
 pub enum Rel {
     #[rune(constructor)]

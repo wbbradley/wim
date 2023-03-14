@@ -53,6 +53,18 @@ impl DocView {
         self.clamp_cursor();
         Ok(Status::NothingToSay)
     }
+    pub fn move_cursor_rel(&mut self, noun: Noun, rel: Rel) -> Result<Status> {
+        match (noun, rel) {
+            (Noun::Char, Rel::Prior) => self.move_cursor(-1, 0),
+            (Noun::Char, Rel::Next) => self.move_cursor(1, 0),
+            (Noun::Line, Rel::Prior) => self.move_cursor(0, -1),
+            (Noun::Line, Rel::Next) => self.move_cursor(0, 1),
+            _ => Err(Error::not_impl(format!(
+                "DocView: Don't know how to handle relative motion for ({:?}, {:?}).",
+                noun, rel
+            ))),
+        }
+    }
 
     pub fn last_valid_row(&self) -> Coord {
         self.doc.line_count()
@@ -222,6 +234,7 @@ impl View for DocView {
     }
     fn handle_key(&mut self, key: Key) -> Result<DK> {
         if let Ok(Some(dk)) = self.plugin.borrow_mut().handle_editor_key(self.mode, key) {
+            log::trace!("[DocView] got DK from plugin {:?}!", dk);
             return Ok(dk);
         }
         match self.mode {
@@ -254,6 +267,7 @@ impl View for DocView {
     fn execute_command(&mut self, command: Command) -> Result<Status> {
         match command {
             Command::Open { filename } => self.open(filename),
+            Command::MoveRel(noun, rel) => self.move_cursor_rel(noun, rel),
             Command::Move(direction) => match direction {
                 Direction::Up => self.move_cursor(0, -1),
                 Direction::Down => self.move_cursor(0, 1),
@@ -269,10 +283,6 @@ impl View for DocView {
                 self.switch_mode(mode);
                 Ok(Status::NothingToSay)
             }
-            Command::MoveRel(noun, prior) => Ok(Status::Message {
-                message: format!("todo: impl MoveRel({:?}, {:?})", noun, prior),
-                expiry: Instant::now() + Duration::from_secs(2),
-            }),
             _ => Err(Error::not_impl(format!(
                 "DocView::execute_command needs to handle {:?}.",
                 command,
