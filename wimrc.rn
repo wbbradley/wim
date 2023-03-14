@@ -1,16 +1,17 @@
 pub fn handle_key(mode, key) {
-  #{
-    "normal": #{
-        "h": move_rel(Noun::Char), // + Rel.PRIOR),
-        "j": move_rel(Noun.Line + Direction.DOWN),
-        "k": move_rel(Noun.Line + Direction.UP),
-        "l": move_rel(Noun.Char + Direction.RIGHT),
-        "J": join_lines,
-        "o": [Newline.BELOW, switch_mode(Mode.INSERT)],
-        "O": [Newline.ABOVE, move_rel(Noun.LINE + Rel.BEGIN)],
-        "x": [delete_to(Noun.CHAR + Rel.NEXT)],
+  match mode {
+    Mode::Normal => match key {
+        Key::Ascii('h') => Some(DK::Command(Command::MoveRel(Noun::Char, Rel::Prior))),
+        // "j": move_rel(Noun.Line + Direction.DOWN),
+        // "k": move_rel(Noun.Line + Direction.UP),
+        // "l": move_rel(Noun.Char + Direction.RIGHT),
+        // "J": join_lines,
+        // "o": [Newline.BELOW, switch_mode(Mode.INSERT)],
+        // "O": [Newline.ABOVE, move_rel(Noun.LINE + Rel.BEGIN)],
+        // "x": [delete_to(Noun.CHAR + Rel.NEXT)],
     }
   }
+  None
 }
 
 // nmap <Left> :|left<CR>

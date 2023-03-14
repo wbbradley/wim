@@ -1,7 +1,15 @@
+use rune::Any;
+
 #[allow(dead_code)]
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Any, Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Mode {
+    #[rune(constructor)]
     Insert,
-    Visual { block_mode: bool },
+    #[rune(constructor)]
+    Visual {
+        #[rune(get)]
+        block_mode: bool,
+    },
+    #[rune(constructor)]
     Normal,
 }

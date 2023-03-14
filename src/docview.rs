@@ -221,6 +221,9 @@ impl View for DocView {
         })
     }
     fn handle_key(&mut self, key: Key) -> Result<DK> {
+        if let Some(dk) = self.plugin.borrow_mut().handle_editor_key(self.mode, key) {
+            return Ok(dk);
+        }
         match self.mode {
             Mode::Normal => self.process_normal_mode_key(key),
             Mode::Insert => Ok(match key {

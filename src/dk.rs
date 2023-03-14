@@ -1,14 +1,21 @@
 use crate::command::Command;
 use crate::key::Key;
+use rune::Any;
 
 #[allow(dead_code)]
-#[derive(Debug, Clone)]
+#[derive(Any, Clone, Debug, Eq, PartialEq)]
 pub enum DK {
-    Key(Key),
+    #[rune(constructor)]
+    Key(#[rune(get)] Key),
+    #[rune(constructor)]
     CommandLine,
-    Command(Command),
-    Sequence(Vec<DK>),
+    #[rune(constructor)]
+    Command(#[rune(get)] Command),
+    #[rune(constructor)]
+    Sequence(#[rune(get)] Vec<DK>),
+    #[rune(constructor)]
     CloseView,
+    #[rune(constructor)]
     Noop,
 }
 

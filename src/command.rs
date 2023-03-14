@@ -1,34 +1,59 @@
 use crate::mode::Mode;
 use crate::noun::Noun;
 use crate::rel::Rel;
+use rune::Any;
 
-#[derive(Debug, Clone)]
-#[allow(dead_code)]
+#[derive(Any, Clone, Debug, Eq, PartialEq)]
 pub enum Command {
-    Open { filename: String },
+    #[rune(constructor)]
+    Open {
+        #[rune(get)]
+        filename: String,
+    },
+    #[rune(constructor)]
     Save,
-    Execute(String),
-    Move(Direction),
-    MoveRel(Noun, Rel),
-    SwitchMode(Mode),
+    #[rune(constructor)]
+    Execute(#[rune(get)] String),
+    #[rune(constructor)]
+    Move(#[rune(get)] Direction),
+    #[rune(constructor)]
+    MoveRel(#[rune(get)] Noun, #[rune(get)] Rel),
+    #[rune(constructor)]
+    SwitchMode(#[rune(get)] Mode),
+    #[rune(constructor)]
     FocusUp,
+    #[rune(constructor)]
     FocusDown,
+    #[rune(constructor)]
     FocusLeft,
+    #[rune(constructor)]
     FocusRight,
+    #[rune(constructor)]
     FocusPrevious,
+    #[rune(constructor)]
     FocusCommandLine,
+    #[rune(constructor)]
     JoinLines,
+    #[rune(constructor)]
     NewlineAbove,
+    #[rune(constructor)]
     NewlineBelow,
+    #[rune(constructor)]
     DeleteForwards,
+    #[rune(constructor)]
     DeleteBackwards,
-    Many(Vec<Command>),
+    #[rune(constructor)]
+    Many(#[rune(get)] Vec<Command>),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Any, Clone, Debug, Eq, PartialEq)]
 pub enum Direction {
+    #[rune(constructor)]
     Up,
+    #[rune(constructor)]
     Down,
+    #[rune(constructor)]
     Left,
+    #[rune(constructor)]
     Right,
 }

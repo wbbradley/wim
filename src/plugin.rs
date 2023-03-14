@@ -1,22 +1,24 @@
-use rune::termcolor::{ColorChoice, StandardStream};
-use rune::{Context, ContextError, Diagnostics, Module, Source, Sources, Vm};
-use std::sync::Arc;
-
 use crate::command::Command;
 use crate::dk::DK;
 use crate::key::Key;
 use crate::mode::Mode;
 use crate::noun::Noun;
+use crate::rel::Rel;
+use rune::termcolor::{ColorChoice, StandardStream};
+use rune::{Context, ContextError, Diagnostics, Module, Source, Sources, Vm};
+use std::cell::RefCell;
+use std::rc::Rc;
+use std::sync::Arc;
 
 #[derive(Debug)]
 #[allow(dead_code)]
 pub struct Plugin {
     vm: Vm,
 }
-pub type PluginRef = Arc<Plugin>;
+pub type PluginRef = Rc<RefCell<Plugin>>;
 
 impl Plugin {
-    pub fn handle_editor_key(_mode: Mode, _key: Key) -> Option<DK> {
+    pub fn handle_editor_key(&mut self, _mode: Mode, _key: Key) -> Option<DK> {
         Some(Command::NewlineBelow.into())
     }
 }
@@ -24,12 +26,16 @@ impl Plugin {
 pub fn make_builtins_module() -> Result<Module, ContextError> {
     let mut module = Module::new();
     module.ty::<Noun>()?;
+    module.ty::<Command>()?;
+    module.ty::<Rel>()?;
+    module.ty::<DK>()?;
+    module.ty::<Mode>()?;
     module.ty::<Key>()?;
     module.function(&["noun_char"], || Noun::Char)?;
     Ok(module)
 }
 
-pub fn load_plugin() -> anyhow::Result<Arc<Plugin>> {
+pub fn load_plugin() -> anyhow::Result<PluginRef> {
     let builtins = make_builtins_module()?;
     let filename = "wimrc.rn";
     println!("[wim] Loading plugin {}...", filename);
@@ -59,5 +65,5 @@ pub fn load_plugin() -> anyhow::Result<Arc<Plugin>> {
 
     println!("{}", output);
     */
-    Ok(Arc::new(Plugin { vm }))
+    Ok(Rc::new(RefCell::new(Plugin { vm })))
 }
