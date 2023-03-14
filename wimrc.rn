@@ -1,20 +1,16 @@
 
-let keymap =  #{
+const keymap = #{
     "normal": #{
-        "<Left>": move(Direction.LEFT),
-        "<Right>": move(Direction.RIGHT),
-        "<Up>": move(Direction.UP),
-        "<Down>": move(Direction.DOWN),
         "h": move_rel(Noun.CHAR | Rel.PRIOR),
-        "j": move(Direction.DOWN),
-        "k": move(Direction.UP),
-        "l": move(Direction.RIGHT),
+        "j": move_rel(Noun.LINE | Direction.DOWN),
+        "k": move_rel(Noun.LINE | Direction.UP),
+        "l": move_rel(Noun.CHAR | Direction.RIGHT),
         "J": join_lines,
         "o": [Newline.BELOW, switch_mode(Mode.INSERT)],
         "O": [Newline.ABOVE, move_rel(Noun.LINE | Rel.BEGIN)],
         "x": [delete_to(Noun.CHAR | Rel.NEXT)],
     }
-}
+};
 
 // nmap <Left> :|left<CR>
 // nmap <Right> :|right<CR>
