@@ -26,6 +26,7 @@ pub struct DocView {
     scroll_offset: Pos,
     frame: Rect,
     mode: Mode,
+    cur_keys: Vec<Key>,
 }
 
 #[allow(dead_code)]
@@ -142,6 +143,7 @@ impl DocView {
         self.clamp_cursor();
     }
     fn process_normal_mode_key(&mut self, key: Key) -> Result<DK> {
+        self.cur_keys.push(key);
         let dk = match key {
             Key::Esc => DK::Noop,
             Key::Ctrl('w') => DK::CloseView,
@@ -304,6 +306,7 @@ impl DocView {
             scroll_offset: Default::default(),
             frame: Rect::zero(),
             mode: Mode::Normal,
+            cur_keys: Vec::new(),
         }
     }
 
