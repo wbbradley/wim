@@ -43,8 +43,9 @@ mod widechar_width;
 pub static VERSION: &str = "v0.1.0";
 
 fn main() -> anyhow::Result<()> {
-    //Result<()> {
     let plugin = load_plugin()?;
+    Ok(())
+    /*
     let termios = Termios::enter_raw_mode();
     match std::panic::catch_unwind(move || run_app(termios, plugin)) {
         Ok(result) => result.context("during run_app"),
@@ -59,6 +60,7 @@ fn main() -> anyhow::Result<()> {
             }
         },
     }
+    */
 }
 
 fn run_app(termios: Termios, _plugin: Plugin) -> anyhow::Result<()> {

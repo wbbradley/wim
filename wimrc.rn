@@ -1,16 +1,25 @@
+pub fn add(a, b) {
+  match Noun::Char {
+    Noun::Char => dbg(1),
+    _ => dbg(10),
+  }
+  a+b
+}
 
-const keymap = #{
+pub fn keymap() {
+  #{
     "normal": #{
-        "h": move_rel(Noun.CHAR | Rel.PRIOR),
-        "j": move_rel(Noun.LINE | Direction.DOWN),
-        "k": move_rel(Noun.LINE | Direction.UP),
-        "l": move_rel(Noun.CHAR | Direction.RIGHT),
+        "h": move_rel(Noun::Char), // + Rel.PRIOR),
+        "j": move_rel(Noun.Line + Direction.DOWN),
+        "k": move_rel(Noun.Line + Direction.UP),
+        "l": move_rel(Noun.Char + Direction.RIGHT),
         "J": join_lines,
         "o": [Newline.BELOW, switch_mode(Mode.INSERT)],
-        "O": [Newline.ABOVE, move_rel(Noun.LINE | Rel.BEGIN)],
-        "x": [delete_to(Noun.CHAR | Rel.NEXT)],
+        "O": [Newline.ABOVE, move_rel(Noun.LINE + Rel.BEGIN)],
+        "x": [delete_to(Noun.CHAR + Rel.NEXT)],
     }
-};
+  }
+}
 
 // nmap <Left> :|left<CR>
 // nmap <Right> :|right<CR>
