@@ -1,7 +1,12 @@
 pub fn handle_key(mode, key) {
-  match mode {
+  Some(DK::Command(match mode {
     Mode::Normal => match key {
-        Key::Ascii('h') => Some(DK::Command(Command::MoveRel(Noun::Char, Rel::Prior))),
+        Key::Ascii('i') => Command::SwitchMode(Mode::Insert),
+        Key::Ascii('h') => Command::MoveRel(Noun::Char, Rel::Prior),
+        Key::Ascii('j') => Command::MoveRel(Noun::Line, Rel::Next),
+        Key::Ascii('k') => Command::MoveRel(Noun::Line, Rel::Prior),
+        Key::Ascii('l') => Command::MoveRel(Noun::Char, Rel::Next),
+        Key::Ascii('q') => DK::CloseView,
         // "j": move_rel(Noun.Line + Direction.DOWN),
         // "k": move_rel(Noun.Line + Direction.UP),
         // "l": move_rel(Noun.Char + Direction.RIGHT),
@@ -9,9 +14,10 @@ pub fn handle_key(mode, key) {
         // "o": [Newline.BELOW, switch_mode(Mode.INSERT)],
         // "O": [Newline.ABOVE, move_rel(Noun.LINE + Rel.BEGIN)],
         // "x": [delete_to(Noun.CHAR + Rel.NEXT)],
-    }
-  }
-  None
+        _ => { return None; },
+    },
+    _ => { return None; }
+  }))
 }
 
 // nmap <Left> :|left<CR>

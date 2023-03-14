@@ -11,6 +11,7 @@ use crate::plugin::PluginRef;
 use crate::status::Status;
 use crate::types::{Coord, Pos, Rect};
 use crate::view::{View, ViewContext, ViewKey};
+use std::time::Instant;
 
 #[allow(dead_code)]
 pub struct CommandLine {
@@ -39,7 +40,7 @@ impl CommandLine {
         }
     }
     pub fn set_status(&mut self, status: Status) {
-        log::trace!("Status Updated: {:?}", &status);
+        log::trace!("[CommandLine] Status Updated: {:?}", &status);
         self.status = status;
     }
 }
@@ -58,7 +59,7 @@ impl View for CommandLine {
         let is_dirty = context.get_property_bool(PROP_DOC_IS_MODIFIED, false);
         let current_filename = context.get_property_string(PROP_DOC_FILENAME, "<no filename>");
         let status_text = context.get_property_string(PROP_DOCVIEW_STATUS, "");
-
+        log::trace!("PROP_DOCVIEW_STATUS={}", status_text);
         {
             let mut line: Line = Line::new(buf, self.frame.width);
             line_fmt!(
@@ -67,6 +68,15 @@ impl View for CommandLine {
                 current_filename,
                 if is_dirty { "(modified) " } else { "" }
             );
+            if let Status::Message {
+                ref message,
+                expiry,
+            } = self.status
+            {
+                if expiry > Instant::now() {
+                    line_fmt!(line, " {}", message);
+                }
+            }
             line.end_with(&status_text);
         }
 

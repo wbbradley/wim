@@ -5,7 +5,7 @@ use crate::mode::Mode;
 use crate::noun::Noun;
 use crate::rel::Rel;
 use rune::termcolor::{ColorChoice, StandardStream};
-use rune::{Context, ContextError, Diagnostics, Module, Source, Sources, Vm};
+use rune::{Context, ContextError, Diagnostics, FromValue, Module, Source, Sources, Vm};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -18,8 +18,13 @@ pub struct Plugin {
 pub type PluginRef = Rc<RefCell<Plugin>>;
 
 impl Plugin {
-    pub fn handle_editor_key(&mut self, _mode: Mode, _key: Key) -> Option<DK> {
-        Some(Command::NewlineBelow.into())
+    pub fn handle_editor_key(
+        &mut self,
+        mode: Mode,
+        key: Key,
+    ) -> std::result::Result<Option<DK>, rune::runtime::VmError> {
+        let output = self.vm.call(["handle_key"], (mode, key))?;
+        <Option<DK>>::from_value(output)
     }
 }
 
@@ -59,11 +64,5 @@ pub fn load_plugin() -> anyhow::Result<PluginRef> {
 
     let unit = result?;
     let vm = Vm::new(rune_runtime, Arc::new(unit));
-    /*
-    let output = vm.call(["add"], (10i64, 20i64))?;
-    let output = i64::from_value(output)?;
-
-    println!("{}", output);
-    */
     Ok(Rc::new(RefCell::new(Plugin { vm })))
 }
