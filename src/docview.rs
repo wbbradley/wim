@@ -9,6 +9,7 @@ use crate::error::{Error, Result};
 use crate::key::Key;
 use crate::mode::Mode;
 use crate::noun::Noun;
+use crate::plugin::PluginRef;
 use crate::rel::Rel;
 use crate::status::Status;
 use crate::types::{Coord, Pos, Rect, RelCoord, SafeCoordCast};
@@ -19,6 +20,7 @@ use std::io::{Seek, SeekFrom, Write};
 use std::time::{Duration, Instant};
 
 pub struct DocView {
+    plugin: PluginRef,
     key: ViewKey,
     cursor: Pos,
     render_cursor_x: Coord,
@@ -187,6 +189,9 @@ impl DocView {
 }
 
 impl View for DocView {
+    fn install_plugins(&mut self, plugin: PluginRef) {
+        self.plugin = plugin;
+    }
     fn layout(&mut self, frame: Rect) {
         log::trace!("docview frame is {:?}", frame);
         self.frame = frame;
@@ -297,8 +302,9 @@ impl ViewContext for DocView {
 }
 
 impl DocView {
-    pub fn new(view_key: ViewKey) -> Self {
+    pub fn new(view_key: ViewKey, plugin: PluginRef) -> Self {
         Self {
+            plugin,
             key: view_key,
             cursor: Default::default(),
             render_cursor_x: 0,

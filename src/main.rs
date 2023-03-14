@@ -4,7 +4,7 @@ use crate::dk::DK;
 use crate::editor::Editor;
 use crate::error::Error;
 use crate::key::Key;
-use crate::plugin::{load_plugin, Plugin};
+use crate::plugin::{load_plugin, PluginRef};
 use crate::read::read_key;
 use crate::termios::Termios;
 use crate::types::Rect;
@@ -38,16 +38,18 @@ mod trigger;
 mod types;
 mod utils;
 mod view;
+mod vstack;
 mod widechar_width;
 
 pub static VERSION: &str = "v0.1.0";
 
 fn main() -> anyhow::Result<()> {
     let plugin = load_plugin()?;
-    Ok(())
-    /*
     let termios = Termios::enter_raw_mode();
-    match std::panic::catch_unwind(move || run_app(termios, plugin)) {
+    // UnwindSafe
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe/*lying*/(move || {
+        run_app(termios, plugin)
+    })) {
         Ok(result) => result.context("during run_app"),
         Err(panic) => match panic.downcast::<String>() {
             Ok(error) => {
@@ -60,17 +62,16 @@ fn main() -> anyhow::Result<()> {
             }
         },
     }
-    */
 }
 
-fn run_app(termios: Termios, _plugin: Plugin) -> anyhow::Result<()> {
+fn run_app(termios: Termios, plugin: PluginRef) -> anyhow::Result<()> {
     simple_logging::log_to_file("wim.log", LevelFilter::Trace)?;
     let args: Vec<String> = env::args().collect();
     log::trace!("wim run with args: {:?}", args);
 
     let frame: Rect = termios.get_window_size().into();
 
-    let mut edit = Editor::new(termios);
+    let mut edit = Editor::new(termios, plugin);
     if args.len() > 1 {
         edit.execute_command(Command::Open {
             filename: args[1].clone(),

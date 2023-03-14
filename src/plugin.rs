@@ -1,20 +1,35 @@
 use rune::termcolor::{ColorChoice, StandardStream};
-use rune::{Context, ContextError, Diagnostics, FromValue, Module, Source, Sources, Vm};
+use rune::{Context, ContextError, Diagnostics, Module, Source, Sources, Vm};
 use std::sync::Arc;
 
+use crate::command::Command;
+use crate::dk::DK;
+use crate::key::Key;
+use crate::mode::Mode;
 use crate::noun::Noun;
 
 #[derive(Debug)]
-pub struct Plugin {}
+#[allow(dead_code)]
+pub struct Plugin {
+    vm: Vm,
+}
+pub type PluginRef = Arc<Plugin>;
+
+impl Plugin {
+    pub fn handle_editor_key(_mode: Mode, _key: Key) -> Option<DK> {
+        Some(Command::NewlineBelow.into())
+    }
+}
 
 pub fn make_builtins_module() -> Result<Module, ContextError> {
     let mut module = Module::new();
     module.ty::<Noun>()?;
+    module.ty::<Key>()?;
     module.function(&["noun_char"], || Noun::Char)?;
     Ok(module)
 }
 
-pub fn load_plugin() -> anyhow::Result<Plugin> {
+pub fn load_plugin() -> anyhow::Result<Arc<Plugin>> {
     let builtins = make_builtins_module()?;
     let filename = "wimrc.rn";
     println!("[wim] Loading plugin {}...", filename);
@@ -37,10 +52,12 @@ pub fn load_plugin() -> anyhow::Result<Plugin> {
     }
 
     let unit = result?;
-    let mut vm = Vm::new(rune_runtime, Arc::new(unit));
+    let vm = Vm::new(rune_runtime, Arc::new(unit));
+    /*
     let output = vm.call(["add"], (10i64, 20i64))?;
     let output = i64::from_value(output)?;
 
     println!("{}", output);
-    Ok(Plugin {})
+    */
+    Ok(Arc::new(Plugin { vm }))
 }

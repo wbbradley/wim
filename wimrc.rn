@@ -1,12 +1,4 @@
-pub fn add(a, b) {
-  match Noun::Char {
-    Noun::Char => dbg(1),
-    _ => dbg(10),
-  }
-  a+b
-}
-
-pub fn keymap() {
+pub fn handle_key(mode, key) {
   #{
     "normal": #{
         "h": move_rel(Noun::Char), // + Rel.PRIOR),

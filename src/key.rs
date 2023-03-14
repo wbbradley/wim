@@ -1,23 +1,43 @@
-#[derive(Copy, Clone)]
+use rune::Any;
+
+#[derive(Any, Copy, Clone, Eq, PartialEq)]
 pub enum Key {
+    #[rune(constructor)]
     Esc,
-    EscSeq1(u8),
-    EscSeq2(u8, u8),
+    #[rune(constructor)]
+    EscSeq1(#[rune(get)] u8),
+    #[rune(constructor)]
+    EscSeq2(#[rune(get)] u8, #[rune(get)] u8),
+    #[rune(constructor)]
     Up,
+    #[rune(constructor)]
     Down,
+    #[rune(constructor)]
     Left,
+    #[rune(constructor)]
     Right,
+    #[rune(constructor)]
     Home,
+    #[rune(constructor)]
     End,
+    #[rune(constructor)]
     Del,
+    #[rune(constructor)]
     PageUp,
+    #[rune(constructor)]
     PageDown,
+    #[rune(constructor)]
     PrintScreen,
+    #[rune(constructor)]
     Backspace,
+    #[rune(constructor)]
     Enter,
-    Ctrl(char),
-    Ascii(char),
-    Function(u8),
+    #[rune(constructor)]
+    Ctrl(#[rune(get)] char),
+    #[rune(constructor)]
+    Ascii(#[rune(get)] char),
+    #[rune(constructor)]
+    Function(#[rune(get)] u8),
 }
 
 impl std::fmt::Display for Key {

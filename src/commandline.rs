@@ -7,12 +7,14 @@ use crate::dk::DK;
 use crate::error::{Error, Result};
 use crate::key::Key;
 use crate::line::{line_fmt, Line};
+use crate::plugin::PluginRef;
 use crate::status::Status;
 use crate::types::{Coord, Pos, Rect};
 use crate::view::{View, ViewContext, ViewKey};
 
 #[allow(dead_code)]
 pub struct CommandLine {
+    plugin: PluginRef,
     view_key: ViewKey,
     cursor: Coord,
     render_cursor: Coord,
@@ -24,8 +26,9 @@ pub struct CommandLine {
 
 #[allow(dead_code)]
 impl CommandLine {
-    pub fn new() -> Self {
+    pub fn new(plugin: PluginRef) -> Self {
         Self {
+            plugin,
             view_key: "command-line".to_string(),
             cursor: 0,
             render_cursor: 0,
@@ -42,6 +45,9 @@ impl CommandLine {
 }
 
 impl View for CommandLine {
+    fn install_plugins(&mut self, plugin: PluginRef) {
+        self.plugin = plugin;
+    }
     fn layout(&mut self, frame: Rect) {
         self.frame = frame;
     }

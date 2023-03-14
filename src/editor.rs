@@ -4,8 +4,9 @@ use crate::commandline::CommandLine;
 use crate::consts::PROP_CMDLINE_FOCUSED;
 use crate::dk::DK;
 use crate::docview::DocView;
-use crate::error::{Error, Result};
+use crate::error::Result;
 use crate::key::Key;
+use crate::plugin::PluginRef;
 use crate::read::read_key;
 use crate::status::Status;
 use crate::termios::Termios;
@@ -18,57 +19,10 @@ use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 use std::time::{Duration, Instant};
 
-pub struct VStack {
-    view_key: ViewKey,
-    views: Vec<Rc<RefCell<dyn View>>>,
-}
-
-impl ViewContext for VStack {}
-impl View for VStack {
-    fn layout(&mut self, frame: Rect) {
-        let expected_per_view_height = std::cmp::max(1, frame.height / self.views.len());
-        let mut used = 0;
-        for view in self.views.iter() {
-            if frame.height - used < expected_per_view_height {
-                break;
-            }
-            let view_height = if used + expected_per_view_height * 2 > frame.height {
-                frame.height - used
-            } else {
-                expected_per_view_height
-            };
-
-            view.borrow_mut().layout(Rect {
-                x: frame.x,
-                y: used,
-                width: frame.width,
-                height: view_height,
-            });
-            used += view_height;
-        }
-    }
-    fn get_view_key(&self) -> &ViewKey {
-        &self.view_key
-    }
-    fn display(&self, buf: &mut Buf, context: &dyn ViewContext) {
-        self.views
-            .iter()
-            .for_each(|view| view.borrow().display(buf, context));
-    }
-    fn get_cursor_pos(&self) -> Option<Pos> {
-        panic!("VStack should not be focused!");
-    }
-    fn execute_command(&mut self, command: Command) -> Result<Status> {
-        Err(Error::new(format!(
-            "Command {:?} not implemented for VStack",
-            command
-        )))
-    }
-}
-
 #[allow(dead_code)]
 pub struct Editor {
     termios: Termios,
+    plugin: PluginRef,
     view_key: ViewKey,
     last_key: Option<Key>,
     views: HashMap<ViewKey, Rc<RefCell<DocView>>>,
@@ -80,6 +34,9 @@ pub struct Editor {
 }
 
 impl View for Editor {
+    fn install_plugins(&mut self, plugin: PluginRef) {
+        self.plugin = plugin;
+    }
     fn layout(&mut self, frame: Rect) {
         self.frame = frame;
         self.root_view.borrow_mut().layout(Rect {
@@ -185,14 +142,16 @@ impl Editor {
             expiry: Instant::now() + Duration::from_secs(5),
         }
     }
-    pub fn new(termios: Termios) -> Self {
+    pub fn new(termios: Termios, plugin: PluginRef) -> Self {
         let mut view_key_gen = ViewKeyGenerator::new();
         let views = vec![Rc::new(RefCell::new(DocView::new(
             view_key_gen.next_key_string(),
+            plugin.clone(),
         )))];
         let focused_view = views[0].clone();
         Self {
             termios,
+            plugin: plugin.clone(),
             view_key: view_key_gen.next_key_string(),
             frame: Rect::zero(),
             last_key: None,
@@ -200,7 +159,7 @@ impl Editor {
             view_key_gen,
             previous_views: vec![to_weak_view(focused_view.clone())],
             root_view: focused_view,
-            command_line: Rc::new(RefCell::new(CommandLine::new())),
+            command_line: Rc::new(RefCell::new(CommandLine::new(plugin))),
         }
         // Initialize the command line cur info.
     }

@@ -4,6 +4,7 @@ use crate::dk::DK;
 use crate::error::{Error, Result};
 use crate::key::Key;
 use crate::keygen::KeyGenerator;
+use crate::plugin::PluginRef;
 use crate::status::Status;
 use crate::types::{Pos, Rect};
 use std::cell::RefCell;
@@ -46,6 +47,7 @@ pub trait ViewContext {
 }
 
 pub trait View: ViewContext {
+    fn install_plugins(&mut self, plugin: PluginRef);
     fn layout(&mut self, frame: Rect);
     fn display(&self, buf: &mut Buf, context: &dyn ViewContext);
     fn get_view_key(&self) -> &ViewKey;
