@@ -1,23 +1,21 @@
 pub fn handle_key(mode, key) {
-  Some(DK::Command(match mode {
+  Some(match mode {
     Mode::Normal => match key {
-        Key::Ascii('i') => Command::SwitchMode(Mode::Insert),
-        Key::Ascii('h') => Command::MoveRel(Noun::Char, Rel::Prior),
-        Key::Ascii('j') => Command::MoveRel(Noun::Line, Rel::Next),
-        Key::Ascii('k') => Command::MoveRel(Noun::Line, Rel::Prior),
-        Key::Ascii('l') => Command::MoveRel(Noun::Char, Rel::Next),
+        Key::Ascii('i') => DK::Command(Command::SwitchMode(Mode::Insert)),
+        Key::Ascii('h') => DK::Command(Command::MoveRel(Noun::Char, Rel::Prior)),
+        Key::Ascii('j') => DK::Command(Command::MoveRel(Noun::Line, Rel::Next)),
+        Key::Ascii('k') => DK::Command(Command::MoveRel(Noun::Line, Rel::Prior)),
+        Key::Ascii('l') => DK::Command(Command::MoveRel(Noun::Char, Rel::Next)),
         Key::Ascii('q') => DK::CloseView,
-        // "j": move_rel(Noun.Line + Direction.DOWN),
-        // "k": move_rel(Noun.Line + Direction.UP),
-        // "l": move_rel(Noun.Char + Direction.RIGHT),
-        // "J": join_lines,
+        Key::Ascii('J') => DK::Command(Command::JoinLines),
+        Key::Ascii('w') => DK::Command(Command::MoveRel(Noun::Word, Rel::Next)),
         // "o": [Newline.BELOW, switch_mode(Mode.INSERT)],
         // "O": [Newline.ABOVE, move_rel(Noun.LINE + Rel.BEGIN)],
         // "x": [delete_to(Noun.CHAR + Rel.NEXT)],
         _ => { return None; },
     },
     _ => { return None; }
-  }))
+  })
 }
 
 // nmap <Left> :|left<CR>

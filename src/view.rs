@@ -59,11 +59,11 @@ pub trait View: ViewContext {
             command
         )))
     }
-    fn handle_key(&mut self, key: Key) -> Result<DK> {
+    fn handle_keys(&mut self, key_seq: &[Key]) -> Result<DK> {
         Err(Error::new(format!(
-            "{} does not (yet?) implement handle_key [key={:?}]",
+            "{} does not (yet?) implement handle_keys [key_seq={:?}]",
             std::any::type_name::<Self>(),
-            key
+            key_seq
         )))
     }
 }

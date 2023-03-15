@@ -28,7 +28,6 @@ pub struct DocView {
     scroll_offset: Pos,
     frame: Rect,
     mode: Mode,
-    cur_keys: Vec<Key>,
 }
 
 #[allow(dead_code)]
@@ -59,6 +58,7 @@ impl DocView {
             (Noun::Char, Rel::Next) => self.move_cursor(1, 0),
             (Noun::Line, Rel::Prior) => self.move_cursor(0, -1),
             (Noun::Line, Rel::Next) => self.move_cursor(0, 1),
+            // (Noun::Word, Rel::Next) => self.move_cursor_next_word(),
             _ => Err(Error::not_impl(format!(
                 "DocView: Don't know how to handle relative motion for ({:?}, {:?}).",
                 noun, rel
@@ -156,43 +156,42 @@ impl DocView {
         self.mode = mode;
         self.clamp_cursor();
     }
-    fn process_normal_mode_key(&mut self, key: Key) -> Result<DK> {
-        self.cur_keys.push(key);
-        let dk = match key {
-            Key::Esc => DK::Noop,
-            Key::Ctrl('w') => DK::CloseView,
-            Key::Ctrl('s') => Command::Save.into(),
-            Key::Del => DK::Noop,
-            Key::Left => Command::Move(Direction::Left).into(),
-            Key::Right => Command::Move(Direction::Right).into(),
-            Key::Up => Command::Move(Direction::Up).into(),
-            Key::Down => Command::Move(Direction::Down).into(),
-            Key::Ascii('b') => Command::MoveRel(Noun::Word, Rel::Prior).into(),
-            Key::Ascii('e') => Command::MoveRel(Noun::Word, Rel::End).into(),
-            Key::Ascii('w') => Command::MoveRel(Noun::Word, Rel::Next).into(),
-            Key::Ascii('i') => Command::SwitchMode(Mode::Insert).into(),
-            Key::Ascii('h') => Command::Move(Direction::Left).into(),
-            Key::Ascii(':') => Command::FocusCommandLine.into(),
-            Key::Ascii('j') => Command::Move(Direction::Down).into(),
-            Key::Ascii('k') => Command::Move(Direction::Up).into(),
-            Key::Ascii('l') => Command::Move(Direction::Right).into(),
-            Key::Ascii('J') => Command::JoinLines.into(),
-            Key::Ascii('o') => DK::Sequence(vec![
+    fn process_normal_mode_keys(&mut self, keys: &[Key]) -> Result<DK> {
+        let dk = match keys {
+            [Key::Esc] => DK::Noop,
+            [Key::Ctrl('w')] => DK::CloseView,
+            [Key::Ctrl('s')] => Command::Save.into(),
+            [Key::Del] => DK::Noop,
+            [Key::Left] => Command::Move(Direction::Left).into(),
+            [Key::Right] => Command::Move(Direction::Right).into(),
+            [Key::Up] => Command::Move(Direction::Up).into(),
+            [Key::Down] => Command::Move(Direction::Down).into(),
+            [Key::Ascii('b')] => Command::MoveRel(Noun::Word, Rel::Prior).into(),
+            [Key::Ascii('e')] => Command::MoveRel(Noun::Word, Rel::End).into(),
+            [Key::Ascii('w')] => Command::MoveRel(Noun::Word, Rel::Next).into(),
+            [Key::Ascii('i')] => Command::SwitchMode(Mode::Insert).into(),
+            [Key::Ascii('h')] => Command::Move(Direction::Left).into(),
+            [Key::Ascii(':')] => Command::FocusCommandLine.into(),
+            [Key::Ascii('j')] => Command::Move(Direction::Down).into(),
+            [Key::Ascii('k')] => Command::Move(Direction::Up).into(),
+            [Key::Ascii('l')] => Command::Move(Direction::Right).into(),
+            [Key::Ascii('J')] => Command::JoinLines.into(),
+            [Key::Ascii('o')] => DK::Sequence(vec![
                 DK::Command(Command::NewlineBelow),
                 DK::Command(Command::SwitchMode(Mode::Insert)),
             ]),
-            Key::Ascii('O') => DK::Sequence(vec![
+            [Key::Ascii('O')] => DK::Sequence(vec![
                 DK::Command(Command::NewlineAbove),
                 DK::Command(Command::MoveRel(Noun::Line, Rel::Beginning)),
                 DK::Command(Command::SwitchMode(Mode::Insert)),
             ]),
 
-            Key::Ascii('x') => DK::Command(Command::DeleteForwards),
-            Key::Ascii('X') => DK::Command(Command::DeleteBackwards),
+            [Key::Ascii('x')] => DK::Command(Command::DeleteForwards),
+            [Key::Ascii('X')] => DK::Command(Command::DeleteBackwards),
             _ => {
                 return Err(Error::not_impl(format!(
-                    "DocView: Nothing to do for {} in normal mode.",
-                    key
+                    "DocView: Nothing to do for {:?} in normal mode.",
+                    keys
                 )));
             }
         };
@@ -232,34 +231,36 @@ impl View for DocView {
             y: self.frame.y + self.cursor.y - self.scroll_offset.y,
         })
     }
-    fn handle_key(&mut self, key: Key) -> Result<DK> {
-        if let Ok(Some(dk)) = self.plugin.borrow_mut().handle_editor_key(self.mode, key) {
+    fn handle_keys(&mut self, keys: &[Key]) -> Result<DK> {
+        if let Ok(Some(dk)) = self.plugin.borrow_mut().handle_editor_key(self.mode, keys) {
             log::trace!("[DocView] got DK from plugin {:?}!", dk);
             return Ok(dk);
+        } else {
+            log::trace!("[DocView] plugin did not handle the keys.");
         }
         match self.mode {
-            Mode::Normal => self.process_normal_mode_key(key),
-            Mode::Insert => Ok(match key {
-                Key::Enter => {
+            Mode::Normal => self.process_normal_mode_keys(keys),
+            Mode::Insert => Ok(match keys {
+                [Key::Enter] => {
                     self.insert_newline_below()?;
                     DK::Noop
                 }
-                Key::Esc => Command::SwitchMode(Mode::Normal).into(),
-                Key::Ascii(ch) => {
-                    self.insert_char(ch)?;
+                [Key::Esc] => Command::SwitchMode(Mode::Normal).into(),
+                [Key::Ascii(ch)] => {
+                    self.insert_char(*ch)?;
                     DK::Noop
                 }
-                Key::Backspace => DK::Command(Command::DeleteBackwards),
+                [Key::Backspace] => DK::Command(Command::DeleteBackwards),
                 _ => {
                     return Err(Error::not_impl(format!(
                         "DocView: Nothing to do for {:?} in insert mode.",
-                        key
+                        keys
                     )));
                 }
             }),
             Mode::Visual { block_mode } => Err(Error::not_impl(format!(
                 "DocView: Nothing to do for {:?} in visual{} mode.",
-                key,
+                keys,
                 if block_mode { " block" } else { "" }
             ))),
         }
@@ -325,7 +326,6 @@ impl DocView {
             scroll_offset: Default::default(),
             frame: Rect::zero(),
             mode: Mode::Normal,
-            cur_keys: Vec::new(),
         }
     }
 

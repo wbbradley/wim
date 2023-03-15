@@ -17,6 +17,8 @@ pub enum DK {
     CloseView,
     #[rune(constructor)]
     Noop,
+    #[rune(constructor)]
+    AmbiguousKeys,
 }
 
 impl From<Command> for DK {

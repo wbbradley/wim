@@ -43,7 +43,7 @@ pub enum Command {
     #[rune(constructor)]
     DeleteBackwards,
     #[rune(constructor)]
-    Many(#[rune(get)] Vec<Command>),
+    Sequence(#[rune(get)] Vec<Command>),
 }
 
 #[derive(Any, Clone, Debug, Eq, PartialEq)]

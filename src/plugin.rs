@@ -21,9 +21,10 @@ impl Plugin {
     pub fn handle_editor_key(
         &mut self,
         mode: Mode,
-        key: Key,
+        keys: &[Key],
     ) -> std::result::Result<Option<DK>, rune::runtime::VmError> {
-        let output = self.vm.call(["handle_key"], (mode, key))?;
+        let keys: Vec<Key> = keys.iter().copied().collect();
+        let output = self.vm.call(["handle_key"], (mode, keys))?;
         <Option<DK>>::from_value(output)
     }
 }

@@ -81,6 +81,7 @@ fn run_app(termios: Termios, plugin: PluginRef) -> anyhow::Result<()> {
     let mut should_refresh = true;
     let mut keys: VecDeque<Key> = Default::default();
     let mut dks: VecDeque<DK> = Default::default();
+    let mut cur_keys: Vec<Key> = Default::default();
 
     'outer: loop {
         if should_refresh {
@@ -105,7 +106,17 @@ fn run_app(termios: Termios, plugin: PluginRef) -> anyhow::Result<()> {
             log::trace!("handling dk: {:?}", dk);
             match dk {
                 DK::Key(key) => {
-                    dks.push_front(edit.handle_key(key)?);
+                    cur_keys.push(key);
+                    std::mem::drop(dk);
+                    let next_dk = edit.handle_keys(&cur_keys)?;
+                    if DK::AmbiguousKeys == next_dk {
+                        // Swallow ambiguous key sequences.
+                        log::trace!("seeing ambiguous keys with {:?}", cur_keys);
+                        continue;
+                    }
+                    cur_keys.truncate(0);
+                    dks.push_front(next_dk);
+                    should_refresh = true;
                 }
                 DK::Sequence(next_dks) => {
                     next_dks
@@ -134,6 +145,9 @@ fn run_app(termios: Termios, plugin: PluginRef) -> anyhow::Result<()> {
                 }
                 DK::Noop => {
                     should_refresh = true;
+                }
+                DK::AmbiguousKeys => {
+                    panic!("This should be swallowed above.");
                 }
             }
         }
