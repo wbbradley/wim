@@ -1,3 +1,5 @@
+use rune::Any;
+
 pub type Coord = usize;
 pub type RelCoord = isize;
 
@@ -57,7 +59,7 @@ pub struct Size {
     pub height: Coord,
 }
 
-#[derive(Default, Copy, Clone, Debug)]
+#[derive(Any, Default, Copy, Clone, Debug)]
 pub struct Pos {
     pub x: Coord,
     pub y: Coord,

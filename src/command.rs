@@ -1,9 +1,12 @@
+use crate::key::Key;
 use crate::mode::Mode;
 use crate::noun::Noun;
+use crate::propvalue::PropertyValue;
 use crate::rel::Rel;
+use crate::view::ViewKey;
 use rune::Any;
 
-#[derive(Any, Clone, Debug, Eq, PartialEq)]
+#[derive(Any, Clone, Debug)]
 pub enum Command {
     #[rune(constructor)]
     Open {
@@ -13,7 +16,12 @@ pub enum Command {
     #[rune(constructor)]
     Save,
     #[rune(constructor)]
-    Execute(#[rune(get)] String),
+    Call {
+        #[rune(get)]
+        name: String,
+        #[rune(get)]
+        args: Vec<CallArg>,
+    },
     #[rune(constructor)]
     Move(#[rune(get)] Direction),
     #[rune(constructor)]
@@ -33,6 +41,8 @@ pub enum Command {
     #[rune(constructor)]
     FocusCommandLine,
     #[rune(constructor)]
+    FocusViewKey(#[rune(get)] String),
+    #[rune(constructor)]
     JoinLines,
     #[rune(constructor)]
     NewlineAbove,
@@ -44,6 +54,8 @@ pub enum Command {
     DeleteBackwards,
     #[rune(constructor)]
     Sequence(#[rune(get)] Vec<Command>),
+    #[rune(constructor)]
+    Key(#[rune(get)] Key),
 }
 
 #[derive(Any, Clone, Debug, Eq, PartialEq)]
@@ -56,4 +68,10 @@ pub enum Direction {
     Left,
     #[rune(constructor)]
     Right,
+}
+
+#[derive(Any, Clone, Debug)]
+pub enum CallArg {
+    Ref(ViewKey, String),
+    Val(PropertyValue),
 }

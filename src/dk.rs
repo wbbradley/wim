@@ -2,8 +2,7 @@ use crate::command::Command;
 use crate::key::Key;
 use rune::Any;
 
-#[allow(dead_code)]
-#[derive(Any, Clone, Debug, Eq, PartialEq)]
+#[derive(Any, Clone, Debug)]
 pub enum DK {
     #[rune(constructor)]
     Key(#[rune(get)] Key),

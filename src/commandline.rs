@@ -1,12 +1,15 @@
+use crate::bindings::Bindings;
 use crate::buf::{place_cursor, Buf};
-use crate::command::Command;
+use crate::command::{CallArg, Command};
 use crate::consts::{
-    PROP_CMDLINE_FOCUSED, PROP_DOCVIEW_STATUS, PROP_DOC_FILENAME, PROP_DOC_IS_MODIFIED,
+    PROP_CMDLINE_FOCUSED, PROP_CMDLINE_TEXT, PROP_DOCVIEW_STATUS, PROP_DOC_FILENAME,
+    PROP_DOC_IS_MODIFIED,
 };
 use crate::dk::DK;
 use crate::error::{Error, Result};
 use crate::key::Key;
 use crate::line::{line_fmt, Line};
+use crate::mode::Mode;
 use crate::plugin::PluginRef;
 use crate::status::Status;
 use crate::types::{Coord, Pos, Rect};
@@ -95,36 +98,39 @@ impl View for CommandLine {
         }
     }
 
-    fn handle_keys(&mut self, keys: &[Key]) -> Result<DK> {
-        match keys {
-            [Key::Ascii(ch)] => {
-                self.text.push(*ch);
-                self.cursor += 1;
-                DK::Noop.into()
-            }
-            [Key::Backspace] => {
-                if !self.text.is_empty() {
-                    self.text.pop();
-                    self.cursor -= 1;
-                }
-                DK::Noop.into()
-            }
-            [Key::Esc] => Command::FocusPrevious.into(),
-            [Key::Enter] => {
-                log::trace!("TODO: run command '{}'", self.text);
-
-                Ok(Command::Sequence(vec![
-                    Command::FocusPrevious,
-                    Command::Execute(self.text.clone()),
-                ])
-                .into())
-            }
-            _ => Err(Error::not_impl(format!(
-                "command line doesn't yet support {:?} keys",
-                keys
-            ))),
-        }
+    fn get_view_mode(&self) -> Mode {
+        Mode::Insert
     }
+    fn get_key_bindings(&self) -> Bindings {
+        let view_key = self.get_view_key();
+        let mut bindings: Bindings = Default::default();
+        bindings.enable_unmatched_key_passthrough();
+        bindings.add(Mode::Insert, vec![Key::Esc], Command::FocusPrevious.into());
+        bindings.add(
+            Mode::Insert,
+            vec![Key::Enter],
+            DK::Sequence(vec![
+                Command::FocusPrevious.into(),
+                Command::Call {
+                    name: "invoke-execute".into(),
+                    args: vec![CallArg::Ref(
+                        view_key.clone(),
+                        PROP_CMDLINE_TEXT.to_string(),
+                    )],
+                }
+                .into(),
+                Command::FocusViewKey(view_key.clone()).into(),
+                Command::Call {
+                    name: "clear-text".into(),
+                    args: vec![],
+                }
+                .into(), // TODO: Execute(self.text.clone()),
+                Command::FocusPrevious.into(),
+            ]),
+        );
+        bindings
+    }
+
     fn get_view_key(&self) -> &ViewKey {
         &self.view_key
     }
@@ -133,6 +139,37 @@ impl View for CommandLine {
             x: self.frame.x + 1 + self.cursor - self.scroll_offset,
             y: self.frame.y + 1,
         })
+    }
+    fn execute_command(&mut self, command: Command) -> Result<Status> {
+        match command {
+            Command::Call { name, args } => {
+                if name == "clear-text" {
+                    self.text == "";
+                    Ok(Status::Ok)
+                } else {
+                    Err(Error::not_impl(format!(
+                        "CommandLine::execute_command does not impl {:?}",
+                        command
+                    )))
+                }
+            }
+            Command::Key(Key::Ascii(ch)) => {
+                self.text.push(ch);
+                self.cursor += 1;
+                Ok(Status::Ok)
+            }
+            Command::Key(Key::Backspace) => {
+                if !self.text.is_empty() {
+                    self.text.pop();
+                    self.cursor -= 1;
+                }
+                Ok(Status::Ok)
+            }
+            _ => Err(Error::not_impl(format!(
+                "CommandLine::execute_command does not impl {:?}",
+                command
+            ))),
+        }
     }
 }
 impl ViewContext for CommandLine {}

@@ -1,10 +1,11 @@
+use crate::bindings::Bindings;
 use crate::buf::Buf;
 use crate::command::Command;
-use crate::dk::DK;
 use crate::error::{Error, Result};
-use crate::key::Key;
 use crate::keygen::KeyGenerator;
+use crate::mode::Mode;
 use crate::plugin::PluginRef;
+use crate::propvalue::PropertyValue;
 use crate::status::Status;
 use crate::types::{Pos, Rect};
 use std::cell::RefCell;
@@ -12,15 +13,6 @@ use std::rc::{Rc, Weak};
 
 pub type ViewKey = String;
 pub type ViewKeyGenerator = KeyGenerator;
-
-#[allow(dead_code)]
-pub enum PropertyValue {
-    Int(i64),
-    Float(f64),
-    String(String),
-    Bool(bool),
-    Pos(Pos),
-}
 
 pub trait ViewContext {
     fn get_property(&self, _property: &str) -> Option<PropertyValue> {
@@ -59,13 +51,8 @@ pub trait View: ViewContext {
             command
         )))
     }
-    fn handle_keys(&mut self, key_seq: &[Key]) -> Result<DK> {
-        Err(Error::new(format!(
-            "{} does not (yet?) implement handle_keys [key_seq={:?}]",
-            std::any::type_name::<Self>(),
-            key_seq
-        )))
-    }
+    fn get_view_mode(&self) -> Mode;
+    fn get_key_bindings(&self) -> Bindings;
 }
 
 pub fn to_view<T>(v: &Rc<RefCell<T>>) -> Rc<RefCell<dyn View>>

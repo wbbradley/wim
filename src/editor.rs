@@ -1,19 +1,19 @@
+use crate::bindings::Bindings;
 use crate::buf::{place_cursor, Buf};
 use crate::command::Command;
 use crate::commandline::CommandLine;
 use crate::consts::PROP_CMDLINE_FOCUSED;
-use crate::dk::DK;
 use crate::docview::DocView;
 use crate::error::Result;
 use crate::key::Key;
+use crate::mode::Mode;
 use crate::plugin::PluginRef;
+use crate::propvalue::PropertyValue;
 use crate::read::read_key;
 use crate::status::Status;
 use crate::termios::Termios;
 use crate::types::{Pos, Rect};
-use crate::view::{
-    to_view, to_weak_view, PropertyValue, View, ViewContext, ViewKey, ViewKeyGenerator,
-};
+use crate::view::{to_view, to_weak_view, View, ViewContext, ViewKey, ViewKeyGenerator};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::{Rc, Weak};
@@ -36,6 +36,9 @@ pub struct Editor {
 impl View for Editor {
     fn install_plugins(&mut self, plugin: PluginRef) {
         self.plugin = plugin;
+    }
+    fn get_view_mode(&self) -> Mode {
+        Mode::Normal
     }
     fn layout(&mut self, frame: Rect) {
         self.frame = frame;
@@ -94,6 +97,12 @@ impl View for Editor {
             _ => self.root_view.borrow_mut().execute_command(command),
         }
     }
+
+    fn get_key_bindings(&self) -> Bindings {
+        Default::default()
+    }
+
+    /*
     fn handle_keys(&mut self, keys: &[Key]) -> Result<DK> {
         log::trace!(
             "[Editor::handle_key] sending keys {:?} to view {}",
@@ -102,6 +111,7 @@ impl View for Editor {
         );
         self.focused_view().borrow_mut().handle_keys(keys)
     }
+    */
 }
 
 impl ViewContext for Editor {

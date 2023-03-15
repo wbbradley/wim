@@ -1,6 +1,8 @@
+use crate::bindings::Bindings;
 use crate::buf::Buf;
 use crate::command::Command;
 use crate::error::{Error, Result};
+use crate::mode::Mode;
 use crate::plugin::PluginRef;
 use crate::status::Status;
 use crate::types::{Pos, Rect};
@@ -42,6 +44,9 @@ impl View for VStack {
             used += view_height;
         }
     }
+    fn get_view_mode(&self) -> Mode {
+        Mode::Normal
+    }
     fn get_view_key(&self) -> &ViewKey {
         &self.view_key
     }
@@ -58,5 +63,8 @@ impl View for VStack {
             "Command {:?} not implemented for VStack",
             command
         )))
+    }
+    fn get_key_bindings(&self) -> Bindings {
+        Default::default()
     }
 }
