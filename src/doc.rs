@@ -1,5 +1,5 @@
 use crate::error::Result;
-use crate::noun::Noun;
+use crate::prelude::*;
 use crate::row::Row;
 use crate::types::{Coord, Pos};
 use crate::utils::read_lines;

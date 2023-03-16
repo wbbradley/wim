@@ -1,17 +1,13 @@
-use crate::buf::Buf;
-use crate::command::Command;
-use crate::dk::DK;
 use crate::editor::Editor;
-use crate::key::Key;
 use crate::plugin::{load_plugin, PluginRef};
+use crate::prelude::*;
 use crate::read::read_key;
 use crate::termios::Termios;
 use crate::types::Rect;
-use crate::view::View;
 use anyhow::Context as AnyhowContext;
 use log::LevelFilter;
-use std::collections::VecDeque;
 use std::env;
+
 mod bindings;
 mod buf;
 mod command;
@@ -29,6 +25,7 @@ mod line;
 mod mode;
 mod noun;
 mod plugin;
+mod prelude;
 mod propvalue;
 mod read;
 mod rel;
@@ -45,23 +42,24 @@ mod widechar_width;
 pub static VERSION: &str = "v0.1.0";
 
 fn main() -> anyhow::Result<()> {
-    let termios = Termios::enter_raw_mode();
-
+    let termios = Arc::new(Termios::enter_raw_mode());
+    let panic_termios = termios.clone();
     std::panic::set_hook(Box::new(move |p| {
-        termios.exit_raw_mode();
+        panic_termios.exit_raw_mode();
         log::error!("{}", p);
         println!("{}", p);
     }));
 
     let plugin = load_plugin()?;
-    // UnwindSafe
-    run_app(plugin)
+    let res = run_app(plugin);
+    termios.exit_raw_mode();
+    res
 }
 
 fn run_app(plugin: PluginRef) -> anyhow::Result<()> {
     simple_logging::log_to_file("wim.log", LevelFilter::Trace)?;
     let args: Vec<String> = env::args().collect();
-    log::trace!("wim run with args: {:?}", args);
+    trace!("wim run with args: {:?}", args);
 
     let frame: Rect = Termios::get_window_size().into();
 
@@ -97,19 +95,23 @@ fn run_app(plugin: PluginRef) -> anyhow::Result<()> {
         assert!(dks.is_empty());
         dks.push_front(DK::Key(key));
         while let Some(mut dk) = dks.pop_front() {
-            log::trace!("handling dk: {:?}", dk);
+            trace!("handling dk: {:?}", dk);
+            let mut chosen_view_key: Option<ViewKey> = None;
             if let DK::Trie { choices } = &last_dk {
                 if let DK::Key(key) = dk {
-                    if let Some(chosen_dk) = choices.get(&key) {
+                    if let Some((vk, chosen_dk)) = choices.get(&key) {
+                        chosen_view_key = Some(vk.clone());
                         dks.push_front(dk);
                         dk = chosen_dk.clone();
-                    } else if let Some(chosen_dk) = choices.get(&Key::None) {
+                    } else if let Some((vk, chosen_dk)) = choices.get(&Key::None) {
                         /* user pressed something else but we have a mapping here. Use it. */
+                        chosen_view_key = Some(vk.clone());
                         dks.push_front(dk);
                         dk = chosen_dk.clone();
                     }
-                } else if let Some(chosen_dk) = choices.get(&Key::None) {
+                } else if let Some((vk, chosen_dk)) = choices.get(&Key::None) {
                     /* something else is queued but we need to run this dk */
+                    chosen_view_key = Some(vk.clone());
                     dks.push_front(dk);
                     dk = chosen_dk.clone();
                 } else {
@@ -119,6 +121,7 @@ fn run_app(plugin: PluginRef) -> anyhow::Result<()> {
                     });
                 }
             }
+            trace!("chosen_view_key = {:?}, dk = {:?}", chosen_view_key, dk);
             last_dk = DK::Noop;
             match dk {
                 DK::Trie { .. } => {
@@ -127,7 +130,7 @@ fn run_app(plugin: PluginRef) -> anyhow::Result<()> {
                 }
                 DK::Key(key) => {
                     std::mem::drop(dk);
-                    let next_dk = edit.handle_key(key)?;
+                    let next_dk = edit.handle_key(chosen_view_key, key)?;
                     dks.push_front(next_dk);
                     should_refresh = true;
                 }
@@ -142,11 +145,15 @@ fn run_app(plugin: PluginRef) -> anyhow::Result<()> {
                 DK::CloseView => {
                     break 'outer;
                 }
+                DK::SendKey(view_key, key) => {
+                    edit.send_key_to_view(view_key, key)?;
+                    should_refresh = true;
+                }
                 DK::Command(command) => {
                     match edit.execute_command(command) {
                         Ok(status) => edit.set_status(status),
                         Err(error) => {
-                            log::trace!("error: {}", error);
+                            trace!("error: {}", error);
                             return Err(error).context("DK::Command");
                         }
                     }

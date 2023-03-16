@@ -1,4 +1,3 @@
-use crate::key::Key;
 use crate::mode::Mode;
 use crate::noun::Noun;
 use crate::propvalue::PropertyValue;
@@ -54,8 +53,6 @@ pub enum Command {
     DeleteBackwards,
     #[rune(constructor)]
     Sequence(#[rune(get)] Vec<Command>),
-    #[rune(constructor)]
-    Key(#[rune(get)] Key),
 }
 
 #[derive(Any, Clone, Debug, Eq, PartialEq)]

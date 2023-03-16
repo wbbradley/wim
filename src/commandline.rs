@@ -149,6 +149,25 @@ impl View for CommandLine {
             y: self.frame.y + 1,
         })
     }
+    fn send_key(&mut self, key: Key) -> Result<Status> {
+        match key {
+            Key::Ascii(ch) => {
+                self.text.push(ch);
+                self.cursor += 1;
+                Ok(Status::Ok)
+            }
+            Key::Backspace => {
+                if !self.text.is_empty() {
+                    self.text.pop();
+                    self.cursor -= 1;
+                }
+                Ok(Status::Ok)
+            }
+            _ => {
+                panic!("[CommandLine::send_key] unhandled key {:?}.", key);
+            }
+        }
+    }
     fn execute_command(&mut self, command: Command) -> Result<Status> {
         match &command {
             Command::Call { name, args: _ } => {
@@ -161,18 +180,6 @@ impl View for CommandLine {
                         command
                     )))
                 }
-            }
-            Command::Key(Key::Ascii(ch)) => {
-                self.text.push(*ch);
-                self.cursor += 1;
-                Ok(Status::Ok)
-            }
-            Command::Key(Key::Backspace) => {
-                if !self.text.is_empty() {
-                    self.text.pop();
-                    self.cursor -= 1;
-                }
-                Ok(Status::Ok)
             }
             _ => Err(not_impl!(
                 "CommandLine::execute_command does not impl {:?}",

@@ -21,8 +21,8 @@ pub fn read_key() -> Option<Key> {
                 (Some(b'['), Some(b'D')) => Some(Key::Left),
                 (Some(b'['), Some(b'H')) => Some(Key::Home),
                 (Some(b'['), Some(b'F')) => Some(Key::End),
-                (Some(b'['), Some(a)) if (b'0'..=b'9').contains(&a) => match read_u8() {
-                    Some(b) if (b'0'..=b'9').contains(&b) => match (a, b, read_u8()) {
+                (Some(b'['), Some(a)) if a.is_ascii_digit() => match read_u8() {
+                    Some(b) if b.is_ascii_digit() => match (a, b, read_u8()) {
                         (b'1', b'5', Some(b'~')) => Some(Key::Function(5)),
                         (b'1', b'7', Some(b'~')) => Some(Key::Function(6)),
                         (b'1', b'8', Some(b'~')) => Some(Key::Function(7)),
@@ -63,7 +63,11 @@ pub fn read_key() -> Option<Key> {
             if ch == 13 {
                 Some(Key::Enter)
             } else {
-                Some(Key::Ctrl(decode_ctrl_key(ch)))
+                let d = decode_ctrl_key(ch);
+                if d == 'c' {
+                    panic!("C-c pressed. Quitting...");
+                }
+                Some(Key::Ctrl(d))
             }
         } else if ch < 127 {
             Some(Key::Ascii(ch as char))

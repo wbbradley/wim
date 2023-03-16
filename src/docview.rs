@@ -321,43 +321,15 @@ impl View for DocView {
         bindings
     }
 
-    /*
-    fn handle_keys(&mut self, keys: &[Key]) -> Result<DK> {
-        if let Ok(Some(dk)) = self.plugin.borrow_mut().handle_editor_key(self.mode, keys) {
-            log::trace!("[DocView] got DK from plugin {:?}!", dk);
-            return Ok(dk);
-        } else {
-            log::trace!("[DocView] plugin did not handle the keys.");
-        }
+    fn send_key(&mut self, key: Key) -> Result<Status> {
         match self.mode {
-            Mode::Normal => self.process_normal_mode_keys(keys),
-            Mode::Insert => Ok(match keys {
-                [Key::Enter] => {
-                    self.insert_newline_below()?;
-                    DK::Noop
-                }
-                [Key::Ascii('j'), Key::Ascii('k')] => Command::SwitchMode(Mode::Normal).into(),
-                [Key::Esc] => Command::SwitchMode(Mode::Normal).into(),
-                [Key::Ascii(ch)] => {
-                    self.insert_char(*ch)?;
-                    DK::Noop
-                }
-                [Key::Backspace] => DK::Command(Command::DeleteBackwards),
-                _ => {
-                    return Err(not_impl!(
-                        "DocView: Nothing to do for {:?} in insert mode.",
-                        keys
-                    ));
-                }
+            Mode::Normal | Mode::Visual { .. } => Ok(Status::Message {
+                message: format!("{:?} mode is ignoring {:?}...", self.mode, key),
+                expiry: Instant::now() + Duration::from_millis(250),
             }),
-            Mode::Visual { block_mode } => Err(not_impl!(
-                "DocView: Nothing to do for {:?} in visual{} mode.",
-                keys,
-                if block_mode { " block" } else { "" }
-            )),
+            Mode::Insert => panic!("unhandled KDJFDKFJDKJ"),
         }
     }
-    */
     fn execute_command(&mut self, command: Command) -> Result<Status> {
         match command {
             Command::Open { filename } => self.open(filename),
@@ -397,7 +369,8 @@ impl ViewContext for DocView {
             Some(PropertyValue::Pos(self.cursor))
         } else if property == PROP_DOCVIEW_STATUS {
             Some(PropertyValue::String(format!(
-                "| {}:{} ",
+                "| {:?} | {}:{} ",
+                self.mode,
                 self.cursor.y + 1,
                 self.cursor.x + 1
             )))

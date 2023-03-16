@@ -1,15 +1,10 @@
 use crate::bindings::Bindings;
-use crate::buf::Buf;
-use crate::command::Command;
 use crate::error::{Error, Result};
-use crate::mode::Mode;
 use crate::plugin::PluginRef;
+use crate::prelude::*;
 use crate::status::Status;
 use crate::types::{Pos, Rect};
-use crate::view::View;
 use crate::view::{ViewContext, ViewKey};
-use std::cell::RefCell;
-use std::rc::{Rc, Weak};
 
 pub struct VStack {
     parent: Option<Weak<RefCell<dyn View>>>,
@@ -74,6 +69,9 @@ impl View for VStack {
             "Command {:?} not implemented for VStack",
             command
         )))
+    }
+    fn send_key(&mut self, key: Key) -> Result<Status> {
+        panic!("why is the vstack receiving send_keys? [key={:?}]", key);
     }
     fn get_key_bindings(&self) -> Bindings {
         Default::default()

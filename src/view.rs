@@ -1,18 +1,15 @@
 use crate::bindings::Bindings;
-use crate::buf::Buf;
-use crate::command::Command;
 use crate::error::{Error, Result};
 use crate::keygen::KeyGenerator;
-use crate::mode::Mode;
 use crate::plugin::PluginRef;
+use crate::prelude::*;
 use crate::propvalue::PropertyValue;
 use crate::status::Status;
 use crate::types::{Pos, Rect};
-use std::cell::RefCell;
-use std::rc::{Rc, Weak};
 
 pub type ViewKey = String;
 pub type ViewKeyGenerator = KeyGenerator;
+pub type ViewRef = Rc<RefCell<dyn View>>;
 
 pub trait ViewContext {
     fn get_property(&self, _property: &str) -> Option<PropertyValue> {
@@ -52,6 +49,7 @@ pub trait View: ViewContext {
             command
         )))
     }
+    fn send_key(&mut self, key: Key) -> Result<Status>;
     fn get_view_mode(&self) -> Mode;
     fn get_key_bindings(&self) -> Bindings;
 }
@@ -74,10 +72,7 @@ where
     v.clone() as Rc<RefCell<dyn View>>
 }
 
-pub fn to_weak_view<T>(v: Rc<RefCell<T>>) -> Weak<RefCell<dyn View>>
-where
-    T: View + 'static,
-{
+pub fn to_weak_view(v: ViewRef) -> Weak<RefCell<dyn View>> {
     let v = v as Rc<RefCell<dyn View>>;
     Rc::downgrade(&v)
 }

@@ -1,12 +1,11 @@
-use crate::command::Command;
-use crate::key::Key;
-use rune::Any;
-use std::collections::HashMap;
+use crate::prelude::*;
 
 #[derive(Any, Clone, Debug)]
 pub enum DK {
     #[rune(constructor)]
     Key(#[rune(get)] Key),
+    #[rune(constructor)]
+    SendKey(#[rune(get)] Option<ViewKey>, #[rune(get)] Key),
     #[rune(constructor)]
     CommandLine,
     #[rune(constructor)]
@@ -18,7 +17,9 @@ pub enum DK {
     #[rune(constructor)]
     Noop,
     #[rune(constructor)]
-    Trie { choices: HashMap<Key, DK> },
+    Trie {
+        choices: HashMap<Key, (ViewKey, DK)>,
+    },
 }
 
 impl From<Command> for DK {
