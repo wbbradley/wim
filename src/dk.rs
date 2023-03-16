@@ -1,6 +1,7 @@
 use crate::command::Command;
 use crate::key::Key;
 use rune::Any;
+use std::collections::HashMap;
 
 #[derive(Any, Clone, Debug)]
 pub enum DK {
@@ -17,7 +18,7 @@ pub enum DK {
     #[rune(constructor)]
     Noop,
     #[rune(constructor)]
-    AmbiguousKeys,
+    Trie { choices: HashMap<Key, DK> },
 }
 
 impl From<Command> for DK {

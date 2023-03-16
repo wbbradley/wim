@@ -39,6 +39,7 @@ pub trait ViewContext {
 }
 
 pub trait View: ViewContext {
+    fn get_parent(&self) -> Option<Weak<RefCell<dyn View>>>;
     fn install_plugins(&mut self, plugin: PluginRef);
     fn layout(&mut self, frame: Rect);
     fn display(&self, buf: &mut Buf, context: &dyn ViewContext);
@@ -53,6 +54,17 @@ pub trait View: ViewContext {
     }
     fn get_view_mode(&self) -> Mode;
     fn get_key_bindings(&self) -> Bindings;
+}
+
+impl dyn View {
+    pub fn ancestor_path(&self, path: &mut Vec<ViewKey>) {
+        path.push(self.get_view_key().clone());
+        if let Some(next) = self.get_parent() {
+            if let Some(parent) = next.upgrade() {
+                parent.borrow().ancestor_path(path);
+            }
+        }
+    }
 }
 
 pub fn to_view<T>(v: &Rc<RefCell<T>>) -> Rc<RefCell<dyn View>>

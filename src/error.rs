@@ -35,3 +35,9 @@ impl From<io::Error> for Error {
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
+macro_rules! not_impl {
+    ($($args:expr),+) => {{
+        $crate::error::Error::not_impl(format!($($args),+))
+    }};
+}
+pub(crate) use not_impl;

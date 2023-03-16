@@ -6,6 +6,7 @@ use crate::consts::{
     PROP_DOC_IS_MODIFIED,
 };
 use crate::dk::DK;
+use crate::error::not_impl;
 use crate::error::{Error, Result};
 use crate::key::Key;
 use crate::line::{line_fmt, Line};
@@ -14,10 +15,13 @@ use crate::plugin::PluginRef;
 use crate::status::Status;
 use crate::types::{Coord, Pos, Rect};
 use crate::view::{View, ViewContext, ViewKey};
+use std::cell::RefCell;
+use std::rc::Weak;
 use std::time::Instant;
 
 #[allow(dead_code)]
 pub struct CommandLine {
+    parent: Option<Weak<RefCell<dyn View>>>,
     plugin: PluginRef,
     view_key: ViewKey,
     cursor: Coord,
@@ -32,6 +36,7 @@ pub struct CommandLine {
 impl CommandLine {
     pub fn new(plugin: PluginRef) -> Self {
         Self {
+            parent: None,
             plugin,
             view_key: "command-line".to_string(),
             cursor: 0,
@@ -42,6 +47,9 @@ impl CommandLine {
             status: Status::Cleared,
         }
     }
+    pub fn set_parent(&mut self, parent: Option<Weak<RefCell<dyn View>>>) {
+        self.parent = parent;
+    }
     pub fn set_status(&mut self, status: Status) {
         log::trace!("[CommandLine] Status Updated: {:?}", &status);
         self.status = status;
@@ -49,13 +57,15 @@ impl CommandLine {
 }
 
 impl View for CommandLine {
+    fn get_parent(&self) -> Option<Weak<RefCell<dyn View>>> {
+        return self.parent.clone();
+    }
     fn install_plugins(&mut self, plugin: PluginRef) {
         self.plugin = plugin;
     }
     fn layout(&mut self, frame: Rect) {
         self.frame = frame;
     }
-
     fn display(&self, buf: &mut Buf, context: &dyn ViewContext) {
         place_cursor(buf, self.frame.top_left());
         buf.append("\x1b[7m");
@@ -104,10 +114,9 @@ impl View for CommandLine {
     fn get_key_bindings(&self) -> Bindings {
         let view_key = self.get_view_key();
         let mut bindings: Bindings = Default::default();
-        bindings.enable_unmatched_key_passthrough();
-        bindings.add(Mode::Insert, vec![Key::Esc], Command::FocusPrevious.into());
+        bindings.add(view_key, vec![Key::Esc], Command::FocusPrevious.into());
         bindings.add(
-            Mode::Insert,
+            view_key,
             vec![Key::Enter],
             DK::Sequence(vec![
                 Command::FocusPrevious.into(),
@@ -141,10 +150,10 @@ impl View for CommandLine {
         })
     }
     fn execute_command(&mut self, command: Command) -> Result<Status> {
-        match command {
-            Command::Call { name, args } => {
+        match &command {
+            Command::Call { name, args: _ } => {
                 if name == "clear-text" {
-                    self.text == "";
+                    self.text.clear();
                     Ok(Status::Ok)
                 } else {
                     Err(Error::not_impl(format!(
@@ -154,7 +163,7 @@ impl View for CommandLine {
                 }
             }
             Command::Key(Key::Ascii(ch)) => {
-                self.text.push(ch);
+                self.text.push(*ch);
                 self.cursor += 1;
                 Ok(Status::Ok)
             }
@@ -165,10 +174,10 @@ impl View for CommandLine {
                 }
                 Ok(Status::Ok)
             }
-            _ => Err(Error::not_impl(format!(
+            _ => Err(not_impl!(
                 "CommandLine::execute_command does not impl {:?}",
                 command
-            ))),
+            )),
         }
     }
 }

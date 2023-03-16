@@ -6,7 +6,7 @@ use crate::consts::{
 };
 use crate::dk::DK;
 use crate::doc::Doc;
-use crate::error::{Error, Result};
+use crate::error::{not_impl, Error, Result};
 use crate::key::Key;
 use crate::mode::Mode;
 use crate::noun::Noun;
@@ -17,11 +17,14 @@ use crate::status::Status;
 use crate::types::{Coord, Pos, Rect, RelCoord, SafeCoordCast};
 use crate::utils::wcwidth;
 use crate::view::{View, ViewContext, ViewKey};
+use std::cell::RefCell;
 use std::fs::OpenOptions;
 use std::io::{Seek, SeekFrom, Write};
+use std::rc::Weak;
 use std::time::{Duration, Instant};
 
 pub struct DocView {
+    parent: Option<Weak<RefCell<dyn View>>>,
     plugin: PluginRef,
     key: ViewKey,
     cursor: Pos,
@@ -34,6 +37,9 @@ pub struct DocView {
 
 #[allow(dead_code)]
 impl DocView {
+    pub fn set_parent(&mut self, parent: Option<Weak<RefCell<dyn View>>>) {
+        self.parent = parent;
+    }
     pub fn scroll(&mut self) {
         if self.cursor.y < self.scroll_offset.y {
             self.scroll_offset.y = self.cursor.y;
@@ -61,10 +67,11 @@ impl DocView {
             (Noun::Line, Rel::Prior) => self.move_cursor(0, -1),
             (Noun::Line, Rel::Next) => self.move_cursor(0, 1),
             // (Noun::Word, Rel::Next) => self.move_cursor_next_word(),
-            _ => Err(Error::not_impl(format!(
+            _ => Err(not_impl!(
                 "DocView: Don't know how to handle relative motion for ({:?}, {:?}).",
-                noun, rel
-            ))),
+                noun,
+                rel
+            )),
         }
     }
 
@@ -161,6 +168,9 @@ impl DocView {
 }
 
 impl View for DocView {
+    fn get_parent(&self) -> Option<Weak<RefCell<dyn View>>> {
+        return self.parent.clone();
+    }
     fn install_plugins(&mut self, plugin: PluginRef) {
         self.plugin = plugin;
     }
@@ -197,115 +207,117 @@ impl View for DocView {
     }
     fn get_key_bindings(&self) -> Bindings {
         let mut bindings: Bindings = Default::default();
-        bindings.enable_unmatched_key_passthrough();
-        bindings.add(
-            Mode::Insert,
-            vec![Key::Esc],
-            DK::Command(Command::SwitchMode(Mode::Normal)),
-        );
-        bindings.add(Mode::Normal, vec![Key::Ctrl('w')], DK::CloseView);
-        bindings.add(Mode::Normal, vec![Key::Ctrl('s')], Command::Save.into());
-        bindings.add(Mode::Normal, vec![Key::Esc], DK::Noop);
-        bindings.add(Mode::Normal, vec![Key::Ctrl('s')], Command::Save.into());
-        bindings.add(Mode::Normal, vec![Key::Del], DK::Noop);
-        bindings.add(
-            Mode::Normal,
-            vec![Key::Left],
-            Command::Move(Direction::Left).into(),
-        );
-        bindings.add(
-            Mode::Normal,
-            vec![Key::Right],
-            Command::Move(Direction::Right).into(),
-        );
-        bindings.add(
-            Mode::Normal,
-            vec![Key::Up],
-            Command::Move(Direction::Up).into(),
-        );
-        bindings.add(
-            Mode::Normal,
-            vec![Key::Down],
-            Command::Move(Direction::Down).into(),
-        );
-        bindings.add(
-            Mode::Normal,
-            vec![Key::Ascii('b')],
-            Command::MoveRel(Noun::Word, Rel::Prior).into(),
-        );
-        bindings.add(
-            Mode::Normal,
-            vec![Key::Ascii('e')],
-            Command::MoveRel(Noun::Word, Rel::End).into(),
-        );
-        bindings.add(
-            Mode::Normal,
-            vec![Key::Ascii('w')],
-            Command::MoveRel(Noun::Word, Rel::Next).into(),
-        );
-        bindings.add(
-            Mode::Normal,
-            vec![Key::Ascii('i')],
-            Command::SwitchMode(Mode::Insert).into(),
-        );
-        bindings.add(
-            Mode::Normal,
-            vec![Key::Ascii('h')],
-            Command::Move(Direction::Left).into(),
-        );
-        bindings.add(
-            Mode::Normal,
-            vec![Key::Ascii(':')],
-            Command::FocusCommandLine.into(),
-        );
-        bindings.add(
-            Mode::Normal,
-            vec![Key::Ascii('j')],
-            Command::Move(Direction::Down).into(),
-        );
-        bindings.add(
-            Mode::Normal,
-            vec![Key::Ascii('k')],
-            Command::Move(Direction::Up).into(),
-        );
-        bindings.add(
-            Mode::Normal,
-            vec![Key::Ascii('l')],
-            Command::Move(Direction::Right).into(),
-        );
-        bindings.add(
-            Mode::Normal,
-            vec![Key::Ascii('J')],
-            Command::JoinLines.into(),
-        );
-        bindings.add(
-            Mode::Normal,
-            vec![Key::Ascii('o')],
-            DK::Sequence(vec![
-                DK::Command(Command::NewlineBelow),
-                DK::Command(Command::SwitchMode(Mode::Insert)),
-            ]),
-        );
-        bindings.add(
-            Mode::Normal,
-            vec![Key::Ascii('O')],
-            DK::Sequence(vec![
-                DK::Command(Command::NewlineAbove),
-                DK::Command(Command::MoveRel(Noun::Line, Rel::Beginning)),
-                DK::Command(Command::SwitchMode(Mode::Insert)),
-            ]),
-        );
+        match self.mode {
+            Mode::Visual { .. } => {}
+            Mode::Insert => {
+                bindings.add(
+                    &self.key,
+                    vec![Key::Esc],
+                    DK::Command(Command::SwitchMode(Mode::Normal)),
+                );
+            }
+            Mode::Normal => {
+                bindings.add(&self.key, vec![Key::Ctrl('w')], DK::CloseView);
+                bindings.add(&self.key, vec![Key::Ctrl('s')], Command::Save.into());
+                bindings.add(&self.key, vec![Key::Esc], DK::Noop);
+                bindings.add(&self.key, vec![Key::Ctrl('s')], Command::Save.into());
+                bindings.add(&self.key, vec![Key::Del], DK::Noop);
+                bindings.add(
+                    &self.key,
+                    vec![Key::Left],
+                    Command::Move(Direction::Left).into(),
+                );
+                bindings.add(
+                    &self.key,
+                    vec![Key::Right],
+                    Command::Move(Direction::Right).into(),
+                );
+                bindings.add(
+                    &self.key,
+                    vec![Key::Up],
+                    Command::Move(Direction::Up).into(),
+                );
+                bindings.add(
+                    &self.key,
+                    vec![Key::Down],
+                    Command::Move(Direction::Down).into(),
+                );
+                bindings.add(
+                    &self.key,
+                    vec![Key::Ascii('b')],
+                    Command::MoveRel(Noun::Word, Rel::Prior).into(),
+                );
+                bindings.add(
+                    &self.key,
+                    vec![Key::Ascii('e')],
+                    Command::MoveRel(Noun::Word, Rel::End).into(),
+                );
+                bindings.add(
+                    &self.key,
+                    vec![Key::Ascii('w')],
+                    Command::MoveRel(Noun::Word, Rel::Next).into(),
+                );
+                bindings.add(
+                    &self.key,
+                    vec![Key::Ascii('i')],
+                    Command::SwitchMode(Mode::Insert).into(),
+                );
+                bindings.add(
+                    &self.key,
+                    vec![Key::Ascii('h')],
+                    Command::Move(Direction::Left).into(),
+                );
+                bindings.add(
+                    &self.key,
+                    vec![Key::Ascii(':')],
+                    Command::FocusCommandLine.into(),
+                );
+                bindings.add(
+                    &self.key,
+                    vec![Key::Ascii('j')],
+                    Command::Move(Direction::Down).into(),
+                );
+                bindings.add(
+                    &self.key,
+                    vec![Key::Ascii('k')],
+                    Command::Move(Direction::Up).into(),
+                );
+                bindings.add(
+                    &self.key,
+                    vec![Key::Ascii('l')],
+                    Command::Move(Direction::Right).into(),
+                );
+                bindings.add(&self.key, vec![Key::Ascii('J')], Command::JoinLines.into());
+                bindings.add(
+                    &self.key,
+                    vec![Key::Ascii('o')],
+                    DK::Sequence(vec![
+                        DK::Command(Command::NewlineBelow),
+                        DK::Command(Command::SwitchMode(Mode::Insert)),
+                    ]),
+                );
+                bindings.add(
+                    &self.key,
+                    vec![Key::Ascii('O')],
+                    DK::Sequence(vec![
+                        DK::Command(Command::NewlineAbove),
+                        DK::Command(Command::MoveRel(Noun::Line, Rel::Beginning)),
+                        DK::Command(Command::SwitchMode(Mode::Insert)),
+                    ]),
+                );
 
-        bindings.add(
-            Mode::Normal,
-            vec![Key::Ascii('x')],
-            DK::Command(Command::DeleteForwards),
-        );
-        bindings.add(
-            Mode::Normal,
-            vec![Key::Ascii('X')],
-            DK::Command(Command::DeleteBackwards),
-        );
+                bindings.add(
+                    &self.key,
+                    vec![Key::Ascii('x')],
+                    DK::Command(Command::DeleteForwards),
+                );
+                bindings.add(
+                    &self.key,
+                    vec![Key::Ascii('X')],
+                    DK::Command(Command::DeleteBackwards),
+                );
+            }
+        }
         bindings
     }
 
@@ -332,17 +344,17 @@ impl View for DocView {
                 }
                 [Key::Backspace] => DK::Command(Command::DeleteBackwards),
                 _ => {
-                    return Err(Error::not_impl(format!(
+                    return Err(not_impl!(
                         "DocView: Nothing to do for {:?} in insert mode.",
                         keys
-                    )));
+                    ));
                 }
             }),
-            Mode::Visual { block_mode } => Err(Error::not_impl(format!(
+            Mode::Visual { block_mode } => Err(not_impl!(
                 "DocView: Nothing to do for {:?} in visual{} mode.",
                 keys,
                 if block_mode { " block" } else { "" }
-            ))),
+            )),
         }
     }
     */
@@ -365,10 +377,10 @@ impl View for DocView {
                 self.switch_mode(mode);
                 Ok(Status::Ok)
             }
-            _ => Err(Error::not_impl(format!(
+            _ => Err(not_impl!(
                 "DocView::execute_command needs to handle {:?}.",
-                command,
-            ))),
+                command
+            )),
         }
     }
 }
@@ -399,6 +411,7 @@ impl ViewContext for DocView {
 impl DocView {
     pub fn new(view_key: ViewKey, plugin: PluginRef) -> Self {
         Self {
+            parent: None,
             plugin,
             key: view_key,
             cursor: Default::default(),

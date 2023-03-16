@@ -9,16 +9,27 @@ use crate::types::{Pos, Rect};
 use crate::view::View;
 use crate::view::{ViewContext, ViewKey};
 use std::cell::RefCell;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 
 pub struct VStack {
+    parent: Option<Weak<RefCell<dyn View>>>,
     plugin: PluginRef,
     view_key: ViewKey,
     views: Vec<Rc<RefCell<dyn View>>>,
 }
 
+impl VStack {
+    #[allow(dead_code)]
+    pub fn set_parent(&mut self, parent: Option<Weak<RefCell<dyn View>>>) {
+        self.parent = parent;
+    }
+}
+
 impl ViewContext for VStack {}
 impl View for VStack {
+    fn get_parent(&self) -> Option<Weak<RefCell<dyn View>>> {
+        self.parent.clone()
+    }
     fn install_plugins(&mut self, plugin: PluginRef) {
         self.plugin = plugin;
     }

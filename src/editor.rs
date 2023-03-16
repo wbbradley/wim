@@ -4,14 +4,13 @@ use crate::command::Command;
 use crate::commandline::CommandLine;
 use crate::consts::PROP_CMDLINE_FOCUSED;
 use crate::docview::DocView;
-use crate::error::Result;
+use crate::error::{not_impl, Result};
 use crate::key::Key;
 use crate::mode::Mode;
 use crate::plugin::PluginRef;
 use crate::propvalue::PropertyValue;
 use crate::read::read_key;
 use crate::status::Status;
-use crate::termios::Termios;
 use crate::types::{Pos, Rect};
 use crate::view::{to_view, to_weak_view, View, ViewContext, ViewKey, ViewKeyGenerator};
 use std::cell::RefCell;
@@ -21,11 +20,11 @@ use std::time::{Duration, Instant};
 
 #[allow(dead_code)]
 pub struct Editor {
-    termios: Termios,
     plugin: PluginRef,
     view_key: ViewKey,
     last_key: Option<Key>,
-    views: HashMap<ViewKey, Rc<RefCell<DocView>>>,
+    view_map: HashMap<ViewKey, Rc<RefCell<DocView>>>,
+    bindings_map: HashMap<ViewKey, Bindings>,
     view_key_gen: ViewKeyGenerator,
     root_view: Rc<RefCell<dyn View>>,
     previous_views: Vec<Weak<RefCell<dyn View>>>,
@@ -34,6 +33,9 @@ pub struct Editor {
 }
 
 impl View for Editor {
+    fn get_parent(&self) -> Option<Weak<RefCell<dyn View>>> {
+        None
+    }
     fn install_plugins(&mut self, plugin: PluginRef) {
         self.plugin = plugin;
     }
@@ -101,17 +103,6 @@ impl View for Editor {
     fn get_key_bindings(&self) -> Bindings {
         Default::default()
     }
-
-    /*
-    fn handle_keys(&mut self, keys: &[Key]) -> Result<DK> {
-        log::trace!(
-            "[Editor::handle_key] sending keys {:?} to view {}",
-            keys,
-            self.focused_view().borrow().get_view_key()
-        );
-        self.focused_view().borrow_mut().handle_keys(keys)
-    }
-    */
 }
 
 impl ViewContext for Editor {
@@ -135,6 +126,16 @@ fn build_view_map(views: Vec<Rc<RefCell<DocView>>>) -> HashMap<ViewKey, Rc<RefCe
         .collect()
 }
 
+fn build_bindings_map(views: Vec<Rc<RefCell<DocView>>>) -> HashMap<ViewKey, Bindings> {
+    views
+        .iter()
+        .map(|view| {
+            let view = view.borrow();
+            (view.get_view_key().to_string(), view.get_key_bindings())
+        })
+        .collect()
+}
+
 #[allow(dead_code)]
 impl Editor {
     pub fn _read_key(&mut self) -> Option<Key> {
@@ -152,20 +153,22 @@ impl Editor {
             expiry: Instant::now() + Duration::from_secs(5),
         }
     }
-    pub fn new(termios: Termios, plugin: PluginRef) -> Self {
+    pub fn new(plugin: PluginRef) -> Self {
         let mut view_key_gen = ViewKeyGenerator::new();
         let views = vec![Rc::new(RefCell::new(DocView::new(
             view_key_gen.next_key_string(),
             plugin.clone(),
         )))];
         let focused_view = views[0].clone();
+        let view_map = build_view_map(views.clone());
+        let bindings_map = build_bindings_map(views);
         Self {
-            termios,
             plugin: plugin.clone(),
             view_key: view_key_gen.next_key_string(),
             frame: Rect::zero(),
             last_key: None,
-            views: build_view_map(views),
+            view_map,
+            bindings_map,
             view_key_gen,
             previous_views: vec![to_weak_view(focused_view.clone())],
             root_view: focused_view,
@@ -183,6 +186,32 @@ impl Editor {
         self.command_line.borrow_mut().set_status(status);
     }
 
+    pub fn handle_key(&mut self, key: Key) -> Result<crate::dk::DK> {
+        log::trace!(
+            "[Editor::handle_key] sending key {:?} to view {}",
+            key,
+            self.focused_view().borrow().get_view_key()
+        );
+        let mut ancestor_path: Vec<ViewKey> = Default::default();
+        self.focused_view()
+            .borrow()
+            .ancestor_path(&mut ancestor_path);
+        let mut bindings: Bindings = Default::default();
+        ancestor_path
+            .iter()
+            .map(|view_key| {
+                self.view_map
+                    .get(view_key)
+                    .unwrap()
+                    .borrow()
+                    .get_key_bindings()
+            })
+            .for_each(|b| bindings.add_bindings(b));
+        if let Some(dk) = bindings.translate(key) {
+            return Ok(dk);
+        }
+        Err(not_impl!("Editor::handle_key: no handler for {:?}", key))
+    }
     pub fn goto_previous_view(&mut self) {
         self.previous_views.pop();
     }

@@ -1,9 +1,11 @@
 use crate::read::read_u8;
 use crate::types::{Coord, Pos, SafeCoordCast, Size};
 use crate::utils::{die, put};
+use std::sync::{Arc, Mutex};
 
 pub struct Termios {
     pub orig: libc::termios,
+    in_raw_mode: Arc<Mutex<bool>>,
 }
 
 impl Termios {
@@ -11,6 +13,7 @@ impl Termios {
         let fd = libc::STDIN_FILENO;
         let mut termios = Self {
             orig: unsafe { std::mem::zeroed() },
+            in_raw_mode: Arc::new(Mutex::new(false)),
         };
         let ret = unsafe { libc::tcgetattr(fd, &mut termios.orig as *mut libc::termios) };
         if ret == -1 {
@@ -18,7 +21,7 @@ impl Termios {
         }
         termios
     }
-    fn enable_raw_mode(&self) {
+    fn enable_raw_mode(&mut self) -> anyhow::Result<()> {
         let mut raw = libc::termios {
             c_cc: self.orig.c_cc,
             c_cflag: self.orig.c_cflag,
@@ -44,14 +47,35 @@ impl Termios {
         {
             die!("tcsetattr failed");
         }
+        let mut in_raw_mode = self.in_raw_mode.lock().unwrap();
+        *in_raw_mode = true;
+        Ok(())
     }
     pub fn enter_raw_mode() -> Self {
-        let termios = Self::new();
-        termios.enable_raw_mode();
+        let mut termios = Self::new();
+        termios.enable_raw_mode().unwrap();
         termios
     }
+    pub fn exit_raw_mode(&self) {
+        let mut in_raw_mode = self.in_raw_mode.lock().unwrap();
+        if *in_raw_mode {
+            if unsafe {
+                libc::tcsetattr(
+                    libc::STDIN_FILENO,
+                    libc::TCSAFLUSH,
+                    &self.orig as *const libc::termios,
+                )
+            } == -1
+            {
+                die!("Termios::drop");
+            }
+            put!("\x1b[2J");
+            put!("\x1b[H");
+            *in_raw_mode = false;
+        }
+    }
 
-    pub fn get_window_size(&self) -> Size {
+    pub fn get_window_size() -> Size {
         let mut ws: libc::winsize = unsafe { std::mem::zeroed() };
         if unsafe {
             libc::ioctl(
@@ -87,18 +111,7 @@ impl Termios {
 
 impl Drop for Termios {
     fn drop(&mut self) {
-        if unsafe {
-            libc::tcsetattr(
-                libc::STDIN_FILENO,
-                libc::TCSAFLUSH,
-                &mut self.orig as *mut libc::termios,
-            )
-        } == -1
-        {
-            die!("Termios::drop");
-        }
-        put!("\x1b[2J");
-        put!("\x1b[H");
+        self.exit_raw_mode();
     }
 }
 

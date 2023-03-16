@@ -2,7 +2,6 @@ use crate::buf::Buf;
 use crate::command::Command;
 use crate::dk::DK;
 use crate::editor::Editor;
-use crate::error::Error;
 use crate::key::Key;
 use crate::plugin::{load_plugin, PluginRef};
 use crate::read::read_key;
@@ -46,34 +45,27 @@ mod widechar_width;
 pub static VERSION: &str = "v0.1.0";
 
 fn main() -> anyhow::Result<()> {
-    let plugin = load_plugin()?;
     let termios = Termios::enter_raw_mode();
+
+    std::panic::set_hook(Box::new(move |p| {
+        termios.exit_raw_mode();
+        log::error!("{}", p);
+        println!("{}", p);
+    }));
+
+    let plugin = load_plugin()?;
     // UnwindSafe
-    match std::panic::catch_unwind(std::panic::AssertUnwindSafe/*lying*/(move || {
-        run_app(termios, plugin)
-    })) {
-        Ok(result) => result.context("during run_app"),
-        Err(panic) => match panic.downcast::<String>() {
-            Ok(error) => {
-                log::error!("panic: {:?}", error);
-                Err(Error::new("panic!!")).context("panic")
-            }
-            Err(_) => {
-                log::error!("panic with unknown type.");
-                Err(Error::new("panic!!")).context("panic")
-            }
-        },
-    }
+    run_app(plugin)
 }
 
-fn run_app(termios: Termios, plugin: PluginRef) -> anyhow::Result<()> {
+fn run_app(plugin: PluginRef) -> anyhow::Result<()> {
     simple_logging::log_to_file("wim.log", LevelFilter::Trace)?;
     let args: Vec<String> = env::args().collect();
     log::trace!("wim run with args: {:?}", args);
 
-    let frame: Rect = termios.get_window_size().into();
+    let frame: Rect = Termios::get_window_size().into();
 
-    let mut edit = Editor::new(termios, plugin);
+    let mut edit = Editor::new(plugin);
     if args.len() > 1 {
         edit.execute_command(Command::Open {
             filename: args[1].clone(),
@@ -83,7 +75,7 @@ fn run_app(termios: Termios, plugin: PluginRef) -> anyhow::Result<()> {
     let mut should_refresh = true;
     let mut keys: VecDeque<Key> = Default::default();
     let mut dks: VecDeque<DK> = Default::default();
-    let mut cur_keys: Vec<Key> = Default::default();
+    let mut last_dk = DK::Noop;
 
     'outer: loop {
         if should_refresh {
@@ -104,19 +96,38 @@ fn run_app(termios: Termios, plugin: PluginRef) -> anyhow::Result<()> {
         };
         assert!(dks.is_empty());
         dks.push_front(DK::Key(key));
-        while let Some(dk) = dks.pop_front() {
+        while let Some(mut dk) = dks.pop_front() {
             log::trace!("handling dk: {:?}", dk);
-            match dk {
-                DK::Key(key) => {
-                    cur_keys.push(key);
-                    std::mem::drop(dk);
-                    let next_dk = edit.handle_keys(&cur_keys)?;
-                    if DK::AmbiguousKeys == next_dk {
-                        // Swallow ambiguous key sequences.
-                        log::trace!("seeing ambiguous keys with {:?}", cur_keys);
-                        continue;
+            if let DK::Trie { choices } = &last_dk {
+                if let DK::Key(key) = dk {
+                    if let Some(chosen_dk) = choices.get(&key) {
+                        dks.push_front(dk);
+                        dk = chosen_dk.clone();
+                    } else if let Some(chosen_dk) = choices.get(&Key::None) {
+                        /* user pressed something else but we have a mapping here. Use it. */
+                        dks.push_front(dk);
+                        dk = chosen_dk.clone();
                     }
-                    cur_keys.truncate(0);
+                } else if let Some(chosen_dk) = choices.get(&Key::None) {
+                    /* something else is queued but we need to run this dk */
+                    dks.push_front(dk);
+                    dk = chosen_dk.clone();
+                } else {
+                    edit.set_status(crate::status::Status::Message {
+                        message: "Dropped key sequence.".into(),
+                        expiry: std::time::Instant::now() + std::time::Duration::from_secs(1),
+                    });
+                }
+            }
+            last_dk = DK::Noop;
+            match dk {
+                DK::Trie { .. } => {
+                    last_dk = dk;
+                    continue;
+                }
+                DK::Key(key) => {
+                    std::mem::drop(dk);
+                    let next_dk = edit.handle_key(key)?;
                     dks.push_front(next_dk);
                     should_refresh = true;
                 }
@@ -147,9 +158,6 @@ fn run_app(termios: Termios, plugin: PluginRef) -> anyhow::Result<()> {
                 }
                 DK::Noop => {
                     should_refresh = true;
-                }
-                DK::AmbiguousKeys => {
-                    panic!("This should be swallowed above.");
                 }
             }
         }

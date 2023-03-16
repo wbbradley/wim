@@ -1,6 +1,6 @@
 use rune::Any;
 
-#[derive(Any, Copy, Clone, Eq, PartialEq)]
+#[derive(Any, Hash, Copy, Clone, Eq, PartialEq)]
 pub enum Key {
     #[rune(constructor)]
     Esc,
@@ -38,6 +38,8 @@ pub enum Key {
     Ascii(#[rune(get)] char),
     #[rune(constructor)]
     Function(#[rune(get)] u8),
+    #[rune(constructor)]
+    None,
 }
 
 impl std::fmt::Display for Key {
@@ -61,6 +63,7 @@ impl std::fmt::Display for Key {
             Key::Function(a) => write!(f, "<F{}>", *a),
             Key::PrintScreen => write!(f, "<PrintScreen>"),
             Key::Backspace => write!(f, "<Backspace>"),
+            Key::None => write!(f, "<>"),
         }
     }
 }
