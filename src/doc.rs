@@ -85,6 +85,12 @@ impl Doc {
     pub fn delete_backwards(&mut self, cursor: Pos, noun: Noun) -> (Option<Coord>, Option<Coord>) {
         if let Some(row) = self.rows.get_mut(cursor.y) {
             if row.len() == 0 || cursor.x == 0 {
+                if cursor.y > 0 {
+                    let prior_row_len = self.rows.get_mut(cursor.y - 1).unwrap().len();
+
+                    self.join_lines(cursor.y - 1..cursor.y);
+                    return (Some(prior_row_len), Some(cursor.y - 1));
+                }
                 return (None, None);
             }
             let start_index = match noun {
