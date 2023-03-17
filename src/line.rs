@@ -32,7 +32,12 @@ impl<'a> Line<'a> {
     }
     pub fn remaining_space(&self) -> usize {
         // TODO: have this calculate visible chars, not u8's left.
-        self.max_line_length - self.cur_offset()
+        let cur_offset = self.cur_offset();
+        if cur_offset <= self.max_line_length {
+            self.max_line_length - self.cur_offset()
+        } else {
+            0
+        }
     }
     pub fn end_with<T>(&mut self, s: T)
     where

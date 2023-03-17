@@ -217,6 +217,11 @@ impl View for DocView {
                 );
                 bindings.add(
                     &self.key,
+                    vec![Key::Ascii('j'), Key::Ascii('k')],
+                    DK::Key(Key::Esc),
+                );
+                bindings.add(
+                    &self.key,
                     vec![Key::Backspace],
                     Command::DeleteBackwards.into(),
                 );

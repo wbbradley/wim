@@ -87,7 +87,6 @@ impl Doc {
             if row.len() == 0 || cursor.x == 0 {
                 if cursor.y > 0 {
                     let prior_row_len = self.rows.get_mut(cursor.y - 1).unwrap().len();
-
                     self.join_lines(cursor.y - 1..cursor.y);
                     return (Some(prior_row_len), Some(cursor.y - 1));
                 }

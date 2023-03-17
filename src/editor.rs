@@ -146,7 +146,7 @@ impl Editor {
     pub fn new(plugin: PluginRef) -> Self {
         let mut view_key_gen = ViewKeyGenerator::new();
         let views: Vec<ViewRef> = vec![Rc::new(RefCell::new(DocView::new(
-            view_key_gen.next_key_string(),
+            view_key_gen.next_key_string("docview"),
             plugin.clone(),
         )))];
         let focused_view = views[0].clone();
@@ -154,7 +154,7 @@ impl Editor {
         let view_map = build_view_map(command_line.clone(), views);
         Self {
             plugin,
-            view_key: view_key_gen.next_key_string(),
+            view_key: view_key_gen.next_key_string("editor"),
             frame: Rect::zero(),
             last_key: None,
             view_map,

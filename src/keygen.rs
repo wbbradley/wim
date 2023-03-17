@@ -11,7 +11,7 @@ impl KeyGenerator {
     pub fn next_key(&mut self) -> i64 {
         self.iter.next().unwrap()
     }
-    pub fn next_key_string(&mut self) -> String {
-        format!("{}", self.next_key())
+    pub fn next_key_string(&mut self, prefix: &str) -> String {
+        format!("{}-{}", prefix, self.next_key())
     }
 }

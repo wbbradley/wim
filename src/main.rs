@@ -74,7 +74,7 @@ fn run_app(plugin: PluginRef) -> anyhow::Result<()> {
     let mut keys: VecDeque<Key> = Default::default();
     let mut dks: VecDeque<DK> = Default::default();
     let mut last_dk = DK::Noop;
-
+    let mut unprocessed_keys: Vec<Key> = Default::default();
     'outer: loop {
         if should_refresh {
             edit.layout(frame);
@@ -94,35 +94,57 @@ fn run_app(plugin: PluginRef) -> anyhow::Result<()> {
         };
         assert!(dks.is_empty());
         dks.push_front(DK::Key(key));
+        unprocessed_keys.push(key);
         while let Some(mut dk) = dks.pop_front() {
             trace!("handling dk: {:?}", dk);
             let mut chosen_view_key: Option<ViewKey> = None;
             if let DK::Trie { choices } = &last_dk {
+                trace!(
+                    "checking trie last_dk={:?}, dk={:?}, key={:?}",
+                    last_dk,
+                    dk,
+                    key
+                );
                 if let DK::Key(key) = dk {
+                    unprocessed_keys.push(key);
                     if let Some((vk, chosen_dk)) = choices.get(&key) {
                         chosen_view_key = Some(vk.clone());
                         dks.push_front(dk);
                         dk = chosen_dk.clone();
                     } else if let Some((vk, chosen_dk)) = choices.get(&Key::None) {
                         /* user pressed something else but we have a mapping here. Use it. */
+                        unprocessed_keys = vec![key]; // .truncate(0);
                         chosen_view_key = Some(vk.clone());
                         dks.push_front(dk);
                         dk = chosen_dk.clone();
+                    } else {
+                        /* user pressed something else. transform already pressed keys into SendKey */
+                        dks.push_front(DK::Key(key));
+                        for k in unprocessed_keys.iter().rev() {
+                            dks.push_front(DK::SendKey(None, *k));
+                        }
+                        unprocessed_keys.truncate(0);
+                        continue;
                     }
                 } else if let Some((vk, chosen_dk)) = choices.get(&Key::None) {
                     /* something else is queued but we need to run this dk */
+                    unprocessed_keys.truncate(0);
                     chosen_view_key = Some(vk.clone());
                     dks.push_front(dk);
                     dk = chosen_dk.clone();
                 } else {
                     edit.set_status(crate::status::Status::Message {
-                        message: "Dropped key sequence.".into(),
+                        message: "Dropped key sequence.".to_string(),
                         expiry: std::time::Instant::now() + std::time::Duration::from_secs(1),
                     });
                 }
             }
-            trace!("chosen_view_key = {:?}, dk = {:?}", chosen_view_key, dk);
+            edit.set_status(crate::status::Status::Message {
+                message: format!("uks = {:?}, dk = {:?}", unprocessed_keys, dk),
+                expiry: std::time::Instant::now() + std::time::Duration::from_secs(1),
+            });
             last_dk = DK::Noop;
+
             match dk {
                 DK::Trie { .. } => {
                     last_dk = dk;
@@ -150,6 +172,9 @@ fn run_app(plugin: PluginRef) -> anyhow::Result<()> {
                     should_refresh = true;
                 }
                 DK::Command(command) => {
+                    trace!("deleting unprocessed_keys {:?}", unprocessed_keys);
+                    unprocessed_keys.truncate(0);
+
                     match edit.execute_command(command) {
                         Ok(status) => edit.set_status(status),
                         Err(error) => {
