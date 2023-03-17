@@ -169,7 +169,7 @@ impl DocView {
 
 impl View for DocView {
     fn get_parent(&self) -> Option<Weak<RefCell<dyn View>>> {
-        return self.parent.clone();
+        self.parent.clone()
     }
     fn install_plugins(&mut self, plugin: PluginRef) {
         self.plugin = plugin;
@@ -215,6 +215,12 @@ impl View for DocView {
                     vec![Key::Esc],
                     DK::Command(Command::SwitchMode(Mode::Normal)),
                 );
+                bindings.add(
+                    &self.key,
+                    vec![Key::Backspace],
+                    Command::DeleteBackwards.into(),
+                );
+                bindings.add(&self.key, vec![Key::Enter], Command::NewlineBelow.into());
             }
             Mode::Normal => {
                 bindings.add(&self.key, vec![Key::Ctrl('w')], DK::CloseView);
@@ -327,7 +333,11 @@ impl View for DocView {
                 message: format!("{:?} mode is ignoring {:?}...", self.mode, key),
                 expiry: Instant::now() + Duration::from_millis(250),
             }),
-            Mode::Insert => panic!("unhandled KDJFDKFJDKJ"),
+            Mode::Insert => match key {
+                Key::Ascii(ch) => self.insert_char(ch),
+                /*Key::Backspace => self.delete_backwards(Noun::Char),*/
+                _ => Err(not_impl!("[DocView::send_key] unhandled {:?}", key)),
+            },
         }
     }
     fn execute_command(&mut self, command: Command) -> Result<Status> {
