@@ -2,10 +2,17 @@ use crate::prelude::*;
 
 #[derive(Any, Clone, Debug)]
 pub enum DK {
+    DK(#[rune(get)] ViewKey, #[rune(get)] Form),
+    #[rune(constructor)]
+    None,
+}
+
+#[derive(Any, Clone, Debug)]
+pub enum Form {
     #[rune(constructor)]
     Key(#[rune(get)] Key),
     #[rune(constructor)]
-    SendKey(#[rune(get)] Option<ViewKey>, #[rune(get)] Key),
+    SendKey(#[rune(get)] Key),
     #[rune(constructor)]
     CommandLine,
     #[rune(constructor)]
@@ -16,23 +23,15 @@ pub enum DK {
     CloseView,
     #[rune(constructor)]
     Noop,
-    #[rune(constructor)]
-    Trie {
-        choices: HashMap<Key, (ViewKey, DK)>,
-    },
 }
 
-impl From<Command> for DK {
-    #[inline]
-    fn from(command: Command) -> Self {
-        Self::Command(command)
-    }
+pub trait ToDK {
+    fn with_view_key(self, view_key: ViewKey) -> DK;
 }
 
-impl<T> From<Command> for Result<DK, T> {
-    #[inline]
-    fn from(command: Command) -> Self {
-        Self::Ok(DK::Command(command))
+impl ToDK for Form {
+    fn with_view_key(self, view_key: ViewKey) -> DK {
+        DK::DK(view_key, self)
     }
 }
 

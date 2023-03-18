@@ -10,6 +10,7 @@ use crate::prelude::*;
 use crate::propvalue::PropertyValue;
 use crate::read::read_key;
 use crate::status::Status;
+use crate::trie::TrieNode;
 use crate::types::{Pos, Rect};
 use crate::view::{to_view, to_weak_view, ViewContext, ViewKeyGenerator};
 
@@ -72,8 +73,8 @@ impl View for Editor {
         buf.write_to(libc::STDIN_FILENO);
     }
 
-    fn get_view_key(&self) -> &ViewKey {
-        &self.view_key
+    fn get_view_key(&self) -> ViewKey {
+        self.view_key
     }
 
     fn get_cursor_pos(&self) -> Option<Pos> {
@@ -97,7 +98,7 @@ impl View for Editor {
     fn send_key(&mut self, key: Key) -> Result<Status> {
         panic!("why is the editor receiving send_keys? [key={:?}]", key);
     }
-    fn get_key_bindings(&self) -> Bindings {
+    fn get_key_bindings(&self, root_view_key: ViewKey) -> Bindings;
         Default::default()
     }
 }
@@ -189,32 +190,37 @@ impl Editor {
         }
     }
 
-    pub fn handle_key(&mut self, view_key: Option<ViewKey>, key: Key) -> Result<DK> {
-        let target_view = self.get_view_or_focused_view(view_key);
-
+    pub fn handle_keys(&mut self, dks: &mut VecDeque<DK>) -> Result<Option<DK>> {
+        let target_view = self.get_view_or_focused_view(None);
         log::trace!(
-            "[Editor::handle_key] sending key {:?} to view {}",
-            key,
+            "[Editor::handle_key] mapping keys from dks {:?} to view {}",
+            dks,
             target_view.borrow().get_view_key()
         );
         let mut ancestor_path: Vec<ViewKey> = Default::default();
         target_view.borrow().ancestor_path(&mut ancestor_path);
-        let mut bindings: Bindings = Default::default();
-        ancestor_path
+        let trie: TrieNode = TrieNode::from_ancestor_path(ancestor_path, &self.view_map);
+        let inbound_keys: Vec<Key> = dks
             .iter()
-            .map(|view_key| {
-                self.view_map
-                    .get(view_key)
-                    .unwrap()
-                    .borrow()
-                    .get_key_bindings()
+            .take_while(|dk| matches!(dk, DK::Key(_)))
+            .map(|dk| match dk {
+                DK::Key(key) if key != &Key::None => *key,
+                _ => {
+                    panic!("foogoo");
+                }
             })
-            .for_each(|b| bindings.add_bindings(b));
-        if let Some(dk) = bindings.translate(key) {
-            trace!("key {:?} translated into dk {:?}", key, dk);
-            return Ok(dk);
+            .collect();
+
+        match trie.longest_prefix(&inbound_keys) {
+            Some((dk, remaining)) => {
+                trace!("key {:?} translated into dk {:?}", inbound_keys, dk);
+                (0..(inbound_keys.len() - remaining.len())).for_each(|_| {
+                    dks.pop_front();
+                });
+                Ok(Some(dk))
+            }
+            None => Err(not_impl!("Editor::handle_key: no handler for {:?}", dks)),
         }
-        Err(not_impl!("Editor::handle_key: no handler for {:?}", key))
     }
     pub fn goto_previous_view(&mut self) {
         self.previous_views.pop();

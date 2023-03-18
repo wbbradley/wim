@@ -53,8 +53,8 @@ impl View for VStack {
     fn get_view_mode(&self) -> Mode {
         Mode::Normal
     }
-    fn get_view_key(&self) -> &ViewKey {
-        &self.view_key
+    fn get_view_key(&self) -> ViewKey {
+        self.view_key
     }
     fn display(&self, buf: &mut Buf, context: &dyn ViewContext) {
         self.views
@@ -73,7 +73,7 @@ impl View for VStack {
     fn send_key(&mut self, key: Key) -> Result<Status> {
         panic!("why is the vstack receiving send_keys? [key={:?}]", key);
     }
-    fn get_key_bindings(&self) -> Bindings {
+    fn get_key_bindings(&self, root_view_key: ViewKey) -> Bindings;
         Default::default()
     }
 }

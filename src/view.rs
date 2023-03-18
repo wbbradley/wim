@@ -7,7 +7,9 @@ use crate::propvalue::PropertyValue;
 use crate::status::Status;
 use crate::types::{Pos, Rect};
 
-pub type ViewKey = String;
+#[derive(Any, Copy, Clone, Debug, Eq, PartialEq, Hash)]
+pub struct ViewKey(usize);
+
 pub type ViewKeyGenerator = KeyGenerator;
 pub type ViewRef = Rc<RefCell<dyn View>>;
 
@@ -40,7 +42,7 @@ pub trait View: ViewContext {
     fn install_plugins(&mut self, plugin: PluginRef);
     fn layout(&mut self, frame: Rect);
     fn display(&self, buf: &mut Buf, context: &dyn ViewContext);
-    fn get_view_key(&self) -> &ViewKey;
+    fn get_view_key(&self) -> ViewKey;
     fn get_cursor_pos(&self) -> Option<Pos>;
     fn execute_command(&mut self, command: Command) -> Result<Status> {
         Err(Error::not_impl(format!(
@@ -51,7 +53,7 @@ pub trait View: ViewContext {
     }
     fn send_key(&mut self, key: Key) -> Result<Status>;
     fn get_view_mode(&self) -> Mode;
-    fn get_key_bindings(&self) -> Bindings;
+    fn get_key_bindings(&self, root_view_key: ViewKey) -> Bindings;
 }
 
 impl dyn View {

@@ -12,6 +12,7 @@ use crate::key::Key;
 use crate::line::{line_fmt, Line};
 use crate::mode::Mode;
 use crate::plugin::PluginRef;
+use crate::prelude::*;
 use crate::status::Status;
 use crate::types::{Coord, Pos, Rect};
 use crate::view::{View, ViewContext, ViewKey};
@@ -34,11 +35,11 @@ pub struct CommandLine {
 
 #[allow(dead_code)]
 impl CommandLine {
-    pub fn new(plugin: PluginRef) -> Self {
+    pub fn new(plugin: PluginRef, view_key: ViewKey) -> Self {
         Self {
             parent: None,
             plugin,
-            view_key: "command-line".to_string(),
+            view_key,
             cursor: 0,
             render_cursor: 0,
             scroll_offset: 0,
@@ -111,37 +112,38 @@ impl View for CommandLine {
     fn get_view_mode(&self) -> Mode {
         Mode::Insert
     }
-    fn get_key_bindings(&self) -> Bindings {
+    fn get_key_bindings(&self, root_view_key: ViewKey) -> Bindings {
         let view_key = self.get_view_key();
         let mut bindings: Bindings = Default::default();
-        bindings.add(view_key, vec![Key::Esc], Command::FocusPrevious.into());
         bindings.add(
-            view_key,
+            vec![Key::Esc],
+            command!("focus-previous").with_view_key(view_key),
+        );
+        bindings.add(
             vec![Key::Enter],
-            DK::Sequence(vec![
-                Command::FocusPrevious.into(),
-                Command::Call {
-                    name: "invoke-execute".into(),
-                    args: vec![CallArg::Ref(
-                        view_key.clone(),
-                        PROP_CMDLINE_TEXT.to_string(),
-                    )],
-                }
-                .into(),
-                Command::FocusViewKey(view_key.clone()).into(),
-                Command::Call {
-                    name: "clear-text".into(),
-                    args: vec![],
-                }
-                .into(), // TODO: Execute(self.text.clone()),
-                Command::FocusPrevious.into(),
-            ]),
+            DK::DK(
+                view_key,
+                Form::Sequence(
+                    vec![
+                        command!("focus-previous"),
+                        command!(
+                            "invoke-execute",
+                            CallArg::Ref(view_key, PROP_CMDLINE_TEXT.to_string(),)
+                        ), //Command::FocusViewKey(view_key.clone()).into(),
+                           // Command::Call { name: "clear-text".into(), args: vec![], }
+                           // Command::FocusPrevious.into(),
+                    ]
+                    .into_iter()
+                    .map(|c| c.with_view_key(view_key))
+                    .collect(),
+                ),
+            ),
         );
         bindings
     }
 
-    fn get_view_key(&self) -> &ViewKey {
-        &self.view_key
+    fn get_view_key(&self) -> ViewKey {
+        self.view_key
     }
     fn get_cursor_pos(&self) -> Option<Pos> {
         Some(Pos {
@@ -170,7 +172,7 @@ impl View for CommandLine {
     }
     fn execute_command(&mut self, command: Command) -> Result<Status> {
         match &command {
-            Command::Call { name, args: _ } => {
+            Command { name, args: _ } => {
                 if name == "clear-text" {
                     self.text.clear();
                     Ok(Status::Ok)

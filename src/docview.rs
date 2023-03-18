@@ -1,23 +1,18 @@
 use crate::bindings::Bindings;
 use crate::buf::{place_cursor, safe_byte_slice, Buf, ToBufBytes, BLANKS};
-use crate::command::{Command, Direction};
 use crate::consts::{
     PROP_DOCVIEW_CURSOR_POS, PROP_DOCVIEW_STATUS, PROP_DOC_FILENAME, PROP_DOC_IS_MODIFIED,
 };
-use crate::dk::DK;
 use crate::doc::Doc;
-use crate::error::{not_impl, Error, Result};
-use crate::key::Key;
-use crate::mode::Mode;
-use crate::noun::Noun;
+use crate::error::{Error, Result};
 use crate::plugin::PluginRef;
+use crate::prelude::*;
 use crate::propvalue::PropertyValue;
 use crate::rel::Rel;
 use crate::status::Status;
 use crate::types::{Coord, Pos, Rect, RelCoord, SafeCoordCast};
 use crate::utils::wcwidth;
-use crate::view::{View, ViewContext, ViewKey};
-use std::cell::RefCell;
+use crate::view::ViewContext;
 use std::fs::OpenOptions;
 use std::io::{Seek, SeekFrom, Write};
 use std::rc::Weak;
@@ -193,8 +188,8 @@ impl View for DocView {
             buf.append(&BLANKS[0..self.frame.width - 1]);
         }
     }
-    fn get_view_key(&self) -> &ViewKey {
-        &self.key
+    fn get_view_key(&self) -> ViewKey {
+        self.key
     }
     fn get_view_mode(&self) -> Mode {
         self.mode
@@ -205,54 +200,40 @@ impl View for DocView {
             y: self.frame.y + self.cursor.y - self.scroll_offset.y,
         })
     }
-    fn get_key_bindings(&self) -> Bindings {
+    fn get_key_bindings(&self, root_view_key: ViewKey) -> Bindings;
+        let view_key = self.get_view_key();
         let mut bindings: Bindings = Default::default();
         match self.mode {
             Mode::Visual { .. } => {}
             Mode::Insert => {
                 bindings.add(
-                    &self.key,
                     vec![Key::Esc],
-                    DK::Command(Command::SwitchMode(Mode::Normal)),
+                    command!("switch-mode", CallArg::String("normal".into()))
+                        .with_view_key(view_key),
                 );
                 bindings.add(
-                    &self.key,
                     vec![Key::Ascii('j'), Key::Ascii('k')],
-                    DK::Key(Key::Esc),
+                    Form::Key(Key::Esc).with_view_key(view_key),
                 );
                 bindings.add(
-                    &self.key,
                     vec![Key::Backspace],
-                    Command::DeleteBackwards.into(),
+                    command!("delete-backwards").with_view_key(view_key),
                 );
-                bindings.add(&self.key, vec![Key::Enter], Command::NewlineBelow.into());
+                bindings.add(
+                    vec![Key::Enter],
+                    command!("newline-below").with_view_key(view_key),
+                );
             }
             Mode::Normal => {
-                bindings.add(&self.key, vec![Key::Ctrl('w')], DK::CloseView);
+                bindings.add(
+                    vec![Key::Ctrl('w')],
+                    command!("close-view", CallArg::ViewKey(view_key))
+                        .with_view_key(context.get_root_view_key()),
+                );
                 bindings.add(&self.key, vec![Key::Ctrl('s')], Command::Save.into());
                 bindings.add(&self.key, vec![Key::Esc], DK::Noop);
                 bindings.add(&self.key, vec![Key::Ctrl('s')], Command::Save.into());
                 bindings.add(&self.key, vec![Key::Del], DK::Noop);
-                bindings.add(
-                    &self.key,
-                    vec![Key::Left],
-                    Command::Move(Direction::Left).into(),
-                );
-                bindings.add(
-                    &self.key,
-                    vec![Key::Right],
-                    Command::Move(Direction::Right).into(),
-                );
-                bindings.add(
-                    &self.key,
-                    vec![Key::Up],
-                    Command::Move(Direction::Up).into(),
-                );
-                bindings.add(
-                    &self.key,
-                    vec![Key::Down],
-                    Command::Move(Direction::Down).into(),
-                );
                 bindings.add(
                     &self.key,
                     vec![Key::Ascii('b')],
@@ -276,7 +257,7 @@ impl View for DocView {
                 bindings.add(
                     &self.key,
                     vec![Key::Ascii('h')],
-                    Command::Move(Direction::Left).into(),
+                    Command::Move("left").into(),
                 );
                 bindings.add(
                     &self.key,
@@ -286,17 +267,13 @@ impl View for DocView {
                 bindings.add(
                     &self.key,
                     vec![Key::Ascii('j')],
-                    Command::Move(Direction::Down).into(),
+                    Command::Move("down").into(),
                 );
-                bindings.add(
-                    &self.key,
-                    vec![Key::Ascii('k')],
-                    Command::Move(Direction::Up).into(),
-                );
+                bindings.add(&self.key, vec![Key::Ascii('k')], Command::Move("up").into());
                 bindings.add(
                     &self.key,
                     vec![Key::Ascii('l')],
-                    Command::Move(Direction::Right).into(),
+                    Command::Move("right").into(),
                 );
                 bindings.add(&self.key, vec![Key::Ascii('J')], Command::JoinLines.into());
                 bindings.add(
@@ -350,10 +327,10 @@ impl View for DocView {
             Command::Open { filename } => self.open(filename),
             Command::MoveRel(noun, rel) => self.move_cursor_rel(noun, rel),
             Command::Move(direction) => match direction {
-                Direction::Up => self.move_cursor(0, -1),
-                Direction::Down => self.move_cursor(0, 1),
-                Direction::Left => self.move_cursor(-1, 0),
-                Direction::Right => self.move_cursor(1, 0),
+                "up" => self.move_cursor(0, -1),
+                "down" => self.move_cursor(0, 1),
+                "left" => self.move_cursor(-1, 0),
+                "right" => self.move_cursor(1, 0),
             },
             Command::JoinLines => self.join_line(),
             Command::NewlineAbove => self.insert_newline_above(),
