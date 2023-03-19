@@ -7,7 +7,7 @@ pub struct ViewKeyGenerator {
 impl ViewKeyGenerator {
     pub fn new() -> Self {
         Self {
-            iter: (0..).into_iter(),
+            iter: (0..),
         }
     }
     pub fn next_key(&mut self) -> ViewKey {

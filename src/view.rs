@@ -63,7 +63,7 @@ pub trait View: ViewContext {
 
 impl dyn View {
     pub fn ancestor_path(&self, path: &mut Vec<ViewKey>) {
-        path.push(self.get_view_key().clone());
+        path.push(self.get_view_key());
         if let Some(next) = self.get_parent() {
             if let Some(parent) = next.upgrade() {
                 parent.borrow().ancestor_path(path);

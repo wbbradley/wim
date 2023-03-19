@@ -56,7 +56,7 @@ impl CommandLine {
 
 impl View for CommandLine {
     fn get_parent(&self) -> Option<Weak<RefCell<dyn View>>> {
-        return self.parent.clone();
+        self.parent.clone()
     }
     fn install_plugins(&mut self, plugin: PluginRef) {
         self.plugin = plugin;
