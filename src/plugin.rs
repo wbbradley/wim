@@ -1,9 +1,7 @@
-use crate::command::Command;
-use crate::dk::DK;
+use crate::dk::{Message, DK};
 use crate::key::Key;
 use crate::mode::Mode;
 use crate::noun::Noun;
-use crate::rel::Rel;
 use rune::termcolor::{ColorChoice, StandardStream};
 use rune::{Context, ContextError, Diagnostics, FromValue, Module, Source, Sources, Vm};
 use std::cell::RefCell;
@@ -31,11 +29,8 @@ impl Plugin {
 
 pub fn make_builtins_module() -> Result<Module, ContextError> {
     let mut module = Module::new();
-    module.ty::<Noun>()?;
-    module.ty::<Command>()?;
-    module.ty::<Rel>()?;
     module.ty::<DK>()?;
-    module.ty::<Mode>()?;
+    module.ty::<Message>()?;
     module.ty::<Key>()?;
     module.function(&["noun_char"], || Noun::Char)?;
     Ok(module)

@@ -5,6 +5,7 @@ use crate::consts::PROP_CMDLINE_FOCUSED;
 use crate::docview::DocView;
 use crate::error::not_impl;
 use crate::error::Result;
+use crate::keygen::ViewKeyGenerator;
 use crate::plugin::PluginRef;
 use crate::prelude::*;
 use crate::propvalue::PropertyValue;
@@ -12,12 +13,13 @@ use crate::read::read_key;
 use crate::status::Status;
 use crate::trie::TrieNode;
 use crate::types::{Pos, Rect};
-use crate::view::{to_view, to_weak_view, ViewContext, ViewKeyGenerator};
+use crate::view::{to_view, to_weak_view, ViewContext};
 
 #[allow(dead_code)]
 pub struct Editor {
     plugin: PluginRef,
     view_key: ViewKey,
+    should_quit: bool,
     last_key: Option<Key>,
     view_map: HashMap<ViewKey, ViewRef>,
     view_key_gen: ViewKeyGenerator,
@@ -81,24 +83,26 @@ impl View for Editor {
         self.focused_view().borrow().get_cursor_pos()
     }
 
-    fn execute_command(&mut self, command: Command) -> Result<Status> {
-        match command {
-            Command::FocusCommandLine => {
-                self.enter_command_mode();
-                Ok(Status::Cleared)
-            }
-            Command::FocusPrevious => {
-                self.goto_previous_view();
-                Ok(Status::Cleared)
-            }
-            _ => self.root_view.borrow_mut().execute_command(command),
-        }
+    fn execute_command(&mut self, _name: String, _args: Vec<CallArg>) -> Result<Status> {
+        todo!("do this"); /*
+                          match command {
+                              Command::FocusCommandLine => {
+                                  self.enter_command_mode();
+                                  Ok(Status::Cleared)
+                              }
+                              Command::FocusPrevious => {
+                                  self.goto_previous_view();
+                                  Ok(Status::Cleared)
+                              }
+                              _ => self.root_view.borrow_mut().execute_command(command),
+                          }
+                                           */
     }
 
     fn send_key(&mut self, key: Key) -> Result<Status> {
         panic!("why is the editor receiving send_keys? [key={:?}]", key);
     }
-    fn get_key_bindings(&self, root_view_key: ViewKey) -> Bindings;
+    fn get_key_bindings(&self, _root_view_key: ViewKey) -> Bindings {
         Default::default()
     }
 }
@@ -120,7 +124,7 @@ impl ViewContext for Editor {
 fn build_view_map(command_line: ViewRef, views: Vec<ViewRef>) -> HashMap<ViewKey, ViewRef> {
     let mut map: HashMap<ViewKey, ViewRef> = views
         .iter()
-        .map(|view| (view.borrow().get_view_key().to_string(), view.clone()))
+        .map(|view| (view.borrow().get_view_key(), view.clone()))
         .collect();
     let command_line_view_key = command_line.borrow().get_view_key().clone();
     map.insert(command_line_view_key, command_line);
@@ -129,6 +133,9 @@ fn build_view_map(command_line: ViewRef, views: Vec<ViewRef>) -> HashMap<ViewKey
 
 #[allow(dead_code)]
 impl Editor {
+    pub fn get_should_quit(&self) -> bool {
+        self.should_quit
+    }
     pub fn _read_key(&mut self) -> Option<Key> {
         let key = read_key();
         self.set_last_key(key);
@@ -147,15 +154,19 @@ impl Editor {
     pub fn new(plugin: PluginRef) -> Self {
         let mut view_key_gen = ViewKeyGenerator::new();
         let views: Vec<ViewRef> = vec![Rc::new(RefCell::new(DocView::new(
-            view_key_gen.next_key_string("docview"),
+            view_key_gen.next_key(),
             plugin.clone(),
         )))];
         let focused_view = views[0].clone();
-        let command_line = Rc::new(RefCell::new(CommandLine::new(plugin.clone())));
+        let command_line = Rc::new(RefCell::new(CommandLine::new(
+            plugin.clone(),
+            view_key_gen.next_key(),
+        )));
         let view_map = build_view_map(command_line.clone(), views);
         Self {
             plugin,
-            view_key: view_key_gen.next_key_string("editor"),
+            view_key: view_key_gen.next_key(),
+            should_quit: false,
             frame: Rect::zero(),
             last_key: None,
             view_map,
@@ -193,13 +204,14 @@ impl Editor {
     pub fn handle_keys(&mut self, dks: &mut VecDeque<DK>) -> Result<Option<DK>> {
         let target_view = self.get_view_or_focused_view(None);
         log::trace!(
-            "[Editor::handle_key] mapping keys from dks {:?} to view {}",
+            "[Editor::handle_key] mapping keys from dks {:?} to view {:?}",
             dks,
             target_view.borrow().get_view_key()
         );
         let mut ancestor_path: Vec<ViewKey> = Default::default();
         target_view.borrow().ancestor_path(&mut ancestor_path);
-        let trie: TrieNode = TrieNode::from_ancestor_path(ancestor_path, &self.view_map);
+        let trie: TrieNode =
+            TrieNode::from_ancestor_path(ancestor_path, &self.view_map, self.view_key);
         let inbound_keys: Vec<Key> = dks
             .iter()
             .take_while(|dk| matches!(dk, DK::Key(_)))
@@ -231,12 +243,12 @@ impl Editor {
 
     fn set_focus(&mut self, view_to_focus: Rc<RefCell<dyn View>>) {
         let view_key = view_to_focus.borrow().get_view_key().clone();
-        log::trace!("focusing view '{}'", view_key);
+        log::trace!("focusing view '{:?}'", view_key);
         self.previous_views.retain(|view| {
             // Keep the views that still exist and that aren't the intended one so we can move it
             // to the top of the stack..
             if let Some(view) = view.upgrade() {
-                *view.borrow().get_view_key() != view_key
+                view.borrow().get_view_key() != view_key
             } else {
                 false
             }

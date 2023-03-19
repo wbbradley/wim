@@ -1,17 +1,16 @@
-pub struct KeyGenerator {
-    iter: std::ops::RangeFrom<i64>,
+use crate::view::ViewKey;
+
+pub struct ViewKeyGenerator {
+    iter: std::ops::RangeFrom<usize>,
 }
 
-impl KeyGenerator {
+impl ViewKeyGenerator {
     pub fn new() -> Self {
         Self {
-            iter: (0 as i64..).into_iter(),
+            iter: (0..).into_iter(),
         }
     }
-    pub fn next_key(&mut self) -> i64 {
-        self.iter.next().unwrap()
-    }
-    pub fn next_key_string(&mut self, prefix: &str) -> String {
-        format!("{}-{}", prefix, self.next_key())
+    pub fn next_key(&mut self) -> ViewKey {
+        self.iter.next().unwrap().into()
     }
 }

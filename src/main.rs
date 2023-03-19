@@ -33,7 +33,6 @@ mod row;
 mod status;
 mod termios;
 mod trie;
-mod trigger;
 mod types;
 mod utils;
 mod view;
@@ -43,6 +42,8 @@ mod widechar_width;
 pub static VERSION: &str = "v0.1.0";
 
 fn main() -> anyhow::Result<()> {
+    let plugin = load_plugin()?;
+
     let termios = Arc::new(Termios::enter_raw_mode());
     let panic_termios = termios.clone();
     std::panic::set_hook(Box::new(move |p| {
@@ -51,7 +52,6 @@ fn main() -> anyhow::Result<()> {
         println!("{}", p);
     }));
 
-    let plugin = load_plugin()?;
     let res = run_app(plugin);
     termios.exit_raw_mode();
     res
@@ -66,9 +66,7 @@ fn run_app(plugin: PluginRef) -> anyhow::Result<()> {
 
     let mut edit = Editor::new(plugin);
     if args.len() > 1 {
-        edit.execute_command(Command::Open {
-            filename: args[1].clone(),
-        })?;
+        edit.execute_command("open".to_string(), vec![CallArg::String(args[1].clone())])?;
     }
     let mut buf = Buf::default();
     let mut should_refresh = true;
@@ -76,7 +74,10 @@ fn run_app(plugin: PluginRef) -> anyhow::Result<()> {
     let mut dks: VecDeque<DK> = Default::default();
     let mut key_timeout: Option<Instant> = None;
 
-    'outer: loop {
+    loop {
+        if edit.get_should_quit() {
+            break;
+        }
         if should_refresh {
             edit.layout(frame);
             buf.truncate();
@@ -120,36 +121,28 @@ fn run_app(plugin: PluginRef) -> anyhow::Result<()> {
                         key
                     );
                 }
+                DK::Dispatch(view_key, message) => match message {
+                    Message::SendKey(key) => {
+                        edit.send_key_to_view(view_key, key)?;
+                        should_refresh = true;
+                    }
+                    Message::Command { name, args } => {
+                        match edit.execute_command(name, args) {
+                            Ok(status) => edit.set_status(status),
+                            Err(error) => {
+                                trace!("error: {}", error);
+                                return Err(error).context("DK::Command");
+                            }
+                        }
+                        should_refresh = true;
+                    }
+                },
                 DK::Sequence(next_dks) => {
                     next_dks
                         .iter()
                         .rev()
                         .cloned()
                         .for_each(|dk| dks.push_front(dk));
-                    should_refresh = true;
-                }
-                DK::CloseView => {
-                    break 'outer;
-                }
-                DK::SendKey(view_key, key) => {
-                    edit.send_key_to_view(view_key, key)?;
-                    should_refresh = true;
-                }
-                DK::Command(command) => {
-                    match edit.execute_command(command) {
-                        Ok(status) => edit.set_status(status),
-                        Err(error) => {
-                            trace!("error: {}", error);
-                            return Err(error).context("DK::Command");
-                        }
-                    }
-                    should_refresh = true;
-                }
-                DK::CommandLine => {
-                    edit.enter_command_mode();
-                    should_refresh = true;
-                }
-                DK::Noop => {
                     should_refresh = true;
                 }
             }

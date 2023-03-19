@@ -1,6 +1,6 @@
 pub(crate) use crate::buf::Buf;
-pub(crate) use crate::command::{command, CallArg, Command};
-pub(crate) use crate::dk::{Form, ToDK, DK};
+pub(crate) use crate::command::command;
+pub(crate) use crate::dk::{CallArg, Message, DK};
 pub(crate) use crate::error::not_impl;
 pub(crate) use crate::key::Key;
 pub(crate) use crate::mode::Mode;

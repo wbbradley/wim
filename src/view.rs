@@ -1,6 +1,5 @@
 use crate::bindings::Bindings;
 use crate::error::{Error, Result};
-use crate::keygen::KeyGenerator;
 use crate::plugin::PluginRef;
 use crate::prelude::*;
 use crate::propvalue::PropertyValue;
@@ -10,7 +9,12 @@ use crate::types::{Pos, Rect};
 #[derive(Any, Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub struct ViewKey(usize);
 
-pub type ViewKeyGenerator = KeyGenerator;
+impl From<usize> for ViewKey {
+    fn from(u: usize) -> Self {
+        Self(u)
+    }
+}
+
 pub type ViewRef = Rc<RefCell<dyn View>>;
 
 pub trait ViewContext {
@@ -44,11 +48,12 @@ pub trait View: ViewContext {
     fn display(&self, buf: &mut Buf, context: &dyn ViewContext);
     fn get_view_key(&self) -> ViewKey;
     fn get_cursor_pos(&self) -> Option<Pos>;
-    fn execute_command(&mut self, command: Command) -> Result<Status> {
+    fn execute_command(&mut self, name: String, args: Vec<CallArg>) -> Result<Status> {
         Err(Error::not_impl(format!(
-            "{}::execute_command does not yet exist. Needs to handle {:?}.",
+            "{}::execute_command does not yet exist. Needs to handle {:?} {:?}.",
             std::any::type_name::<Self>(),
-            command
+            name,
+            args,
         )))
     }
     fn send_key(&mut self, key: Key) -> Result<Status>;

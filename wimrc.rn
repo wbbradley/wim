@@ -1,4 +1,7 @@
 pub fn handle_key(mode, key) {
+  None
+}
+/*
   Some(match mode {
     Mode::Normal => match key {
         Key::Ascii('i') => DK::Command(Command::SwitchMode(Mode::Insert)),
@@ -17,7 +20,7 @@ pub fn handle_key(mode, key) {
     _ => { return None; }
   })
 }
-
+*/
 // nmap <Left> :|left<CR>
 // nmap <Right> :|right<CR>
 // nmap <Up> :|up<CR>

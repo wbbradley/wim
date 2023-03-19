@@ -1,12 +1,9 @@
 use crate::bindings::Bindings;
 use crate::buf::{place_cursor, Buf};
-use crate::command::{CallArg, Command};
 use crate::consts::{
-    PROP_CMDLINE_FOCUSED, PROP_CMDLINE_TEXT, PROP_DOCVIEW_STATUS, PROP_DOC_FILENAME,
-    PROP_DOC_IS_MODIFIED,
+    PROP_CMDLINE_FOCUSED, PROP_DOCVIEW_STATUS, PROP_DOC_FILENAME, PROP_DOC_IS_MODIFIED,
 };
 use crate::dk::DK;
-use crate::error::not_impl;
 use crate::error::{Error, Result};
 use crate::key::Key;
 use crate::line::{line_fmt, Line};
@@ -113,31 +110,16 @@ impl View for CommandLine {
         Mode::Insert
     }
     fn get_key_bindings(&self, root_view_key: ViewKey) -> Bindings {
-        let view_key = self.get_view_key();
+        let vk = self.get_view_key();
         let mut bindings: Bindings = Default::default();
-        bindings.add(
-            vec![Key::Esc],
-            command!("focus-previous").with_view_key(view_key),
-        );
-        bindings.add(
+        bindings.insert(vec![Key::Esc], command("focus-previous").vk(vk));
+        bindings.insert(
             vec![Key::Enter],
-            DK::DK(
-                view_key,
-                Form::Sequence(
-                    vec![
-                        command!("focus-previous"),
-                        command!(
-                            "invoke-execute",
-                            CallArg::Ref(view_key, PROP_CMDLINE_TEXT.to_string(),)
-                        ), //Command::FocusViewKey(view_key.clone()).into(),
-                           // Command::Call { name: "clear-text".into(), args: vec![], }
-                           // Command::FocusPrevious.into(),
-                    ]
-                    .into_iter()
-                    .map(|c| c.with_view_key(view_key))
-                    .collect(),
-                ),
-            ),
+            DK::Sequence(vec![
+                command("clear-text").vk(vk),
+                command("focus-previous").vk(root_view_key),
+                command("invoke-execute").arg(self.text.clone()).no_vk(),
+            ]),
         );
         bindings
     }
@@ -170,23 +152,15 @@ impl View for CommandLine {
             }
         }
     }
-    fn execute_command(&mut self, command: Command) -> Result<Status> {
-        match &command {
-            Command { name, args: _ } => {
-                if name == "clear-text" {
-                    self.text.clear();
-                    Ok(Status::Ok)
-                } else {
-                    Err(Error::not_impl(format!(
-                        "CommandLine::execute_command does not impl {:?}",
-                        command
-                    )))
-                }
-            }
-            _ => Err(not_impl!(
-                "CommandLine::execute_command does not impl {:?}",
-                command
-            )),
+    fn execute_command(&mut self, name: String, args: Vec<CallArg>) -> Result<Status> {
+        if name == "clear-text" {
+            self.text.clear();
+            Ok(Status::Ok)
+        } else {
+            Err(Error::not_impl(format!(
+                "CommandLine::execute_command does not impl {:?} {:?}",
+                name, args
+            )))
         }
     }
 }

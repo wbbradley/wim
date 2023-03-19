@@ -64,16 +64,16 @@ impl View for VStack {
     fn get_cursor_pos(&self) -> Option<Pos> {
         panic!("VStack should not be focused!");
     }
-    fn execute_command(&mut self, command: Command) -> Result<Status> {
+    fn execute_command(&mut self, name: String, args: Vec<CallArg>) -> Result<Status> {
         Err(Error::new(format!(
-            "Command {:?} not implemented for VStack",
-            command
+            "Command {:?} {:?} not implemented for VStack",
+            name, args,
         )))
     }
     fn send_key(&mut self, key: Key) -> Result<Status> {
         panic!("why is the vstack receiving send_keys? [key={:?}]", key);
     }
-    fn get_key_bindings(&self, root_view_key: ViewKey) -> Bindings;
+    fn get_key_bindings(&self, _root_view_key: ViewKey) -> Bindings {
         Default::default()
     }
 }

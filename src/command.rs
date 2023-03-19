@@ -1,57 +1,46 @@
-use crate::dk::{ToDK, DK};
+use crate::dk::{CallArg, DK};
 use crate::prelude::*;
-use crate::types::Pos;
 use crate::view::ViewKey;
-use rune::Any;
 
-#[derive(Any, Clone, Debug)]
-pub struct Command {
-    #[rune(get)]
-    name: String,
-    #[rune(get)]
-    args: Vec<CallArg>,
-}
-
-impl ToDK for Command {
-    fn with_view_key(self, view_key: ViewKey) -> DK {
-        DK::DK(view_key, Form::Command(self))
-    }
-}
-
-pub fn make_command<T>(name: T, args: Vec<CallArg>) -> Command
+pub fn command<T>(name: T) -> CommandBuilder
 where
     T: Into<String>,
 {
-    Command {
+    CommandBuilder {
         name: name.into(),
-        args: args.into_iter().map(|a| a).collect(),
+        args: Default::default(),
     }
 }
 
-macro_rules! command {
-    ($name:expr) => {{
-        $crate::command::make_command($name, Default::default())
-    }};
-    ($name:expr, $($args:expr),+) => {{
-        $crate::command::make_command($name, vec![$($args),+])
-    }};
+pub struct CommandBuilder {
+    name: String,
+    args: Vec<CallArg>,
 }
-pub(crate) use command;
 
-#[derive(Any, Clone, Debug)]
-pub enum CallArg {
-    #[rune(constructor)]
-    Ref(#[rune(get)] ViewKey, #[rune(get)] String),
-    #[rune(constructor)]
-    Int(#[rune(get)] i64),
-    #[rune(constructor)]
-    ViewKey(#[rune(get)] ViewKey),
-    #[rune(constructor)]
-    Float(#[rune(get)] f64),
-    #[rune(constructor)]
-    String(#[rune(get)] String),
-    #[rune(constructor)]
-    Bool(#[rune(get)] bool),
-    #[rune(constructor)]
-    Pos(#[rune(get)] Pos),
+impl CommandBuilder {
+    pub fn arg<T>(mut self, t: T) -> Self
+    where
+        T: Into<CallArg>,
+    {
+        self.args.push(t.into());
+        self
+    }
+    pub fn vk(self, view_key: ViewKey) -> DK {
+        DK::Dispatch(
+            Some(view_key),
+            Message::Command {
+                name: self.name,
+                args: self.args,
+            },
+        )
+    }
+    pub fn no_vk(self) -> DK {
+        DK::Dispatch(
+            None,
+            Message::Command {
+                name: self.name,
+                args: self.args,
+            },
+        )
+    }
 }
