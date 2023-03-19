@@ -83,20 +83,16 @@ impl View for Editor {
         self.focused_view().borrow().get_cursor_pos()
     }
 
-    fn execute_command(&mut self, _name: String, _args: Vec<CallArg>) -> Result<Status> {
-        todo!("do this"); /*
-                          match command {
-                              Command::FocusCommandLine => {
-                                  self.enter_command_mode();
-                                  Ok(Status::Cleared)
-                              }
-                              Command::FocusPrevious => {
-                                  self.goto_previous_view();
-                                  Ok(Status::Cleared)
-                              }
-                              _ => self.root_view.borrow_mut().execute_command(command),
-                          }
-                                           */
+    fn execute_command(&mut self, name: String, args: Vec<CallArg>) -> Result<Status> {
+        if name == "focus-command-line" {
+            self.enter_command_mode();
+            Ok(Status::Cleared)
+        } else if name == "focus-previous" {
+            self.goto_previous_view();
+            Ok(Status::Cleared)
+        } else {
+            self.root_view.borrow_mut().execute_command(name, args)
+        }
     }
 
     fn send_key(&mut self, key: Key) -> Result<Status> {
@@ -126,7 +122,7 @@ fn build_view_map(command_line: ViewRef, views: Vec<ViewRef>) -> HashMap<ViewKey
         .iter()
         .map(|view| (view.borrow().get_view_key(), view.clone()))
         .collect();
-    let command_line_view_key = command_line.borrow().get_view_key().clone();
+    let command_line_view_key = command_line.borrow().get_view_key();
     map.insert(command_line_view_key, command_line);
     map
 }
@@ -242,7 +238,7 @@ impl Editor {
     }
 
     fn set_focus(&mut self, view_to_focus: Rc<RefCell<dyn View>>) {
-        let view_key = view_to_focus.borrow().get_view_key().clone();
+        let view_key = view_to_focus.borrow().get_view_key();
         log::trace!("focusing view '{:?}'", view_key);
         self.previous_views.retain(|view| {
             // Keep the views that still exist and that aren't the intended one so we can move it
