@@ -5,6 +5,7 @@ pub(crate) use crate::error::not_impl;
 pub(crate) use crate::key::Key;
 pub(crate) use crate::mode::Mode;
 pub(crate) use crate::noun::Noun;
+pub(crate) use crate::status::{status, Status};
 pub(crate) use crate::view::{View, ViewKey, ViewRef};
 pub(crate) use log::trace;
 pub(crate) use rune::Any;

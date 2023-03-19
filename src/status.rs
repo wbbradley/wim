@@ -12,3 +12,10 @@ impl From<()> for Status {
         Status::Ok
     }
 }
+
+macro_rules! status {
+    ($($args:expr),+) => {{
+        Status::Message{message:format!($($args),+),expiry:Instant::now()+Duration::from_secs(2)}
+    }};
+}
+pub(crate) use status;

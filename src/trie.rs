@@ -1,7 +1,7 @@
 use crate::bindings::Bindings;
 use crate::prelude::*;
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct TrieNode {
     dk: Option<DK>,
     children: HashMap<Key, TrieNode>,
@@ -39,34 +39,71 @@ impl TrieNode {
         cur.dk = Some(dk);
     }
 
-    fn match_prefix(&self, prefix: &[Key]) -> Option<DK> {
+    fn match_prefix<'a>(&'a self, prefix: &[Key]) -> PrefixMatch<'a> {
         let mut cur = self;
         for key in prefix {
             if key == &Key::None {
-                return cur.dk.clone();
-            }
-            if let Some(next) = cur.children.get(key) {
+                return (&cur.dk).into();
+            } else if let Some(next) = cur.children.get(key) {
                 cur = next;
             } else {
-                return None;
+                return PrefixMatch::Choices(&self.children);
             }
         }
         if cur.children.is_empty() {
-            cur.dk.clone()
+            (&cur.dk).into()
         } else {
-            // TODO: return the possible choices...
-            None
+            PrefixMatch::Choices(&self.children)
         }
     }
 
-    pub fn longest_prefix<'a>(&self, input: &'a [Key]) -> Option<(DK, &'a [Key])> {
+    pub(crate) fn longest_prefix<'a, 'b>(&'a self, input: &'b [Key]) -> Mapping<'a, 'b> {
+        trace!("finding longest_prefix of input {:?}", input);
+        let mut choices: Mapping<'a, 'b> = Mapping::None;
         for i in (0..input.len()).rev() {
+            trace!("longest_prefix loop {}", i);
             let prefix = &input[..=i];
-            if let Some(res) = self.match_prefix(prefix) {
-                assert!(input.len() >= input[i + 1..].len());
-                return Some((res, &input[i + 1..]));
+            let prefix_match = self.match_prefix(prefix);
+            match prefix_match {
+                PrefixMatch::DK(dk) => {
+                    return Mapping::Bound {
+                        dk,
+                        remaining: &input[i + 1..],
+                    };
+                }
+                PrefixMatch::Choices(children) => {
+                    if i == 0 {
+                        /* user already typed all these keys, let's stash the possible next choices
+                         * for them */
+                        choices = Mapping::Choices(children);
+                    }
+                }
+                PrefixMatch::None => continue,
             }
         }
-        None
+        choices
     }
+}
+
+impl<'a> From<&Option<DK>> for PrefixMatch<'a> {
+    fn from(dk: &Option<DK>) -> Self {
+        match dk {
+            Some(dk) => Self::DK(dk.clone()),
+            None => Self::None,
+        }
+    }
+}
+
+#[derive(Debug)]
+enum PrefixMatch<'a> {
+    DK(DK),
+    Choices(&'a HashMap<Key, TrieNode>),
+    None,
+}
+
+#[derive(Debug)]
+pub(crate) enum Mapping<'a, 'b> {
+    Bound { dk: DK, remaining: &'b [Key] },
+    Choices(&'a HashMap<Key, TrieNode>),
+    None,
 }

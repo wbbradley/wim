@@ -3,7 +3,6 @@ use crate::buf::place_cursor;
 use crate::commandline::CommandLine;
 use crate::consts::PROP_CMDLINE_FOCUSED;
 use crate::docview::DocView;
-use crate::error::not_impl;
 use crate::error::Result;
 use crate::keygen::ViewKeyGenerator;
 use crate::plugin::PluginRef;
@@ -11,7 +10,7 @@ use crate::prelude::*;
 use crate::propvalue::PropertyValue;
 use crate::read::read_key;
 use crate::status::Status;
-use crate::trie::TrieNode;
+use crate::trie::{Mapping, TrieNode};
 use crate::types::{Pos, Rect};
 use crate::view::{to_view, to_weak_view, ViewContext};
 
@@ -181,10 +180,18 @@ impl Editor {
         log::trace!("Status Updated: {:?}", &status);
         self.command_line.borrow_mut().set_status(status);
     }
-    pub fn send_key_to_view(&mut self, view_key: Option<ViewKey>, key: Key) -> Result<Status> {
-        self.get_view_or_focused_view(view_key)
+    pub fn send_key_to_view(&mut self, view_key: Option<ViewKey>, key: Key) -> Result<()> {
+        match self
+            .get_view_or_focused_view(view_key)
             .borrow_mut()
             .send_key(key)
+        {
+            Ok(status) => {
+                self.set_status(status);
+                Ok(())
+            }
+            Err(error) => Err(error),
+        }
     }
 
     fn get_view_or_focused_view(&self, view_key: Option<ViewKey>) -> ViewRef {
@@ -197,7 +204,7 @@ impl Editor {
         }
     }
 
-    pub fn handle_keys(&mut self, dks: &mut VecDeque<DK>) -> Result<Option<DK>> {
+    pub(crate) fn handle_keys(&mut self, dks: &mut VecDeque<DK>) -> HandleKey {
         let target_view = self.get_view_or_focused_view(None);
         log::trace!(
             "[Editor::handle_key] mapping keys from dks {:?} to view {:?}",
@@ -218,19 +225,22 @@ impl Editor {
                 }
             })
             .collect();
-
+        trace!("inbound_keys of dks === {:?} of {:?}", inbound_keys, dks);
+        assert!(!inbound_keys.is_empty());
         match trie.longest_prefix(&inbound_keys) {
-            Some((dk, remaining)) => {
+            Mapping::Bound { dk, remaining } => {
                 trace!("key {:?} translated into dk {:?}", inbound_keys, dk);
                 (0..(inbound_keys.len() - remaining.len())).for_each(|_| {
                     dks.pop_front();
                 });
-                Ok(Some(dk))
+                HandleKey::DK(dk)
             }
-            None => Err(not_impl!(
-                "Editor::handle_key: no handler for {:?} / {:?}",
-                dks,
-                inbound_keys
+            Mapping::Choices(choices) => {
+                HandleKey::Choices(choices.into_iter().map(|(key, _)| key).cloned().collect())
+            }
+            Mapping::None => HandleKey::DK(DK::Dispatch(
+                Some(target_view.borrow().get_view_key()),
+                Message::SendKey(inbound_keys[0]),
             )),
         }
     }
@@ -256,6 +266,12 @@ impl Editor {
 
         self.previous_views.push(Rc::downgrade(&view_to_focus));
     }
+}
+
+#[derive(Debug)]
+pub(crate) enum HandleKey {
+    DK(DK),
+    Choices(Vec<Key>),
 }
 
 impl Drop for Editor {

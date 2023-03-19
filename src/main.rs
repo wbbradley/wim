@@ -1,4 +1,4 @@
-use crate::editor::Editor;
+use crate::editor::{Editor, HandleKey};
 use crate::plugin::{load_plugin, PluginRef};
 use crate::prelude::*;
 use crate::read::read_key;
@@ -70,7 +70,6 @@ fn run_app(plugin: PluginRef) -> anyhow::Result<()> {
     }
     let mut buf = Buf::default();
     let mut should_refresh = true;
-    let mut keys: VecDeque<Key> = Default::default();
     let mut dks: VecDeque<DK> = Default::default();
     let mut key_timeout: Option<Instant> = None;
 
@@ -81,69 +80,68 @@ fn run_app(plugin: PluginRef) -> anyhow::Result<()> {
             editor.display(&mut buf, &editor);
             should_refresh = false;
         }
-        let key = match keys.pop_front() {
-            Some(key) => key,
-            None => {
-                if let Some(key) = read_key() {
-                    key_timeout = Some(Instant::now() + Duration::from_secs(1));
-                    key
-                } else if let Some(next_key_timeout) = key_timeout {
-                    if Instant::now() > next_key_timeout {
-                        key_timeout = None;
-                        Key::None
-                    } else {
-                        continue;
-                    }
-                } else {
-                    continue;
-                }
+        let key = if let Some(key) = read_key() {
+            key_timeout = Some(Instant::now() + Duration::from_secs(1));
+            key
+        } else if let Some(next_key_timeout) = key_timeout {
+            if Instant::now() > next_key_timeout {
+                key_timeout = None;
+                Key::None
+            } else {
+                continue;
             }
+        } else {
+            continue;
         };
         assert!(dks.is_empty());
         dks.push_front(DK::Key(key));
-        while let Some(mut dk) = dks.pop_front() {
-            trace!("handling dk: {:?}", dk);
-
-            editor.set_status(crate::status::Status::Message {
-                message: format!("keys = {:?}", keys),
-                expiry: std::time::Instant::now() + std::time::Duration::from_secs(1),
-            });
-            if let Some(next_dk) = editor.handle_keys(&mut dks)? {
-                dk = next_dk;
-            }
-            match dk {
+        should_refresh = true;
+        pump(&mut editor, &mut dks)?;
+    }
+    Ok(())
+}
+fn pump(editor: &mut Editor, dks: &mut VecDeque<DK>) -> anyhow::Result<()> {
+    loop {
+        match editor.handle_keys(dks) {
+            HandleKey::DK(dk) => match dk {
                 DK::Key(key) => {
                     panic!(
                         "Keys should be translated before they propagate! [key={}]",
                         key
                     );
                 }
-                DK::Dispatch(view_key, message) => match message {
-                    Message::SendKey(key) => {
-                        editor.send_key_to_view(view_key, key)?;
-                        should_refresh = true;
-                    }
-                    Message::Command { name, args } => {
-                        match editor.execute_command(name, args) {
-                            Ok(status) => editor.set_status(status),
+                DK::Dispatch(view_key, message) => {
+                    return match message {
+                        Message::SendKey(key) => {
+                            trace!("[dk loop] send_key({:?}, {:?})...", view_key, key);
+                            editor
+                                .send_key_to_view(view_key, key)
+                                .context("send_key_to_view")
+                        }
+                        Message::Command { name, args } => match editor.execute_command(name, args)
+                        {
+                            Ok(status) => {
+                                editor.set_status(status);
+                                Ok(())
+                            }
                             Err(error) => {
                                 trace!("error: {}", error);
-                                return Err(error).context("DK::Command");
+                                Err(error).context("DK::Command")
                             }
-                        }
-                        should_refresh = true;
+                        },
                     }
-                },
+                }
                 DK::Sequence(next_dks) => {
                     next_dks
                         .iter()
                         .rev()
                         .cloned()
                         .for_each(|dk| dks.push_front(dk));
-                    should_refresh = true;
                 }
+            },
+            HandleKey::Choices(choices) => {
+                editor.set_status(status!("...{:?}", choices));
             }
         }
     }
-    Ok(())
 }
