@@ -227,7 +227,11 @@ impl Editor {
                 });
                 Ok(Some(dk))
             }
-            None => Err(not_impl!("Editor::handle_key: no handler for {:?}", dks)),
+            None => Err(not_impl!(
+                "Editor::handle_key: no handler for {:?} / {:?}",
+                dks,
+                inbound_keys
+            )),
         }
     }
     pub fn goto_previous_view(&mut self) {
