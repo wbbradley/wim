@@ -1,11 +1,19 @@
-use rune::Any;
-
-#[derive(Any, Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Noun {
-    #[rune(constructor)]
     Char,
-    #[rune(constructor)]
     Word,
-    #[rune(constructor)]
     Line,
+}
+
+impl std::str::FromStr for Noun {
+    type Err = crate::error::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "char" => Ok(Noun::Char),
+            "word" => Ok(Noun::Word),
+            "line" => Ok(Noun::Line),
+            missing => Err(Self::Err::new(format!("{} is not a valid Noun", missing))),
+        }
+    }
 }

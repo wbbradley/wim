@@ -338,6 +338,19 @@ impl View for DocView {
                     Err(error!("'newline' expects a direction"))
                 }
             }
+            "move-rel" => {
+                ensure!(args.len() == 2);
+                if let (CallArg::String(noun), CallArg::String(rel)) =
+                    (args.remove(0), args.remove(0))
+                {
+                    match (Noun::from_str(&noun), Rel::from_str(&rel)) {
+                        (Ok(noun), Ok(rel)) => self.move_cursor_rel(noun, rel),
+                        _ => Err(error!("'move-rel' expects a pair (noun, rel)")),
+                    }
+                } else {
+                    Err(error!("'move-rel' expects a pair (noun, rel)"))
+                }
+            }
             /*
             Command::MoveRel(noun, rel) => self.move_cursor_rel(noun, rel),
             Command::Move(direction) => match direction {

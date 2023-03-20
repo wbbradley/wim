@@ -176,10 +176,18 @@ impl Editor {
         self.last_key = key;
     }
 
+    pub fn eat_status_result(&mut self, result: Result<Status>) -> Result<()> {
+        match result {
+            Ok(status) => Ok(self.set_status(status)),
+            Err(error) => Err(error),
+        }
+    }
+
     pub fn set_status(&mut self, status: Status) {
         log::trace!("Status Updated: {:?}", &status);
         self.command_line.borrow_mut().set_status(status);
     }
+
     pub fn send_key_to_view(&mut self, view_key: Option<ViewKey>, key: Key) -> Result<()> {
         match self
             .get_view_or_focused_view(view_key)
@@ -194,11 +202,23 @@ impl Editor {
         }
     }
 
-    fn get_view_or_focused_view(&self, view_key: Option<ViewKey>) -> ViewRef {
+    pub fn with_view_or_focused_view<F, R>(&mut self, view_key: Option<ViewKey>, f: F) -> R
+    where
+        F: FnOnce(std::cell::RefMut<dyn View>) -> R,
+    {
+        let view = self.get_view_or_focused_view(view_key);
+        f(view.borrow_mut())
+    }
+
+    pub fn get_view_or_focused_view(&self, view_key: Option<ViewKey>) -> ViewRef {
         match view_key {
             Some(view_key) => match self.view_map.get(&view_key) {
                 Some(view) => view.clone(),
-                None => self.focused_view(),
+                None => panic!(
+                    "can't find view with view_key={:?}\nviews:\n{:?}",
+                    view_key,
+                    self.view_map.keys()
+                ),
             },
             None => self.focused_view(),
         }

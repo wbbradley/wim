@@ -1,5 +1,5 @@
 use crate::editor::{Editor, HandleKey};
-use crate::plugin::{load_plugin, PluginRef};
+use crate::plugin::{Plugin, PluginRef};
 use crate::prelude::*;
 use crate::read::read_key;
 use crate::termios::Termios;
@@ -42,12 +42,13 @@ mod widechar_width;
 pub static VERSION: &str = "v0.1.0";
 
 fn main() -> anyhow::Result<()> {
-    let plugin = load_plugin()?;
+    let plugin = Plugin::new();
 
     let termios = Arc::new(Termios::enter_raw_mode());
     let panic_termios = termios.clone();
     std::panic::set_hook(Box::new(move |p| {
         panic_termios.exit_raw_mode();
+        log::error!("{}", std::backtrace::Backtrace::force_capture());
         log::error!("{}", p);
         println!("{}", p);
     }));
@@ -117,25 +118,15 @@ fn pump(editor: &mut Editor, dks: &mut VecDeque<DK>) -> anyhow::Result<()> {
                     continue;
                 }
                 DK::Dispatch(view_key, message) => {
-                    return match message {
-                        Message::SendKey(key) => {
-                            trace!("[dk loop] send_key({:?}, {:?})...", view_key, key);
-                            editor
-                                .send_key_to_view(view_key, key)
-                                .context("send_key_to_view")
-                        }
-                        Message::Command { name, args } => match editor.execute_command(name, args)
-                        {
-                            Ok(status) => {
-                                editor.set_status(status);
-                                Ok(())
-                            }
-                            Err(error) => {
-                                trace!("error: {}", error);
-                                Err(error).context("DK::Command")
-                            }
-                        },
-                    }
+                    editor
+                        .eat_status_result(editor.with_view_or_focused_view(
+                            view_key,
+                            |view: &mut std::cell::RefMut<dyn View>| match message {
+                                Message::SendKey(key) => view.send_key(key),
+                                Message::Command { name, args } => view.execute_command(name, args),
+                            },
+                        ))
+                        .context("send_key")?;
                 }
                 DK::Sequence(next_dks) => {
                     next_dks

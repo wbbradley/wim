@@ -1,14 +1,21 @@
-use rune::Any;
-
-#[derive(Any, Copy, Clone, Debug, Eq, PartialEq)]
-#[allow(dead_code)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Rel {
-    #[rune(constructor)]
     Prior,
-    #[rune(constructor)]
-    Beginning,
-    #[rune(constructor)]
+    Begin,
     End,
-    #[rune(constructor)]
     Next,
+}
+
+impl std::str::FromStr for Rel {
+    type Err = crate::error::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "prior" => Ok(Rel::Prior),
+            "begin" => Ok(Rel::Begin),
+            "end" => Ok(Rel::End),
+            "next" => Ok(Rel::Next),
+            missing => Err(Self::Err::new(format!("{} is not a valid Rel", missing))),
+        }
+    }
 }
