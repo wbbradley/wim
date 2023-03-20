@@ -310,6 +310,20 @@ impl View for DocView {
                     Err(error!("open expects a filename"))
                 }
             }
+            "move" => {
+                ensure!(args.len() == 1);
+                if let CallArg::String(arg) = args.remove(0) {
+                    match arg.as_str() {
+                        "up" => self.move_cursor(0, -1),
+                        "down" => self.move_cursor(0, 1),
+                        "left" => self.move_cursor(-1, 0),
+                        "right" => self.move_cursor(1, 0),
+                        _ => Err(error!("move expects one of {{up,down,left,right}}")),
+                    }
+                } else {
+                    Err(error!("open expects a filename"))
+                }
+            }
             /*
             Command::MoveRel(noun, rel) => self.move_cursor_rel(noun, rel),
             Command::Move(direction) => match direction {
