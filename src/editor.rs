@@ -225,6 +225,9 @@ impl Editor {
                 }
             })
             .collect();
+        if inbound_keys.is_empty() {
+            return HandleKey::DK(dks.pop_front().unwrap());
+        }
         trace!("inbound_keys of dks === {:?} of {:?}", inbound_keys, dks);
         assert!(!inbound_keys.is_empty());
         match trie.longest_prefix(&inbound_keys) {

@@ -12,6 +12,7 @@ pub fn decode_ctrl_key(k: u8) -> char {
 }
 
 pub fn read_key() -> Option<Key> {
+    // trace!("reading a key...");
     if let Some(ch) = read_u8() {
         if ch == 0x1b {
             match (read_u8(), read_u8()) {

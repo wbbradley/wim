@@ -209,7 +209,7 @@ impl View for DocView {
                 bindings.insert(vec![Key::Esc], command("switch-mode").arg("normal").vk(vk));
                 bindings.insert(vec![Key::Ascii('j'), Key::Ascii('k')], DK::Key(Key::Esc));
                 bindings.insert(vec![Key::Backspace], command("delete-backwards").vk(vk));
-                bindings.insert(vec![Key::Enter], command("newline-below").vk(vk));
+                bindings.insert(vec![Key::Enter], command("newline").arg("below").vk(vk));
             }
             Mode::Normal => {
                 bindings.insert(
@@ -273,13 +273,15 @@ impl View for DocView {
     fn send_key(&mut self, key: Key) -> Result<Status> {
         match self.mode {
             Mode::Normal | Mode::Visual { .. } => Ok(Status::Message {
-                message: format!("{:?} mode is ignoring {:?}...", self.mode, key),
-                expiry: Instant::now() + Duration::from_millis(250),
+                message: format!("No mapping found for {:?} in {:?} mode.", key, self.mode),
+                expiry: Instant::now() + Duration::from_millis(5000),
             }),
             Mode::Insert => match key {
                 Key::Ascii(ch) => self.insert_char(ch),
-                /*Key::Backspace => self.delete_backwards(Noun::Char),*/
-                _ => Err(not_impl!("[DocView::send_key] unhandled {:?}", key)),
+                _ => Ok(Status::Message {
+                    message: format!("No mapping found for {:?} in {:?} mode.", key, self.mode),
+                    expiry: Instant::now() + Duration::from_millis(2500),
+                }),
             },
         }
     }
@@ -291,7 +293,7 @@ impl View for DocView {
                     self.switch_mode(Mode::from_str(&arg)?);
                     Ok(Status::Ok)
                 } else {
-                    Err(error!("switch-mode expects a string"))
+                    Err(error!("'switch-mode' expects a string"))
                 }
             }
             "delete-backwards" => {
@@ -307,7 +309,7 @@ impl View for DocView {
                 if let CallArg::String(arg) = args.remove(0) {
                     self.open(arg)
                 } else {
-                    Err(error!("open expects a filename"))
+                    Err(error!("'open' expects a filename"))
                 }
             }
             "move" => {
@@ -318,10 +320,22 @@ impl View for DocView {
                         "down" => self.move_cursor(0, 1),
                         "left" => self.move_cursor(-1, 0),
                         "right" => self.move_cursor(1, 0),
-                        _ => Err(error!("move expects one of {{up,down,left,right}}")),
+                        _ => Err(error!("'move' expects one of {{up,down,left,right}}")),
                     }
                 } else {
-                    Err(error!("open expects a filename"))
+                    Err(error!("'move' expects a direction"))
+                }
+            }
+            "newline" => {
+                ensure!(args.len() == 1);
+                if let CallArg::String(arg) = args.remove(0) {
+                    match arg.as_str() {
+                        "above" => self.insert_newline_above(),
+                        "below" => self.insert_newline_below(),
+                        _ => Err(error!("'newline' expects one of {{above,below}}")),
+                    }
+                } else {
+                    Err(error!("'newline' expects a direction"))
                 }
             }
             /*

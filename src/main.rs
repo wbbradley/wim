@@ -77,23 +77,25 @@ fn run_app(plugin: PluginRef) -> anyhow::Result<()> {
         if should_refresh {
             editor.layout(frame);
             buf.truncate();
+            trace!("redisplaying!");
             editor.display(&mut buf, &editor);
             should_refresh = false;
         }
-        let key = if let Some(key) = read_key() {
-            key_timeout = Some(Instant::now() + Duration::from_secs(1));
-            key
-        } else if let Some(next_key_timeout) = key_timeout {
-            if Instant::now() > next_key_timeout {
-                key_timeout = None;
-                Key::None
+        if matches!(dks.front(), Some(DK::Key(_)) | None) {
+            if let Some(key) = read_key() {
+                key_timeout = Some(Instant::now() + Duration::from_secs(1));
+                dks.push_back(DK::Key(key));
+            } else if let Some(next_key_timeout) = key_timeout {
+                if Instant::now() > next_key_timeout {
+                    key_timeout = None;
+                    dks.push_back(DK::Key(Key::None));
+                } else {
+                    continue;
+                }
             } else {
                 continue;
-            }
-        } else {
-            continue;
-        };
-        dks.push_back(DK::Key(key));
+            };
+        }
         should_refresh = true;
         pump(&mut editor, &mut dks)?;
     }
