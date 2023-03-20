@@ -294,8 +294,23 @@ impl View for DocView {
                     Err(error!("switch-mode expects a string"))
                 }
             }
+            "delete-backwards" => {
+                ensure!(args.is_empty());
+                self.delete_backwards(Noun::Char)
+            }
+            "delete-forwards" => {
+                ensure!(args.is_empty());
+                self.delete_forwards(Noun::Char)
+            }
+            "open" => {
+                ensure!(args.len() == 1);
+                if let CallArg::String(arg) = args.remove(0) {
+                    self.open(arg)
+                } else {
+                    Err(error!("open expects a filename"))
+                }
+            }
             /*
-            command::Open { filename } => self.open(filename),
             Command::MoveRel(noun, rel) => self.move_cursor_rel(noun, rel),
             Command::Move(direction) => match direction {
             "up" => self.move_cursor(0, -1),
@@ -307,7 +322,6 @@ impl View for DocView {
             Command::NewlineAbove => self.insert_newline_above(),
             Command::NewlineBelow => self.insert_newline_below(),
             Command::DeleteForwards => self.delete_forwards(Noun::Char),
-            Command::DeleteBackwards => self.delete_backwards(Noun::Char),
              */
             _ => Err(not_impl!(
                 "DocView::execute_command needs to handle {:?} {:?}.",

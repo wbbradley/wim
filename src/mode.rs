@@ -18,6 +18,7 @@ impl std::str::FromStr for Mode {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "insert" => Ok(Mode::Insert),
+            "normal" => Ok(Mode::Normal),
             "visual" => Ok(Mode::Visual(VisualMode::Char)),
             "visual-line" => Ok(Mode::Visual(VisualMode::Line)),
             "visual-block" => Ok(Mode::Visual(VisualMode::Block)),

@@ -101,6 +101,7 @@ fn run_app(plugin: PluginRef) -> anyhow::Result<()> {
 }
 fn pump(editor: &mut Editor, dks: &mut VecDeque<DK>) -> anyhow::Result<()> {
     while matches!(dks.front(), Some(DK::Key(Key::None))) {
+        trace!("popping Key::None off dks");
         dks.pop_front();
     }
     if dks.is_empty() {
@@ -109,11 +110,9 @@ fn pump(editor: &mut Editor, dks: &mut VecDeque<DK>) -> anyhow::Result<()> {
     loop {
         match editor.handle_keys(dks) {
             HandleKey::DK(dk) => match dk {
-                DK::Key(key) => {
-                    panic!(
-                        "Keys should be translated before they propagate! [key={}]",
-                        key
-                    );
+                DK::Key(_) => {
+                    dks.push_front(dk);
+                    continue;
                 }
                 DK::Dispatch(view_key, message) => {
                     return match message {
