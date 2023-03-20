@@ -35,9 +35,28 @@ impl From<io::Error> for Error {
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
+
+macro_rules! error {
+    ($($args:expr),+) => {{
+        $crate::error::Error::new(format!($($args),+))
+    }};
+}
+pub(crate) use error;
 macro_rules! not_impl {
     ($($args:expr),+) => {{
         $crate::error::Error::not_impl(format!($($args),+))
     }};
 }
 pub(crate) use not_impl;
+
+macro_rules! ensure {
+    ($arg:expr) => {{
+        if !$arg {
+            return Err($crate::error::Error::new(format!(
+                "({}) is false",
+                stringify!($arg)
+            )));
+        }
+    }};
+}
+pub(crate) use ensure;

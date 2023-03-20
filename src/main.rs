@@ -101,8 +101,17 @@ fn run_app(plugin: PluginRef) -> anyhow::Result<()> {
     Ok(())
 }
 fn pump(editor: &mut Editor, dks: &mut VecDeque<DK>) -> anyhow::Result<()> {
+    while matches!(dks.front(), Some(DK::Key(Key::None))) {
+        dks.pop_front();
+    }
+    if dks.is_empty() {
+        return Ok(());
+    }
     loop {
-        match editor.handle_keys(dks) {
+        let before = dks.len();
+        let ret = editor.handle_keys(dks);
+        assert!(dks.len() < before);
+        match ret {
             HandleKey::DK(dk) => match dk {
                 DK::Key(key) => {
                     panic!(

@@ -219,7 +219,7 @@ impl Editor {
             .iter()
             .take_while(|dk| matches!(dk, DK::Key(_)))
             .map(|dk| match dk {
-                DK::Key(key) if key != &Key::None => *key,
+                DK::Key(key) => *key,
                 _ => {
                     panic!("foogoo");
                 }
@@ -229,19 +229,30 @@ impl Editor {
         assert!(!inbound_keys.is_empty());
         match trie.longest_prefix(&inbound_keys) {
             Mapping::Bound { dk, remaining } => {
-                trace!("key {:?} translated into dk {:?}", inbound_keys, dk);
+                trace!(
+                    "keys {:?} translated into dk={:?}, leaving remaining={:?}",
+                    inbound_keys,
+                    dk,
+                    remaining
+                );
                 (0..(inbound_keys.len() - remaining.len())).for_each(|_| {
                     dks.pop_front();
                 });
                 HandleKey::DK(dk)
             }
             Mapping::Choices(choices) => {
-                HandleKey::Choices(choices.into_iter().map(|(key, _)| key).cloned().collect())
+                trace!("found choices {:?}", choices);
+                assert!(!choices.is_empty());
+                HandleKey::Choices(choices.iter().map(|(key, _)| key).cloned().collect())
             }
-            Mapping::None => HandleKey::DK(DK::Dispatch(
-                Some(target_view.borrow().get_view_key()),
-                Message::SendKey(inbound_keys[0]),
-            )),
+            Mapping::None => {
+                trace!("no mapping found, returing SendKey({:?})", inbound_keys[0]);
+                dks.pop_front();
+                HandleKey::DK(DK::Dispatch(
+                    Some(target_view.borrow().get_view_key()),
+                    Message::SendKey(inbound_keys[0]),
+                ))
+            }
         }
     }
     pub fn goto_previous_view(&mut self) {

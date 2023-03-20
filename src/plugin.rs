@@ -3,7 +3,7 @@ use crate::key::Key;
 use crate::mode::Mode;
 use crate::noun::Noun;
 use rune::termcolor::{ColorChoice, StandardStream};
-use rune::{Context, ContextError, Diagnostics, FromValue, Module, Source, Sources, Vm};
+use rune::{Context, ContextError, Diagnostics, Module, Source, Sources, Vm};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -18,12 +18,13 @@ pub type PluginRef = Rc<RefCell<Plugin>>;
 impl Plugin {
     pub fn _handle_editor_key(
         &mut self,
-        mode: Mode,
-        keys: &[Key],
+        _mode: Mode,
+        _keys: &[Key],
     ) -> std::result::Result<Option<DK>, rune::runtime::VmError> {
-        let keys: Vec<Key> = keys.to_vec(); //iter().copied().collect();
-        let output = self.vm.call(["handle_key"], (mode, keys))?;
-        <Option<DK>>::from_value(output)
+        panic!("DKFJDK3984739847"); /*
+                                    let keys: Vec<Key> = keys.to_vec(); //iter().copied().collect();
+                                    let output = self.vm.call(["handle_key"], (mode, keys))?;
+                                    <Option<DK>>::from_value(output)*/
     }
 }
 

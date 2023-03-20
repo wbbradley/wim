@@ -1,7 +1,7 @@
 pub(crate) use crate::buf::Buf;
 pub(crate) use crate::command::command;
 pub(crate) use crate::dk::{CallArg, Message, DK};
-pub(crate) use crate::error::not_impl;
+pub(crate) use crate::error::{error, not_impl};
 pub(crate) use crate::key::Key;
 pub(crate) use crate::mode::Mode;
 pub(crate) use crate::noun::Noun;
@@ -12,5 +12,6 @@ pub(crate) use rune::Any;
 pub(crate) use std::cell::RefCell;
 pub(crate) use std::collections::{HashMap, VecDeque};
 pub(crate) use std::rc::{Rc, Weak};
+pub(crate) use std::str::FromStr;
 pub(crate) use std::sync::Arc;
 pub(crate) use std::time::{Duration, Instant};

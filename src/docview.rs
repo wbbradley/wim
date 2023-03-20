@@ -4,7 +4,7 @@ use crate::consts::{
     PROP_DOCVIEW_CURSOR_POS, PROP_DOCVIEW_STATUS, PROP_DOC_FILENAME, PROP_DOC_IS_MODIFIED,
 };
 use crate::doc::Doc;
-use crate::error::{Error, Result};
+use crate::error::{ensure, Error, Result};
 use crate::plugin::PluginRef;
 use crate::prelude::*;
 use crate::propvalue::PropertyValue;
@@ -283,33 +283,38 @@ impl View for DocView {
             },
         }
     }
-    fn execute_command(&mut self, _name: String, _args: Vec<CallArg>) -> Result<Status> {
-        todo!("impl this");
-        /*
-        match command {
+    fn execute_command(&mut self, name: String, mut args: Vec<CallArg>) -> Result<Status> {
+        match name.as_str() {
+            "switch-mode" => {
+                ensure!(args.len() == 1);
+                if let CallArg::String(arg) = args.remove(0) {
+                    self.switch_mode(Mode::from_str(&arg)?);
+                    Ok(Status::Ok)
+                } else {
+                    Err(error!("switch-mode expects a string"))
+                }
+            }
+            /*
             command::Open { filename } => self.open(filename),
             Command::MoveRel(noun, rel) => self.move_cursor_rel(noun, rel),
             Command::Move(direction) => match direction {
-                "up" => self.move_cursor(0, -1),
-                "down" => self.move_cursor(0, 1),
-                "left" => self.move_cursor(-1, 0),
-                "right" => self.move_cursor(1, 0),
+            "up" => self.move_cursor(0, -1),
+            "down" => self.move_cursor(0, 1),
+            "left" => self.move_cursor(-1, 0),
+            "right" => self.move_cursor(1, 0),
             },
             Command::JoinLines => self.join_line(),
             Command::NewlineAbove => self.insert_newline_above(),
             Command::NewlineBelow => self.insert_newline_below(),
             Command::DeleteForwards => self.delete_forwards(Noun::Char),
             Command::DeleteBackwards => self.delete_backwards(Noun::Char),
-            Command::SwitchMode(mode) => {
-                self.switch_mode(mode);
-                Ok(Status::Ok)
-            }
+             */
             _ => Err(not_impl!(
-                "DocView::execute_command needs to handle {:?}.",
-                command
+                "DocView::execute_command needs to handle {:?} {:?}.",
+                name,
+                args
             )),
         }
-        */
     }
 }
 

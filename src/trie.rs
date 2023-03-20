@@ -40,14 +40,20 @@ impl TrieNode {
     }
 
     fn match_prefix<'a>(&'a self, prefix: &[Key]) -> PrefixMatch<'a> {
+        trace!("[match_prefix] with {:?}", prefix);
         let mut cur = self;
         for key in prefix {
             if key == &Key::None {
                 return (&cur.dk).into();
-            } else if let Some(next) = cur.children.get(key) {
-                cur = next;
             } else {
-                return PrefixMatch::Choices(&self.children);
+                match cur.children.get(key) {
+                    Some(next) => {
+                        cur = next;
+                    }
+                    None => {
+                        return PrefixMatch::None;
+                    }
+                }
             }
         }
         if cur.children.is_empty() {
@@ -81,6 +87,10 @@ impl TrieNode {
                 PrefixMatch::None => continue,
             }
         }
+        trace!(
+            "longets_prefix found no prefix match: returning {:?}",
+            choices
+        );
         choices
     }
 }
