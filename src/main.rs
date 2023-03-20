@@ -93,8 +93,7 @@ fn run_app(plugin: PluginRef) -> anyhow::Result<()> {
         } else {
             continue;
         };
-        assert!(dks.is_empty());
-        dks.push_front(DK::Key(key));
+        dks.push_back(DK::Key(key));
         should_refresh = true;
         pump(&mut editor, &mut dks)?;
     }
@@ -108,10 +107,7 @@ fn pump(editor: &mut Editor, dks: &mut VecDeque<DK>) -> anyhow::Result<()> {
         return Ok(());
     }
     loop {
-        let before = dks.len();
-        let ret = editor.handle_keys(dks);
-        assert!(dks.len() < before);
-        match ret {
+        match editor.handle_keys(dks) {
             HandleKey::DK(dk) => match dk {
                 DK::Key(key) => {
                     panic!(
@@ -149,7 +145,8 @@ fn pump(editor: &mut Editor, dks: &mut VecDeque<DK>) -> anyhow::Result<()> {
                 }
             },
             HandleKey::Choices(choices) => {
-                editor.set_status(status!("...{:?}", choices));
+                editor.set_status(status!("Valid next bindings: {:?}", choices));
+                return Ok(());
             }
         }
     }

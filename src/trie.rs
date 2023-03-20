@@ -40,7 +40,6 @@ impl TrieNode {
     }
 
     fn match_prefix<'a>(&'a self, prefix: &[Key]) -> PrefixMatch<'a> {
-        trace!("[match_prefix] with {:?}", prefix);
         let mut cur = self;
         for key in prefix {
             if key == &Key::None {
@@ -59,7 +58,7 @@ impl TrieNode {
         if cur.children.is_empty() {
             (&cur.dk).into()
         } else {
-            PrefixMatch::Choices(&self.children)
+            PrefixMatch::Choices(&cur.children)
         }
     }
 
@@ -67,9 +66,14 @@ impl TrieNode {
         trace!("finding longest_prefix of input {:?}", input);
         let mut choices: Mapping<'a, 'b> = Mapping::None;
         for i in (0..input.len()).rev() {
-            trace!("longest_prefix loop {}", i);
             let prefix = &input[..=i];
             let prefix_match = self.match_prefix(prefix);
+            trace!(
+                "longest_prefix loop [i={},prefix={:?},prefix_match={:?}]",
+                i,
+                prefix,
+                prefix_match
+            );
             match prefix_match {
                 PrefixMatch::DK(dk) => {
                     return Mapping::Bound {
@@ -78,7 +82,7 @@ impl TrieNode {
                     };
                 }
                 PrefixMatch::Choices(children) => {
-                    if i == 0 {
+                    if i == input.len() - 1 {
                         /* user already typed all these keys, let's stash the possible next choices
                          * for them */
                         choices = Mapping::Choices(children);
@@ -88,7 +92,7 @@ impl TrieNode {
             }
         }
         trace!(
-            "longets_prefix found no prefix match: returning {:?}",
+            "longest_prefix found no prefix match: returning {:?}",
             choices
         );
         choices
