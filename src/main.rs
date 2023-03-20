@@ -118,15 +118,14 @@ fn pump(editor: &mut Editor, dks: &mut VecDeque<DK>) -> anyhow::Result<()> {
                     continue;
                 }
                 DK::Dispatch(view_key, message) => {
+                    let view = editor.get_view_or_focused_view_mut(view_key);
+                    let result = match message {
+                        Message::SendKey(key) => view.send_key(key),
+                        Message::Command { name, args } => view.execute_command(name, args),
+                    };
                     editor
-                        .eat_status_result(editor.with_view_or_focused_view(
-                            view_key,
-                            |view: &mut std::cell::RefMut<dyn View>| match message {
-                                Message::SendKey(key) => view.send_key(key),
-                                Message::Command { name, args } => view.execute_command(name, args),
-                            },
-                        ))
-                        .context("send_key")?;
+                        .eat_status_result(result)
+                        .context("execute_command")?;
                 }
                 DK::Sequence(next_dks) => {
                     next_dks

@@ -15,11 +15,9 @@ use crate::utils::wcwidth;
 use crate::view::ViewContext;
 use std::fs::OpenOptions;
 use std::io::{Seek, SeekFrom, Write};
-use std::rc::Weak;
-use std::time::{Duration, Instant};
 
 pub struct DocView {
-    parent: Option<Weak<RefCell<dyn View>>>,
+    parent: Option<ViewKey>,
     plugin: PluginRef,
     key: ViewKey,
     cursor: Pos,
@@ -32,7 +30,7 @@ pub struct DocView {
 
 #[allow(dead_code)]
 impl DocView {
-    pub fn set_parent(&mut self, parent: Option<Weak<RefCell<dyn View>>>) {
+    pub fn set_parent(&mut self, parent: Option<ViewKey>) {
         self.parent = parent;
     }
     pub fn scroll(&mut self) {
@@ -162,8 +160,8 @@ impl DocView {
     }
 }
 
-impl View for DocView {
-    fn get_parent(&self) -> Option<Weak<RefCell<dyn View>>> {
+impl ViewImpl for DocView {
+    fn get_parent(&self) -> Option<ViewKey> {
         self.parent.clone()
     }
     fn install_plugins(&mut self, plugin: PluginRef) {

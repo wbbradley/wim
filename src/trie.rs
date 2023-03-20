@@ -10,7 +10,7 @@ pub struct TrieNode {
 impl TrieNode {
     pub fn from_ancestor_path(
         ancestor_path: Vec<ViewKey>,
-        view_map: &HashMap<ViewKey, ViewRef>,
+        view_map: &HashMap<ViewKey, View>,
         root_view_key: ViewKey,
     ) -> Self {
         let mut slf = Self::default();
@@ -20,7 +20,6 @@ impl TrieNode {
                 view_map
                     .get(view_key)
                     .unwrap()
-                    .borrow()
                     .get_key_bindings(root_view_key)
             })
             .for_each(|b| slf.add_bindings(b));

@@ -15,8 +15,6 @@ impl From<usize> for ViewKey {
     }
 }
 
-pub type ViewRef = Rc<RefCell<dyn View>>;
-
 pub trait ViewContext {
     fn get_property(&self, _property: &str) -> Option<PropertyValue> {
         None
@@ -41,8 +39,65 @@ pub trait ViewContext {
     }
 }
 
-pub trait View: ViewContext {
-    fn get_parent(&self) -> Option<Weak<RefCell<dyn View>>>;
+pub enum View {
+    Editor(crate::editor::Editor),
+    DocView(crate::docview::DocView),
+    VStack(crate::vstack::VStack),
+    CommandLine(crate::commandline::CommandLine),
+}
+
+macro_rules! forward {
+    ($self:expr, $($tt:tt)+) => {
+        match $self {
+            View::Editor(editor) => editor.$($tt)+,
+            View::DocView(docview) => docview.$($tt)+,
+            View::VStack(vstack) => vstack.$($tt)+,
+            View::CommandLine(cmdline) => cmdline.$($tt)+,
+        }
+    };
+}
+
+impl ViewContext for View {
+    fn get_property(&self, property: &str) -> Option<PropertyValue> {
+        forward!(self, get_property(property))
+    }
+}
+
+impl ViewImpl for View {
+    fn get_parent(&self) -> Option<ViewKey> {
+        forward!(self, get_parent())
+    }
+    fn install_plugins(&mut self, plugin: PluginRef) {
+        forward!(self, install_plugins(plugin))
+    }
+    fn layout(&mut self, frame: Rect) {
+        forward!(self, layout(frame))
+    }
+    fn display(&self, buf: &mut Buf, context: &dyn ViewContext) {
+        forward!(self, display(buf, context))
+    }
+    fn get_view_key(&self) -> ViewKey {
+        forward!(self, get_view_key())
+    }
+    fn get_cursor_pos(&self) -> Option<Pos> {
+        forward!(self, get_cursor_pos())
+    }
+    fn execute_command(&mut self, name: String, args: Vec<CallArg>) -> Result<Status> {
+        forward!(self, execute_command(name, args))
+    }
+    fn send_key(&mut self, key: Key) -> Result<Status> {
+        forward!(self, send_key(key))
+    }
+    fn get_view_mode(&self) -> Mode {
+        forward!(self, get_view_mode())
+    }
+    fn get_key_bindings(&self, root_view_key: ViewKey) -> Bindings {
+        forward!(self, get_key_bindings(root_view_key))
+    }
+}
+
+pub trait ViewImpl {
+    fn get_parent(&self) -> Option<ViewKey>;
     fn install_plugins(&mut self, plugin: PluginRef);
     fn layout(&mut self, frame: Rect);
     fn display(&self, buf: &mut Buf, context: &dyn ViewContext);
@@ -61,25 +116,22 @@ pub trait View: ViewContext {
     fn get_key_bindings(&self, root_view_key: ViewKey) -> Bindings;
 }
 
-impl dyn View {
-    pub fn ancestor_path(&self, path: &mut Vec<ViewKey>) {
-        path.push(self.get_view_key());
-        if let Some(next) = self.get_parent() {
-            if let Some(parent) = next.upgrade() {
-                parent.borrow().ancestor_path(path);
+pub fn ancestor_path(view_mapper: &dyn ViewMapper, view_key: ViewKey) -> Vec<ViewKey> {
+    let mut path: Vec<ViewKey> = Default::default();
+    let mut view = view_mapper.get_view(view_key);
+    loop {
+        path.push(view.get_view_key());
+        match view.get_parent().map(|vk| view_mapper.get_view(vk)) {
+            Some(parent) => {
+                view = parent;
             }
+            None => break,
         }
     }
+    path
 }
 
-pub fn to_view<T>(v: &Rc<RefCell<T>>) -> Rc<RefCell<dyn View>>
-where
-    T: View + 'static,
-{
-    v.clone() as Rc<RefCell<dyn View>>
-}
-
-pub fn to_weak_view(v: ViewRef) -> Weak<RefCell<dyn View>> {
-    let v = v as Rc<RefCell<dyn View>>;
-    Rc::downgrade(&v)
+pub trait ViewMapper {
+    fn get_view(&self, vk: ViewKey) -> &View;
+    fn get_view_mut(&mut self, vk: ViewKey) -> &mut View;
 }

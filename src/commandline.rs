@@ -12,14 +12,12 @@ use crate::plugin::PluginRef;
 use crate::prelude::*;
 use crate::status::Status;
 use crate::types::{Coord, Pos, Rect};
-use crate::view::{View, ViewContext, ViewKey};
-use std::cell::RefCell;
-use std::rc::Weak;
+use crate::view::{ViewContext, ViewKey};
 use std::time::Instant;
 
 #[allow(dead_code)]
 pub struct CommandLine {
-    parent: Option<Weak<RefCell<dyn View>>>,
+    parent: Option<ViewKey>,
     plugin: PluginRef,
     view_key: ViewKey,
     cursor: Coord,
@@ -45,7 +43,7 @@ impl CommandLine {
             status: Status::Cleared,
         }
     }
-    pub fn set_parent(&mut self, parent: Option<Weak<RefCell<dyn View>>>) {
+    pub fn set_parent(&mut self, parent: Option<ViewKey>) {
         self.parent = parent;
     }
     pub fn set_status(&mut self, status: Status) {
@@ -54,9 +52,9 @@ impl CommandLine {
     }
 }
 
-impl View for CommandLine {
-    fn get_parent(&self) -> Option<Weak<RefCell<dyn View>>> {
-        self.parent.clone()
+impl ViewImpl for CommandLine {
+    fn get_parent(&self) -> Option<ViewKey> {
+        self.parent
     }
     fn install_plugins(&mut self, plugin: PluginRef) {
         self.plugin = plugin;

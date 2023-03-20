@@ -7,23 +7,23 @@ use crate::types::{Pos, Rect};
 use crate::view::{ViewContext, ViewKey};
 
 pub struct VStack {
-    parent: Option<Weak<RefCell<dyn View>>>,
+    parent: Option<ViewKey>,
     plugin: PluginRef,
     view_key: ViewKey,
-    views: Vec<Rc<RefCell<dyn View>>>,
+    views: Vec<View>,
 }
 
 impl VStack {
     #[allow(dead_code)]
-    pub fn set_parent(&mut self, parent: Option<Weak<RefCell<dyn View>>>) {
+    pub fn set_parent(&mut self, parent: Option<ViewKey>) {
         self.parent = parent;
     }
 }
 
 impl ViewContext for VStack {}
-impl View for VStack {
-    fn get_parent(&self) -> Option<Weak<RefCell<dyn View>>> {
-        self.parent.clone()
+impl ViewImpl for VStack {
+    fn get_parent(&self) -> Option<ViewKey> {
+        self.parent
     }
     fn install_plugins(&mut self, plugin: PluginRef) {
         self.plugin = plugin;
@@ -31,7 +31,7 @@ impl View for VStack {
     fn layout(&mut self, frame: Rect) {
         let expected_per_view_height = std::cmp::max(1, frame.height / self.views.len());
         let mut used = 0;
-        for view in self.views.iter() {
+        for view in &mut self.views {
             if frame.height - used < expected_per_view_height {
                 break;
             }
@@ -41,7 +41,7 @@ impl View for VStack {
                 expected_per_view_height
             };
 
-            view.borrow_mut().layout(Rect {
+            view.layout(Rect {
                 x: frame.x,
                 y: used,
                 width: frame.width,
@@ -59,7 +59,7 @@ impl View for VStack {
     fn display(&self, buf: &mut Buf, context: &dyn ViewContext) {
         self.views
             .iter()
-            .for_each(|view| view.borrow().display(buf, context));
+            .for_each(|view| view.display(buf, context));
     }
     fn get_cursor_pos(&self) -> Option<Pos> {
         panic!("VStack should not be focused!");
