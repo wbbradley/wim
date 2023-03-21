@@ -1,6 +1,4 @@
-use crate::dk::{CallArg, DK};
 use crate::prelude::*;
-use crate::view::ViewKey;
 
 pub fn command<T>(name: T) -> CommandBuilder
 where
@@ -14,33 +12,36 @@ where
 
 pub struct CommandBuilder {
     name: String,
-    args: Vec<CallArg>,
+    args: Vec<Variant>,
 }
 
 impl CommandBuilder {
     pub fn arg<T>(mut self, t: T) -> Self
     where
-        T: Into<CallArg>,
+        T: Into<Variant>,
     {
         self.args.push(t.into());
         self
     }
-    pub fn vk(self, view_key: ViewKey) -> DK {
+    pub fn at_target(self, target: Target) -> DK {
         DK::Dispatch(
-            Some(view_key),
+            target,
             Message::Command {
                 name: self.name,
                 args: self.args,
             },
         )
     }
-    pub fn no_vk(self) -> DK {
-        DK::Dispatch(
-            None,
-            Message::Command {
-                name: self.name,
-                args: self.args,
-            },
-        )
+    pub fn at_view(self, view_key: ViewKey) -> DK {
+        self.at_target(Target::View(view_key))
+    }
+    pub fn at_root(self) -> DK {
+        self.at_target(Target::Root)
+    }
+    pub fn at_view_map(self) -> DK {
+        self.at_target(Target::ViewMap)
+    }
+    pub fn at_focused(self) -> DK {
+        self.at_target(Target::Focused)
     }
 }

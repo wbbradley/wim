@@ -1,4 +1,5 @@
 use crate::bindings::Bindings;
+use crate::dispatch::Dispatcher;
 use crate::prelude::*;
 
 #[derive(Debug, Default)]
@@ -8,27 +9,18 @@ pub struct TrieNode {
 }
 
 impl TrieNode {
-    pub fn from_ancestor_path(
-        ancestor_path: Vec<ViewKey>,
-        view_map: &HashMap<ViewKey, View>,
-        root_view_key: ViewKey,
-    ) -> Self {
-        let mut slf = Self::default();
+    pub fn from_ancestor_path(ancestor_path: Vec<Target>, dispatcher: &dyn Dispatcher) -> Self {
         ancestor_path
             .iter()
-            .map(|view_key| {
-                view_map
-                    .get(view_key)
-                    .unwrap()
-                    .get_key_bindings(root_view_key)
-            })
-            .for_each(|b| slf.add_bindings(b));
-        slf
+            .cloned()
+            .map(|target| dispatcher.resolve(target).get_key_bindings())
+            .fold(Self::default(), |node, b| node.with_bindings(b))
     }
-    fn add_bindings(&mut self, bindings: Bindings) {
+    fn with_bindings(self, bindings: Bindings) -> Self {
         for (keys, dk) in bindings {
             self.insert(dk, &keys);
         }
+        self
     }
     fn insert(&mut self, dk: DK, keys: &[Key]) {
         let mut cur = self;

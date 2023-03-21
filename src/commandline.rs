@@ -1,8 +1,6 @@
 use crate::bindings::Bindings;
 use crate::buf::{place_cursor, Buf};
-use crate::consts::{
-    PROP_CMDLINE_FOCUSED, PROP_DOCVIEW_STATUS, PROP_DOC_FILENAME, PROP_DOC_IS_MODIFIED,
-};
+use crate::consts::{PROP_DOCVIEW_STATUS, PROP_DOC_FILENAME, PROP_DOC_IS_MODIFIED};
 use crate::dk::DK;
 use crate::error::{Error, Result};
 use crate::key::Key;
@@ -52,17 +50,17 @@ impl CommandLine {
     }
 }
 
-impl ViewImpl for CommandLine {
+impl View for CommandLine {
     fn get_parent(&self) -> Option<ViewKey> {
         self.parent
     }
     fn install_plugins(&mut self, plugin: PluginRef) {
         self.plugin = plugin;
     }
-    fn layout(&mut self, frame: Rect) {
+    fn layout(&mut self, view_map: &ViewMap, frame: Rect) {
         self.frame = frame;
     }
-    fn display(&self, buf: &mut Buf, context: &dyn ViewContext) {
+    fn display(&self, view_map: &ViewMap, buf: &mut Buf, context: &dyn ViewContext) {
         place_cursor(buf, self.frame.top_left());
         buf.append("\x1b[7m");
         let is_dirty = context.get_property_bool(PROP_DOC_IS_MODIFIED, false);
@@ -98,8 +96,7 @@ impl ViewImpl for CommandLine {
             },
         );
         let mut line: Line = Line::new(buf, self.frame.width);
-        // TODO: render prompt...
-        if context.get_property_bool(PROP_CMDLINE_FOCUSED, false) {
+        if view_map.focused_view_key() == self.view_key {
             line_fmt!(line, ":{}", self.text);
         }
     }
@@ -107,21 +104,6 @@ impl ViewImpl for CommandLine {
     fn get_view_mode(&self) -> Mode {
         Mode::Insert
     }
-    fn get_key_bindings(&self, root_view_key: ViewKey) -> Bindings {
-        let vk = self.get_view_key();
-        let mut bindings: Bindings = Default::default();
-        bindings.insert(vec![Key::Esc], command("focus-previous").vk(vk));
-        bindings.insert(
-            vec![Key::Enter],
-            DK::Sequence(vec![
-                command("clear-text").vk(vk),
-                command("focus-previous").vk(root_view_key),
-                command("invoke-execute").arg(self.text.clone()).no_vk(),
-            ]),
-        );
-        bindings
-    }
-
     fn get_view_key(&self) -> ViewKey {
         self.view_key
     }
@@ -131,6 +113,26 @@ impl ViewImpl for CommandLine {
             y: self.frame.y + 1,
         })
     }
+}
+
+impl DispatchTarget for CommandLine {
+    fn get_key_bindings(&self) -> Bindings {
+        let vk = self.get_view_key();
+        let mut bindings: Bindings = Default::default();
+        bindings.insert(vec![Key::Esc], command("focus-previous").at_view(vk));
+        bindings.insert(
+            vec![Key::Enter],
+            DK::Sequence(vec![
+                command("clear-text").at_view(vk),
+                command("focus-previous").at_view_map(),
+                command("invoke-execute")
+                    .arg(self.text.clone())
+                    .at_focused(),
+            ]),
+        );
+        bindings
+    }
+
     fn send_key(&mut self, key: Key) -> Result<Status> {
         match key {
             Key::Ascii(ch) => {
@@ -150,7 +152,7 @@ impl ViewImpl for CommandLine {
             }
         }
     }
-    fn execute_command(&mut self, name: String, args: Vec<CallArg>) -> Result<Status> {
+    fn execute_command(&mut self, name: String, args: Vec<Variant>) -> Result<Status> {
         if name == "clear-text" {
             self.text.clear();
             Ok(Status::Ok)

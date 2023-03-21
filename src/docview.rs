@@ -7,7 +7,6 @@ use crate::doc::Doc;
 use crate::error::{ensure, Error, Result};
 use crate::plugin::PluginRef;
 use crate::prelude::*;
-use crate::propvalue::PropertyValue;
 use crate::rel::Rel;
 use crate::status::Status;
 use crate::types::{Coord, Pos, Rect, RelCoord, SafeCoordCast};
@@ -160,19 +159,19 @@ impl DocView {
     }
 }
 
-impl ViewImpl for DocView {
+impl View for DocView {
     fn get_parent(&self) -> Option<ViewKey> {
         self.parent.clone()
     }
     fn install_plugins(&mut self, plugin: PluginRef) {
         self.plugin = plugin;
     }
-    fn layout(&mut self, frame: Rect) {
+    fn layout(&mut self, view_map: &ViewMap, frame: Rect) {
         log::trace!("docview frame is {:?}", frame);
         self.frame = frame;
         self.scroll();
     }
-    fn display(&self, buf: &mut Buf, _context: &dyn ViewContext) {
+    fn display(&self, view_map: &ViewMap, buf: &mut Buf, context: &dyn ViewContext) {
         let rows_drawn = self.draw_rows(buf);
         for y in rows_drawn..self.frame.height {
             place_cursor(
@@ -198,76 +197,100 @@ impl ViewImpl for DocView {
             y: self.frame.y + self.cursor.y - self.scroll_offset.y,
         })
     }
-    fn get_key_bindings(&self, root_view_key: ViewKey) -> Bindings {
+}
+
+impl DispatchTarget for DocView {
+    fn get_key_bindings(&self) -> Bindings {
         let vk = self.get_view_key();
         let mut bindings: Bindings = Default::default();
         match self.mode {
             Mode::Visual { .. } => {}
             Mode::Insert => {
-                bindings.insert(vec![Key::Esc], command("switch-mode").arg("normal").vk(vk));
+                bindings.insert(
+                    vec![Key::Esc],
+                    command("switch-mode").arg("normal").at_view(vk),
+                );
                 bindings.insert(vec![Key::Ascii('j'), Key::Ascii('k')], DK::Key(Key::Esc));
-                bindings.insert(vec![Key::Backspace], command("delete-backwards").vk(vk));
-                bindings.insert(vec![Key::Enter], command("newline").arg("below").vk(vk));
+                bindings.insert(
+                    vec![Key::Backspace],
+                    command("delete-backwards").at_view(vk),
+                );
+                bindings.insert(
+                    vec![Key::Enter],
+                    command("newline").arg("below").at_view(vk),
+                );
             }
             Mode::Normal => {
                 bindings.insert(
                     vec![Key::Ctrl('w')],
-                    command("close-view").arg(vk).vk(root_view_key),
+                    command("close-view").arg(vk).at_view_map(),
                 );
-                bindings.insert(vec![Key::Ctrl('s')], command("save").vk(vk));
+                bindings.insert(vec![Key::Ctrl('s')], command("save").at_view(vk));
                 bindings.insert(
                     vec![Key::Ascii('b')],
-                    command("move-rel").arg("word").arg("prior").vk(vk),
+                    command("move-rel").arg("word").arg("prior").at_view(vk),
                 );
                 bindings.insert(
                     vec![Key::Ascii('e')],
-                    command("move-rel").arg("word").arg("end").vk(vk),
+                    command("move-rel").arg("word").arg("end").at_view(vk),
                 );
                 bindings.insert(
                     vec![Key::Ascii('w')],
-                    command("move-rel").arg("word").arg("next").vk(vk),
+                    command("move-rel").arg("word").arg("next").at_view(vk),
                 );
                 bindings.insert(
                     vec![Key::Ascii('i')],
-                    command("switch-mode").arg("insert").vk(vk),
+                    command("switch-mode").arg("insert").at_view(vk),
                 );
-                bindings.insert(vec![Key::Ascii('h')], command("move").arg("left").vk(vk));
+                bindings.insert(
+                    vec![Key::Ascii('h')],
+                    command("move").arg("left").at_view(vk),
+                );
                 bindings.insert(
                     vec![Key::Ascii(':')],
-                    command("focus-command-line").vk(root_view_key),
+                    command("focus")
+                        .arg(
+                            "command-line", // TODO: get command line view key
+                        )
+                        .at_view_map(),
                 );
-                bindings.insert(vec![Key::Ascii('j')], command("move").arg("down").vk(vk));
-                bindings.insert(vec![Key::Ascii('k')], command("move").arg("up").vk(vk));
-                bindings.insert(vec![Key::Ascii('l')], command("move").arg("right").vk(vk));
-                bindings.insert(vec![Key::Ascii('J')], command("join-lines").vk(vk));
+                bindings.insert(
+                    vec![Key::Ascii('j')],
+                    command("move").arg("down").at_view(vk),
+                );
+                bindings.insert(vec![Key::Ascii('k')], command("move").arg("up").at_view(vk));
+                bindings.insert(
+                    vec![Key::Ascii('l')],
+                    command("move").arg("right").at_view(vk),
+                );
+                bindings.insert(vec![Key::Ascii('J')], command("join-lines").at_view(vk));
                 bindings.insert(
                     vec![Key::Ascii('o')],
                     DK::Sequence(vec![
-                        command("newline").arg("below").vk(vk),
-                        command("switch-mode").arg("insert").vk(vk),
+                        command("newline").arg("below").at_view(vk),
+                        command("switch-mode").arg("insert").at_view(vk),
                     ]),
                 );
                 bindings.insert(
                     vec![Key::Ascii('O')],
                     DK::Sequence(vec![
-                        command("newline").arg("above").vk(vk),
-                        command("move-rel").arg("line").arg("begin").vk(vk),
-                        command("switch-mode").arg("insert").vk(vk),
+                        command("newline").arg("above").at_view(vk),
+                        command("move-rel").arg("line").arg("begin").at_view(vk),
+                        command("switch-mode").arg("insert").at_view(vk),
                     ]),
                 );
                 bindings.insert(
                     vec![Key::Ascii('x')],
-                    command("delete-rel").arg("char").arg("next").vk(vk),
+                    command("delete-rel").arg("char").arg("next").at_view(vk),
                 );
                 bindings.insert(
                     vec![Key::Ascii('X')],
-                    command("delete-rel").arg("char").arg("prior").vk(vk),
+                    command("delete-rel").arg("char").arg("prior").at_view(vk),
                 );
             }
         }
         bindings
     }
-
     fn send_key(&mut self, key: Key) -> Result<Status> {
         match self.mode {
             Mode::Normal | Mode::Visual { .. } => Ok(Status::Message {
@@ -283,11 +306,11 @@ impl ViewImpl for DocView {
             },
         }
     }
-    fn execute_command(&mut self, name: String, mut args: Vec<CallArg>) -> Result<Status> {
+    fn execute_command(&mut self, name: String, mut args: Vec<Variant>) -> Result<Status> {
         match name.as_str() {
             "switch-mode" => {
                 ensure!(args.len() == 1);
-                if let CallArg::String(arg) = args.remove(0) {
+                if let Variant::String(arg) = args.remove(0) {
                     self.switch_mode(Mode::from_str(&arg)?);
                     Ok(Status::Ok)
                 } else {
@@ -304,7 +327,7 @@ impl ViewImpl for DocView {
             }
             "open" => {
                 ensure!(args.len() == 1);
-                if let CallArg::String(arg) = args.remove(0) {
+                if let Variant::String(arg) = args.remove(0) {
                     self.open(arg)
                 } else {
                     Err(error!("'open' expects a filename"))
@@ -312,7 +335,7 @@ impl ViewImpl for DocView {
             }
             "move" => {
                 ensure!(args.len() == 1);
-                if let CallArg::String(arg) = args.remove(0) {
+                if let Variant::String(arg) = args.remove(0) {
                     match arg.as_str() {
                         "up" => self.move_cursor(0, -1),
                         "down" => self.move_cursor(0, 1),
@@ -326,7 +349,7 @@ impl ViewImpl for DocView {
             }
             "newline" => {
                 ensure!(args.len() == 1);
-                if let CallArg::String(arg) = args.remove(0) {
+                if let Variant::String(arg) = args.remove(0) {
                     match arg.as_str() {
                         "above" => self.insert_newline_above(),
                         "below" => self.insert_newline_below(),
@@ -338,7 +361,7 @@ impl ViewImpl for DocView {
             }
             "move-rel" => {
                 ensure!(args.len() == 2);
-                if let (CallArg::String(noun), CallArg::String(rel)) =
+                if let (Variant::String(noun), Variant::String(rel)) =
                     (args.remove(0), args.remove(0))
                 {
                     match (Noun::from_str(&noun), Rel::from_str(&rel)) {
@@ -372,17 +395,17 @@ impl ViewImpl for DocView {
 }
 
 impl ViewContext for DocView {
-    fn get_property(&self, property: &str) -> Option<PropertyValue> {
+    fn get_property(&self, property: &str) -> Option<Variant> {
         if property == PROP_DOC_IS_MODIFIED {
-            Some(PropertyValue::Bool(self.doc.is_dirty()))
+            Some(Variant::Bool(self.doc.is_dirty()))
         } else if property == PROP_DOC_FILENAME {
             self.doc
                 .get_filename()
-                .map(|filename| PropertyValue::String(filename.to_string()))
+                .map(|filename| Variant::String(filename.to_string()))
         } else if property == PROP_DOCVIEW_CURSOR_POS {
-            Some(PropertyValue::Pos(self.cursor))
+            Some(Variant::Pos(self.cursor))
         } else if property == PROP_DOCVIEW_STATUS {
-            Some(PropertyValue::String(format!(
+            Some(Variant::String(format!(
                 "| {:?} | {}:{} ",
                 self.mode,
                 self.cursor.y + 1,

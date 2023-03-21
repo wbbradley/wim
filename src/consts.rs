@@ -1,5 +1,6 @@
 /// Property names.
 pub static PROP_CMDLINE_FOCUSED: &str = "cmdline-focused?";
+pub static PROP_EDITOR_SHOULD_QUIT: &str = "should-quit?";
 // pub static PROP_ROOT_VIEW_KEY: &str = "get-root-view-key";
 // pub static PROP_CMDLINE_TEXT: &str = "cmdline-text";
 pub static PROP_DOCVIEW_CURSOR_POS: &str = "docview-cursor-pos";

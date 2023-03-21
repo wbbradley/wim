@@ -1,9 +1,10 @@
-use crate::editor::{Editor, HandleKey};
+use crate::editor::Editor;
 use crate::plugin::{Plugin, PluginRef};
 use crate::prelude::*;
 use crate::read::read_key;
 use crate::termios::Termios;
 use crate::types::Rect;
+use crate::view_map::HandleKey;
 use anyhow::Context as AnyhowContext;
 use log::LevelFilter;
 use std::env;
@@ -13,6 +14,7 @@ mod buf;
 mod command;
 mod commandline;
 mod consts;
+mod dispatch;
 mod dk;
 mod doc;
 mod docview;
@@ -26,7 +28,6 @@ mod mode;
 mod noun;
 mod plugin;
 mod prelude;
-mod propvalue;
 mod read;
 mod rel;
 mod row;
@@ -35,13 +36,16 @@ mod termios;
 mod trie;
 mod types;
 mod utils;
+mod variant;
 mod view;
+mod view_map;
 mod vstack;
 mod widechar_width;
 
 pub static VERSION: &str = "v0.1.0";
 
 fn main() -> anyhow::Result<()> {
+    simple_logging::log_to_file("wim.log", LevelFilter::Trace)?;
     let plugin = Plugin::new();
 
     let termios = Arc::new(Termios::enter_raw_mode());
@@ -53,33 +57,34 @@ fn main() -> anyhow::Result<()> {
         println!("{}", p);
     }));
 
-    let res = run_app(plugin);
+    let view_map: crate::view_map::ViewMap = ViewMap::new();
+    let res = run_app(plugin, view_map);
     termios.exit_raw_mode();
     res
 }
 
-fn run_app(plugin: PluginRef) -> anyhow::Result<()> {
-    simple_logging::log_to_file("wim.log", LevelFilter::Trace)?;
+fn run_app(plugin: PluginRef, view_map: ViewMap) -> anyhow::Result<()> {
     let args: Vec<String> = env::args().collect();
     trace!("wim run with args: {:?}", args);
 
     let frame: Rect = Termios::get_window_size().into();
 
-    let mut editor = Editor::new(plugin);
+    let editor_view_key = Editor::install(plugin, &mut view_map);
+    let editor = || view_map.get_view_mut(editor_view_key);
     if args.len() > 1 {
-        editor.execute_command("open".to_string(), vec![CallArg::String(args[1].clone())])?;
+        editor().execute_command("open".to_string(), vec![CallArg::String(args[1].clone())])?;
     }
     let mut buf = Buf::default();
     let mut should_refresh = true;
     let mut dks: VecDeque<DK> = Default::default();
     let mut key_timeout: Option<Instant> = None;
 
-    while !editor.get_should_quit() {
+    while !editor().get_property_bool(crate::consts::PROP_EDITOR_SHOULD_QUIT, true) {
         if should_refresh {
-            editor.layout(frame);
+            editor().layout(&view_map, frame);
             buf.truncate();
             trace!("redisplaying!");
-            editor.display(&mut buf, &editor);
+            editor().display(&view_map, &mut buf, &view_map);
             should_refresh = false;
         }
         if matches!(dks.front(), Some(DK::Key(_)) | None) {
@@ -98,11 +103,11 @@ fn run_app(plugin: PluginRef) -> anyhow::Result<()> {
             };
         }
         should_refresh = true;
-        pump(&mut editor, &mut dks)?;
+        pump(editor(), &mut dks)?;
     }
     Ok(())
 }
-fn pump(editor: &mut Editor, dks: &mut VecDeque<DK>) -> anyhow::Result<()> {
+fn pump(editor: &mut Editor, view_map: &ViewMap, dks: &mut VecDeque<DK>) -> anyhow::Result<()> {
     while matches!(dks.front(), Some(DK::Key(Key::None))) {
         trace!("popping Key::None off dks");
         dks.pop_front();
@@ -117,8 +122,8 @@ fn pump(editor: &mut Editor, dks: &mut VecDeque<DK>) -> anyhow::Result<()> {
                     dks.push_front(dk);
                     continue;
                 }
-                DK::Dispatch(view_key, message) => {
-                    let view = editor.get_view_or_focused_view_mut(view_key);
+                DK::Dispatch(target, message) => {
+                    let view = view_map.resolve(target);
                     let result = match message {
                         Message::SendKey(key) => view.send_key(key),
                         Message::Command { name, args } => view.execute_command(name, args),

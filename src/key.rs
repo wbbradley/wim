@@ -1,44 +1,23 @@
-use rune::Any;
-
-#[derive(Any, Hash, Copy, Clone, Eq, PartialEq)]
+#[derive(Hash, Copy, Clone, Eq, PartialEq)]
 pub enum Key {
-    #[rune(constructor)]
     Esc,
-    #[rune(constructor)]
-    EscSeq1(#[rune(get)] u8),
-    #[rune(constructor)]
-    EscSeq2(#[rune(get)] u8, #[rune(get)] u8),
-    #[rune(constructor)]
+    EscSeq1(u8),
+    EscSeq2(u8, u8),
     Up,
-    #[rune(constructor)]
     Down,
-    #[rune(constructor)]
     Left,
-    #[rune(constructor)]
     Right,
-    #[rune(constructor)]
     Home,
-    #[rune(constructor)]
     End,
-    #[rune(constructor)]
     Del,
-    #[rune(constructor)]
     PageUp,
-    #[rune(constructor)]
     PageDown,
-    #[rune(constructor)]
     PrintScreen,
-    #[rune(constructor)]
     Backspace,
-    #[rune(constructor)]
     Enter,
-    #[rune(constructor)]
-    Ctrl(#[rune(get)] char),
-    #[rune(constructor)]
-    Ascii(#[rune(get)] char),
-    #[rune(constructor)]
-    Function(#[rune(get)] u8),
-    #[rune(constructor)]
+    Ctrl(char),
+    Ascii(char),
+    Function(u8),
     None,
 }
 
