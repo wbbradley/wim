@@ -97,7 +97,9 @@ fn run_app(plugin: PluginRef, mut view_map: ViewMap) -> anyhow::Result<()> {
             if let Some(key) = read_key() {
                 key_timeout = Some(Instant::now() + Duration::from_secs(1));
                 dks.push_back(DK::Key(key));
+                should_refresh = true;
             } else if let Some(next_key_timeout) = key_timeout {
+                trace!("waiting...");
                 if Instant::now() > next_key_timeout {
                     key_timeout = None;
                     dks.push_back(DK::Key(Key::None));
@@ -108,7 +110,6 @@ fn run_app(plugin: PluginRef, mut view_map: ViewMap) -> anyhow::Result<()> {
                 continue;
             };
         }
-        should_refresh = true;
         pump(&mut view_map, &mut dks, &mut editor)?;
     }
     Ok(())

@@ -439,9 +439,14 @@ impl DocView {
                     y: frame.y + count,
                 },
             );
-            assert!(slice.len() < frame.width);
             buf.append(slice);
             let written_graphemes = wcwidth(slice);
+            if written_graphemes > frame.width {
+                panic!(
+                    "Uh-oh, written_graphemes > frame.width ({} >= {})",
+                    written_graphemes, frame.width
+                );
+            }
             buf.append(&BLANKS[..frame.width - written_graphemes]);
             count += 1;
         }

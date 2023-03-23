@@ -112,7 +112,10 @@ impl DispatchTarget for CommandLine {
     fn get_key_bindings(&self) -> Bindings {
         let vk = self.get_view_key();
         let mut bindings: Bindings = Default::default();
-        bindings.insert(vec![Key::Esc], command("focus-previous").at_view(vk));
+        bindings.insert(
+            vec![Key::Esc],
+            command("focus").arg(Target::Previous).at_view(vk),
+        );
         bindings.insert(
             vec![Key::Enter],
             DK::Sequence(vec![
