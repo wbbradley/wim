@@ -159,12 +159,12 @@ impl ViewMap {
 }
 
 impl DispatchTarget for ViewMap {
-    fn execute_command(&mut self, name: String, _args: Vec<Variant>) -> Result<Status> {
+    fn execute_command(&mut self, name: String, args: Vec<Variant>) -> Result<Status> {
         if name == "focus-previous" {
             self.goto_previous_view();
             Ok(Status::Cleared)
         } else {
-            panic!("JKDFJKDJFK")
+            panic!("unhandled command: ({} {:?})", name, args)
         }
     }
 }
