@@ -46,13 +46,8 @@ impl ViewMap {
     pub fn get_root_view_key(&self) -> ViewKey {
         self.root_view_key.unwrap()
     }
-    pub fn insert(
-        &mut self,
-        vk: ViewKey,
-        view: ViewRef,
-        vk_parent: Option<ViewKey>,
-        name: Option<String>,
-    ) {
+    pub fn insert(&mut self, view: ViewRef, vk_parent: Option<ViewKey>, name: Option<String>) {
+        let vk = view.get_view_key();
         self.map.insert(vk, view);
         if let Some(name) = name {
             assert!(!self.named_views.contains_key(&name));

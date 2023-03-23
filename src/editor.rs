@@ -51,6 +51,8 @@ impl View for Editor {
                     height: frame.height - 2,
                 },
             ));
+        } else {
+            trace!("there is no top_view_key in the editor");
         }
         ret.push((
             self.command_line_key,
@@ -136,33 +138,31 @@ impl Editor {
         let command_line_key = view_map.get_next_key();
         let command_line = viewref(CommandLine::new(plugin.clone(), command_line_key));
         let editor_view_key = view_map.get_next_key();
+        let docview = viewref(DocView::new(view_map.get_next_key(), plugin.clone()));
+        let focused_view_key = docview.get_view_key();
         let slf = Self {
-            plugin: plugin.clone(),
+            plugin,
             view_key: editor_view_key,
             should_quit: false,
             frame: Rect::zero(),
             last_key: None,
-            top_view_key: None,
+            top_view_key: Some(focused_view_key),
             command_line_key,
         };
-        view_map.set_root_view_key(slf.view_key);
         let vk = slf.view_key;
-        view_map.insert(slf.view_key, viewref(slf), None, Some("editor".to_string()));
-        let views: Vec<ViewRef> = vec![viewref(DocView::new(view_map.get_next_key(), plugin))];
-        let focused_view_key = views[0].get_view_key();
-        views.into_iter().for_each(|view| {
-            let vk = view.get_view_key();
-            view_map.insert(vk, view, Some(editor_view_key), None)
-        });
-        let command_line_view_key = command_line.get_view_key();
+        view_map.insert(viewref(slf), None, Some("editor".to_string()));
+        view_map.insert(docview, Some(editor_view_key), None);
         view_map.insert(
-            command_line_view_key,
             command_line,
             Some(editor_view_key),
             Some("command-line".to_string()),
         );
         view_map.set_focused_view(focused_view_key);
+        view_map.set_root_view_key(editor_view_key);
         vk
+    }
+    pub fn set_top_view_key(&mut self, top_view_key: Option<ViewKey>) {
+        self.top_view_key = top_view_key;
     }
 
     pub fn set_last_key(&mut self, key: Option<Key>) {
@@ -171,7 +171,10 @@ impl Editor {
 
     pub fn eat_status_result(&self, view_map: &mut ViewMap, result: Result<Status>) -> Result<()> {
         match result {
-            Ok(status) => Ok(self.set_status(view_map, status)),
+            Ok(status) => {
+                self.set_status(view_map, status);
+                Ok(())
+            }
             Err(error) => Err(error),
         }
     }
