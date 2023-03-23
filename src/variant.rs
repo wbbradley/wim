@@ -1,5 +1,4 @@
 use crate::prelude::*;
-use crate::types::Pos;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Variant {
@@ -9,11 +8,18 @@ pub enum Variant {
     String(String),
     Bool(bool),
     Pos(Pos),
+    Target(Target),
 }
 
 impl From<bool> for Variant {
     fn from(b: bool) -> Self {
         Self::Bool(b)
+    }
+}
+
+impl From<Target> for Variant {
+    fn from(b: Target) -> Self {
+        Self::Target(b)
     }
 }
 

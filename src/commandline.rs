@@ -26,7 +26,7 @@ impl CommandLine {
             scroll_offset: 0,
             text: String::new(),
             frame: Rect::zero(),
-            status: Status::Cleared,
+            status: Status::Ok,
         }
     }
 }
@@ -117,7 +117,7 @@ impl DispatchTarget for CommandLine {
             vec![Key::Enter],
             DK::Sequence(vec![
                 command("clear-text").at_view(vk),
-                command("focus-previous").at_view_map(),
+                command("focus").arg(Target::Previous).at_view_map(),
                 command("invoke-execute")
                     .arg(self.text.as_ref())
                     .at_focused(),

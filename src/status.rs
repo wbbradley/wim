@@ -4,7 +4,6 @@ use std::time::Instant;
 pub enum Status {
     Message { message: String, expiry: Instant },
     Ok,
-    Cleared,
 }
 
 impl From<()> for Status {

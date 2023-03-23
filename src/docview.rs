@@ -243,9 +243,7 @@ impl DispatchTarget for DocView {
                 bindings.insert(
                     vec![Key::Ascii(':')],
                     command("focus")
-                        .arg(
-                            "command-line", // TODO: get command line view key
-                        )
+                        .arg(Target::Named("command-line".to_string()))
                         .at_view_map(),
                 );
                 bindings.insert(

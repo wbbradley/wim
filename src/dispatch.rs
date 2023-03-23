@@ -61,14 +61,6 @@ impl<'a> DispatchTarget for DispatchRef<'a> {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
-pub enum Target {
-    View(ViewKey),
-    Focused,
-    ViewMap,
-    Root, // Should be the editor.
-}
-
 pub trait Dispatcher {
     fn resolve(&mut self, target: Target) -> DispatchRef;
 }

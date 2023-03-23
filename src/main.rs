@@ -32,6 +32,7 @@ mod read;
 mod rel;
 mod row;
 mod status;
+mod target;
 mod termios;
 mod trie;
 mod types;

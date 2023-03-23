@@ -2,6 +2,7 @@ use crate::error::Result;
 use crate::keygen::ViewKeyGenerator;
 use crate::prelude::*;
 use crate::trie::{Mapping, TrieNode};
+use regex::Regex;
 
 pub struct ViewMap {
     map: HashMap<ViewKey, ViewRef>,
@@ -50,6 +51,8 @@ impl ViewMap {
         let vk = view.get_view_key();
         self.map.insert(vk, view);
         if let Some(name) = name {
+            let re = Regex::new(r"[0-9a-zA-Z-_]").unwrap();
+            assert!(re.is_match(name.as_ref()));
             assert!(!self.named_views.contains_key(&name));
             self.named_views.insert(name, vk);
             if let Some(vk_parent) = vk_parent {
@@ -153,16 +156,58 @@ impl ViewMap {
         }
     }
 
+    pub fn get_previous_view(&self) -> ViewRef {
+        self.get_view(*self.previous_views.last().unwrap())
+    }
+
     pub fn goto_previous_view(&mut self) {
-        self.previous_views.pop();
+        if self.previous_views.len() > 1 {
+            self.previous_views.pop();
+        }
     }
 }
 
 impl DispatchTarget for ViewMap {
     fn execute_command(&mut self, name: String, args: Vec<Variant>) -> Result<Status> {
-        if name == "focus-previous" {
-            self.goto_previous_view();
-            Ok(Status::Cleared)
+        if name == "focus" {
+            if args.len() != 1 {
+                return Err(error!("focus command requires 1 Target"));
+            }
+            let arg = &args[0];
+            if let Variant::Target(target) = arg {
+                match target {
+                    Target::ViewMap => Err(error!("view map cannot be focused")),
+                    Target::Root => match self.root_view_key {
+                        Some(root_view_key) => {
+                            self.set_focused_view(root_view_key);
+                            Ok(Status::Ok)
+                        }
+                        None => Err(error!("no root key!")),
+                    },
+                    Target::View(view_key) => {
+                        self.set_focused_view(*view_key);
+                        Ok(Status::Ok)
+                    }
+                    Target::Previous => {
+                        self.goto_previous_view();
+                        Ok(Status::Ok)
+                    }
+                    Target::Focused => Ok(status!(
+                        "View is already focused. [vk={:?}]",
+                        self.focused_view_key()
+                    )),
+                    Target::Named(name) => {
+                        if let Some(vk) = self.named_views.get(name) {
+                            self.set_focused_view(*vk);
+                            Ok(Status::Ok)
+                        } else {
+                            panic!("focusing view '{}' but that name does not exist.", name);
+                        }
+                    }
+                }
+            } else {
+                Err(error!("focus expects a Target [arg={:?}]", arg))
+            }
         } else {
             panic!("unhandled command: ({} {:?})", name, args)
         }
@@ -176,6 +221,8 @@ impl Dispatcher for ViewMap {
             Target::Focused => self.focused_view().into(),
             Target::View(vk) => self.get_view(vk).into(),
             Target::Root => self.get_view(self.root_view_key.unwrap()).into(),
+            Target::Named(name) => self.get_named_view(name.as_ref()).unwrap().into(),
+            Target::Previous => self.get_previous_view().into(),
         }
     }
 }
