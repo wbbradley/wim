@@ -105,8 +105,10 @@ impl ViewMap {
         path
     }
     pub(crate) fn handle_keys(&mut self, dks: &mut VecDeque<DK>) -> HandleKey {
+        assert!(!dks.is_empty());
         let path: Vec<Target> = self.ancestor_path(self.focused_view_key());
         let trie: TrieNode = TrieNode::from_ancestor_path(path, self);
+
         let inbound_keys: Vec<Key> = dks
             .iter()
             .take_while(|dk| matches!(dk, DK::Key(_)))

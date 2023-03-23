@@ -121,10 +121,10 @@ fn pump(
         trace!("popping Key::None off dks");
         dks.pop_front();
     }
-    if dks.is_empty() {
-        return Ok(());
-    }
     loop {
+        if dks.is_empty() {
+            return Ok(());
+        }
         match view_map.handle_keys(dks) {
             HandleKey::DK(dk) => match dk {
                 DK::Key(_) => {
