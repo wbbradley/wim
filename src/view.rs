@@ -35,12 +35,22 @@ pub trait ViewContext {
     }
 }
 
-pub trait View {
+pub trait View: DispatchTarget + ViewContext {
+    fn as_view_context(&self) -> &dyn ViewContext;
+    fn as_dispatch_target(&self) -> &dyn DispatchTarget;
+    fn as_dispatch_target_mut(&mut self) -> &mut dyn DispatchTarget;
     fn get_parent(&self) -> Option<ViewKey>;
     fn install_plugins(&mut self, plugin: PluginRef);
-    fn layout(&mut self, view_map: &ViewMap, frame: Rect);
+    fn layout(&mut self, view_map: &mut ViewMap, frame: Rect);
     fn display(&self, view_map: &ViewMap, buf: &mut Buf, context: &dyn ViewContext);
     fn get_view_key(&self) -> ViewKey;
     fn get_cursor_pos(&self) -> Option<Pos>;
     fn get_view_mode(&self) -> Mode;
+    fn set_status(&mut self, status: Status) {
+        log::warn!(
+            "View '{}' is ignoring set_status calls. [status={:?}]",
+            std::any::type_name::<Self>(),
+            status
+        );
+    }
 }

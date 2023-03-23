@@ -20,7 +20,17 @@ pub struct Editor {
     frame: Rect,
 }
 
+impl ViewContext for Editor {}
 impl View for Editor {
+    fn as_view_context(&self) -> &dyn ViewContext {
+        self
+    }
+    fn as_dispatch_target(&self) -> &dyn DispatchTarget {
+        self
+    }
+    fn as_dispatch_target_mut(&mut self) -> &mut dyn DispatchTarget {
+        self
+    }
     fn get_parent(&self) -> Option<ViewKey> {
         None
     }
@@ -30,9 +40,10 @@ impl View for Editor {
     fn get_view_mode(&self) -> Mode {
         Mode::Normal
     }
-    fn layout(&mut self, view_map: &ViewMap, frame: Rect) {
+    fn layout(&mut self, view_map: &mut ViewMap, frame: Rect) {
         self.frame = frame;
-        let root_view = view_map.get_view_or_focused_view_mut(Some(view_map.get_root_view_key()));
+        let view_key = view_map.get_root_view_key();
+        let root_view = view_map.get_view_or_focused_view_mut(Some(view_key));
         root_view.layout(
             view_map,
             Rect {
@@ -93,16 +104,10 @@ impl DispatchTarget for Editor {
         Default::default()
     }
     fn execute_command(&mut self, name: String, args: Vec<Variant>) -> Result<Status> {
-        if name == "focus-command-line" {
-            self.enter_command_mode();
-            Ok(Status::Cleared)
-        } else {
-            panic!(
-                "what to do with this command? {:?} {:?} send to editor",
-                name, args
-            );
-            // self.get_view_mut(self.root_view) .execute_command(name, args)
-        }
+        panic!(
+            "what to do with this command? {:?} {:?} send to editor",
+            name, args
+        );
     }
 
     fn send_key(&mut self, key: Key) -> Result<Status> {
@@ -156,10 +161,9 @@ impl Editor {
             should_quit: false,
             frame: Rect::zero(),
             last_key: None,
-            // previous_views: vec![focused_view_key],
-            // root_view: focused_view_key,
             command_line: command_line_key,
         };
+        view_map.set_focused_view(focused_view_key);
         view_map.set_root_view_key(slf.view_key);
         let vk = slf.view_key;
         view_map.insert(slf.view_key, Box::new(slf), Some("editor".to_string()));
@@ -178,14 +182,15 @@ impl Editor {
     }
 
     pub fn set_status(&self, view_map: &mut ViewMap, status: Status) {
-        let cmdline: &mut dyn View =
-            view_map.get_view_mut(view_map.get_named_view("command-line").unwrap());
+        let view = view_map.get_named_view("command-line").unwrap();
+        let cmdline: &mut dyn View = view_map.get_view_mut(view);
         cmdline.set_status(status);
     }
 
+    /*
     pub fn enter_command_mode(&mut self) {
         self.set_focus(self.command_line);
-    }
+    }*/
 }
 
 impl Drop for Editor {

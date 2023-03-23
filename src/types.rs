@@ -57,7 +57,7 @@ pub struct Size {
     pub height: Coord,
 }
 
-#[derive(Default, Copy, Clone, Debug)]
+#[derive(Default, Copy, Clone, Debug, Eq, PartialEq)]
 pub struct Pos {
     pub x: Coord,
     pub y: Coord,

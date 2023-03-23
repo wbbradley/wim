@@ -44,20 +44,25 @@ impl CommandLine {
     pub fn set_parent(&mut self, parent: Option<ViewKey>) {
         self.parent = parent;
     }
-    pub fn set_status(&mut self, status: Status) {
-        log::trace!("[CommandLine] Status Updated: {:?}", &status);
-        self.status = status;
-    }
 }
 
 impl View for CommandLine {
+    fn as_view_context(&self) -> &dyn ViewContext {
+        self
+    }
+    fn as_dispatch_target(&self) -> &dyn DispatchTarget {
+        self
+    }
+    fn as_dispatch_target_mut(&mut self) -> &mut dyn DispatchTarget {
+        self
+    }
     fn get_parent(&self) -> Option<ViewKey> {
         self.parent
     }
     fn install_plugins(&mut self, plugin: PluginRef) {
         self.plugin = plugin;
     }
-    fn layout(&mut self, view_map: &ViewMap, frame: Rect) {
+    fn layout(&mut self, _view_map: &mut ViewMap, frame: Rect) {
         self.frame = frame;
     }
     fn display(&self, view_map: &ViewMap, buf: &mut Buf, context: &dyn ViewContext) {
@@ -112,6 +117,10 @@ impl View for CommandLine {
             x: self.frame.x + 1 + self.cursor - self.scroll_offset,
             y: self.frame.y + 1,
         })
+    }
+    fn set_status(&mut self, status: Status) {
+        log::trace!("[CommandLine] Status Updated: {:?}", &status);
+        self.status = status;
     }
 }
 

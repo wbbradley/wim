@@ -5,7 +5,6 @@ use crate::read::read_key;
 use crate::termios::Termios;
 use crate::types::Rect;
 use crate::view_map::HandleKey;
-use anyhow::Context as AnyhowContext;
 use log::LevelFilter;
 use std::env;
 
@@ -70,21 +69,25 @@ fn run_app(plugin: PluginRef, view_map: ViewMap) -> anyhow::Result<()> {
     let frame: Rect = Termios::get_window_size().into();
 
     let editor_view_key = Editor::install(plugin, &mut view_map);
-    let editor = || view_map.get_view_mut(editor_view_key);
     if args.len() > 1 {
-        editor().execute_command("open".to_string(), vec![CallArg::String(args[1].clone())])?;
+        let editor: &mut dyn View = view_map.get_view_mut(editor_view_key);
+        editor.execute_command("open".to_string(), vec![Variant::String(args[1].clone())])?;
     }
     let mut buf = Buf::default();
     let mut should_refresh = true;
     let mut dks: VecDeque<DK> = Default::default();
     let mut key_timeout: Option<Instant> = None;
-
-    while !editor().get_property_bool(crate::consts::PROP_EDITOR_SHOULD_QUIT, true) {
+    while !view_map
+        .get_view(editor_view_key)
+        .as_view_context()
+        .get_property_bool(crate::consts::PROP_EDITOR_SHOULD_QUIT, true)
+    {
         if should_refresh {
-            editor().layout(&view_map, frame);
+            let editor: &mut dyn View = view_map.get_view_mut(editor_view_key);
+            editor.layout(&mut view_map, frame);
             buf.truncate();
             trace!("redisplaying!");
-            editor().display(&view_map, &mut buf, &view_map);
+            editor.display(&view_map, &mut buf, &view_map);
             should_refresh = false;
         }
         if matches!(dks.front(), Some(DK::Key(_)) | None) {
@@ -103,11 +106,15 @@ fn run_app(plugin: PluginRef, view_map: ViewMap) -> anyhow::Result<()> {
             };
         }
         should_refresh = true;
-        pump(editor(), &mut dks)?;
+        pump(&mut view_map, &mut dks, editor_view_key)?;
     }
     Ok(())
 }
-fn pump(editor: &mut Editor, view_map: &ViewMap, dks: &mut VecDeque<DK>) -> anyhow::Result<()> {
+fn pump(
+    view_map: &mut ViewMap,
+    dks: &mut VecDeque<DK>,
+    editor_view_key: ViewKey,
+) -> anyhow::Result<()> {
     while matches!(dks.front(), Some(DK::Key(Key::None))) {
         trace!("popping Key::None off dks");
         dks.pop_front();
@@ -116,21 +123,27 @@ fn pump(editor: &mut Editor, view_map: &ViewMap, dks: &mut VecDeque<DK>) -> anyh
         return Ok(());
     }
     loop {
-        match editor.handle_keys(dks) {
+        match view_map.handle_keys(dks) {
             HandleKey::DK(dk) => match dk {
                 DK::Key(_) => {
                     dks.push_front(dk);
                     continue;
                 }
                 DK::Dispatch(target, message) => {
-                    let view = view_map.resolve(target);
+                    let dispatch_target: &mut dyn DispatchTarget = view_map.resolve_mut(target);
                     let result = match message {
-                        Message::SendKey(key) => view.send_key(key),
-                        Message::Command { name, args } => view.execute_command(name, args),
+                        Message::SendKey(key) => dispatch_target.send_key(key),
+                        Message::Command { name, args } => {
+                            dispatch_target.execute_command(name, args)
+                        }
                     };
-                    editor
-                        .eat_status_result(result)
-                        .context("execute_command")?;
+                    match result {
+                        Ok(status) => {
+                            let editor: &mut dyn View = view_map.get_view_mut(editor_view_key);
+                            editor.set_status(status);
+                        }
+                        Err(error) => anyhow::bail!(error),
+                    }
                 }
                 DK::Sequence(next_dks) => {
                     next_dks
@@ -141,6 +154,7 @@ fn pump(editor: &mut Editor, view_map: &ViewMap, dks: &mut VecDeque<DK>) -> anyh
                 }
             },
             HandleKey::Choices(choices) => {
+                let editor: &mut dyn View = view_map.get_view_mut(editor_view_key);
                 editor.set_status(status!("Valid next bindings: {:?}", choices));
                 return Ok(());
             }

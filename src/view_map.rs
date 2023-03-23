@@ -50,7 +50,17 @@ impl ViewMap {
         }
     }
     pub fn get_named_view(&self, name: &str) -> Option<ViewKey> {
-        self.named_views.get(name).map(|x| *x)
+        match self.named_views.get(name).map(|x| *x) {
+            None => {
+                log::warn!(
+                    "named view '{}' not found. named views are {:?}",
+                    name,
+                    self.named_views
+                );
+                None
+            }
+            vk => vk,
+        }
     }
     pub fn get_view(&self, vk: ViewKey) -> &dyn View {
         match self.map.get(&vk) {
@@ -159,7 +169,7 @@ impl ViewMap {
 }
 
 impl DispatchTarget for ViewMap {
-    fn execute_command(&mut self, name: String, args: Vec<Variant>) -> Result<Status> {
+    fn execute_command(&mut self, name: String, _args: Vec<Variant>) -> Result<Status> {
         if name == "focus-previous" {
             self.goto_previous_view();
             Ok(Status::Cleared)
@@ -173,17 +183,21 @@ impl Dispatcher for ViewMap {
     fn resolve(&self, target: Target) -> &dyn DispatchTarget {
         match target {
             Target::ViewMap => self,
-            Target::Focused => self.focused_view(),
-            Target::View(vk) => self.get_view(vk),
-            Target::Root => self.get_view(self.root_view_key.unwrap()),
+            Target::Focused => self.focused_view().as_dispatch_target(),
+            Target::View(vk) => self.get_view(vk).as_dispatch_target(),
+            Target::Root => self
+                .get_view(self.root_view_key.unwrap())
+                .as_dispatch_target(),
         }
     }
     fn resolve_mut(&mut self, target: Target) -> &mut dyn DispatchTarget {
         match target {
             Target::ViewMap => self,
-            Target::Focused => self.focused_view_mut(),
-            Target::View(vk) => self.get_view_mut(vk),
-            Target::Root => self.get_view_mut(self.root_view_key.unwrap()),
+            Target::Focused => self.focused_view_mut().as_dispatch_target_mut(),
+            Target::View(vk) => self.get_view_mut(vk).as_dispatch_target_mut(),
+            Target::Root => self
+                .get_view_mut(self.root_view_key.unwrap())
+                .as_dispatch_target_mut(),
         }
     }
 }
