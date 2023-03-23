@@ -16,7 +16,6 @@ use std::fs::OpenOptions;
 use std::io::{Seek, SeekFrom, Write};
 
 pub struct DocView {
-    parent: Option<ViewKey>,
     plugin: PluginRef,
     key: ViewKey,
     cursor: Pos,
@@ -29,9 +28,6 @@ pub struct DocView {
 
 #[allow(dead_code)]
 impl DocView {
-    pub fn set_parent(&mut self, parent: Option<ViewKey>) {
-        self.parent = parent;
-    }
     pub fn scroll(&mut self) {
         if self.cursor.y < self.scroll_offset.y {
             self.scroll_offset.y = self.cursor.y;
@@ -160,9 +156,6 @@ impl DocView {
 }
 
 impl View for DocView {
-    fn get_parent(&self) -> Option<ViewKey> {
-        self.parent
-    }
     fn install_plugins(&mut self, plugin: PluginRef) {
         self.plugin = plugin;
     }
@@ -422,7 +415,6 @@ impl ViewContext for DocView {
 impl DocView {
     pub fn new(view_key: ViewKey, plugin: PluginRef) -> Self {
         Self {
-            parent: None,
             plugin,
             key: view_key,
             cursor: Default::default(),

@@ -16,8 +16,8 @@ pub struct Editor {
     should_quit: bool,
     last_key: Option<Key>,
     view_key: ViewKey,
-    top_view_key: ViewKey,
-    command_line: ViewKey,
+    top_view_key: Option<ViewKey>,
+    command_line_key: ViewKey,
     frame: Rect,
 }
 
@@ -31,9 +31,6 @@ impl ViewContext for Editor {
     }
 }
 impl View for Editor {
-    fn get_parent(&self) -> Option<ViewKey> {
-        None
-    }
     fn install_plugins(&mut self, plugin: PluginRef) {
         self.plugin = plugin;
     }
@@ -42,33 +39,41 @@ impl View for Editor {
     }
     fn layout(&mut self, _view_map: &ViewMap, frame: Rect) -> Vec<(ViewKey, Rect)> {
         self.frame = frame;
-        vec![
-            (
-                self.top_view_key,
+        let mut ret = Vec::new();
+
+        if let Some(top_view_key) = self.top_view_key {
+            ret.push((
+                top_view_key,
                 Rect {
                     x: 0,
                     y: 0,
                     width: frame.width,
                     height: frame.height - 2,
                 },
-            ),
-            (
-                self.command_line,
-                Rect {
-                    x: 0,
-                    y: frame.height - 2,
-                    width: frame.width,
-                    height: 2,
-                },
-            ),
-        ]
+            ));
+        }
+        ret.push((
+            self.command_line_key,
+            Rect {
+                x: 0,
+                y: frame.height - 2,
+                width: frame.width,
+                height: 2,
+            },
+        ));
+        ret
     }
 
     fn display(&self, view_map: &ViewMap, buf: &mut Buf) {
         // Hide the cursor.
         buf.append("\x1b[?25l");
-        view_map.get_view(self.top_view_key).display(view_map, buf);
-        view_map.get_view(self.command_line).display(view_map, buf);
+        if let Some(top_view_key) = self.top_view_key {
+            view_map.get_view(top_view_key).display(view_map, buf);
+        }
+        view_map
+            .get_view(self.command_line_key)
+            .display(view_map, buf);
+
         if let Some(cursor_pos) = view_map.focused_view().get_cursor_pos() {
             place_cursor(buf, cursor_pos);
         } else {
@@ -111,19 +116,6 @@ impl DispatchTarget for Editor {
     }
 }
 
-fn build_view_map(command_line: ViewRef, views: Vec<ViewRef>, view_map: &mut ViewMap) {
-    views.into_iter().for_each(|view| {
-        let vk = view.get_view_key();
-        view_map.insert(vk, view, None)
-    });
-    let command_line_view_key = command_line.get_view_key();
-    view_map.insert(
-        command_line_view_key,
-        command_line,
-        Some("command-line".to_string()),
-    );
-}
-
 #[allow(dead_code)]
 impl Editor {
     pub fn get_should_quit(&self) -> bool {
@@ -141,28 +133,35 @@ impl Editor {
         }
     }
     pub fn install(plugin: PluginRef, view_map: &mut ViewMap) -> ViewKey {
-        let views: Vec<ViewRef> = vec![viewref(DocView::new(
-            view_map.get_next_key(),
-            plugin.clone(),
-        ))];
-        let focused_view_key = views[0].get_view_key();
         let command_line_key = view_map.get_next_key();
-        let commandline = viewref(CommandLine::new(plugin.clone(), command_line_key));
-        build_view_map(commandline, views, view_map);
+        let command_line = viewref(CommandLine::new(plugin.clone(), command_line_key));
+        let editor_view_key = view_map.get_next_key();
         let slf = Self {
-            plugin,
-            view_key: view_map.get_next_key(),
+            plugin: plugin.clone(),
+            view_key: editor_view_key,
             should_quit: false,
             frame: Rect::zero(),
             last_key: None,
-            top_view_key: focused_view_key,
-            command_line: command_line_key,
+            top_view_key: None,
+            command_line_key,
         };
-        commandline.set_parent(slf.view_key);
-        view_map.set_focused_view(focused_view_key);
         view_map.set_root_view_key(slf.view_key);
         let vk = slf.view_key;
-        view_map.insert(slf.view_key, viewref(slf), Some("editor".to_string()));
+        view_map.insert(slf.view_key, viewref(slf), None, Some("editor".to_string()));
+        let views: Vec<ViewRef> = vec![viewref(DocView::new(view_map.get_next_key(), plugin))];
+        let focused_view_key = views[0].get_view_key();
+        views.into_iter().for_each(|view| {
+            let vk = view.get_view_key();
+            view_map.insert(vk, view, Some(editor_view_key), None)
+        });
+        let command_line_view_key = command_line.get_view_key();
+        view_map.insert(
+            command_line_view_key,
+            command_line,
+            Some(editor_view_key),
+            Some("command-line".to_string()),
+        );
+        view_map.set_focused_view(focused_view_key);
         vk
     }
 

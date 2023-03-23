@@ -6,6 +6,7 @@ use crate::trie::{Mapping, TrieNode};
 pub struct ViewMap {
     map: HashMap<ViewKey, ViewRef>,
     named_views: HashMap<String, ViewKey>,
+    parents_map: HashMap<ViewKey, ViewKey>,
     previous_views: Vec<ViewKey>,
     view_key_gen: ViewKeyGenerator,
     root_view_key: Option<ViewKey>,
@@ -17,6 +18,7 @@ impl ViewMap {
             map: Default::default(),
             named_views: Default::default(),
             previous_views: Default::default(),
+            parents_map: Default::default(),
             view_key_gen: ViewKeyGenerator::new(),
             root_view_key: None,
         }
@@ -44,12 +46,25 @@ impl ViewMap {
     pub fn get_root_view_key(&self) -> ViewKey {
         self.root_view_key.unwrap()
     }
-    pub fn insert(&mut self, vk: ViewKey, view: ViewRef, name: Option<String>) {
+    pub fn insert(
+        &mut self,
+        vk: ViewKey,
+        view: ViewRef,
+        vk_parent: Option<ViewKey>,
+        name: Option<String>,
+    ) {
         self.map.insert(vk, view);
         if let Some(name) = name {
             assert!(!self.named_views.contains_key(&name));
             self.named_views.insert(name, vk);
+            if let Some(vk_parent) = vk_parent {
+                self.parents_map.insert(vk, vk_parent);
+            }
         }
+    }
+    #[allow(dead_code)]
+    pub fn get_parent_view(&self, vk: ViewKey) -> Option<ViewRef> {
+        self.parents_map.get(&vk).map(|&vk| self.get_view(vk))
     }
     pub fn get_named_view(&self, name: &str) -> Option<ViewRef> {
         self.named_views.get(name).map(|&vk| self.get_view(vk))
@@ -81,7 +96,11 @@ impl ViewMap {
         let mut view = self.get_view(view_key);
         loop {
             path.push(Target::View(view.get_view_key()));
-            match view.get_parent().map(|vk| self.get_view(vk)) {
+            match self
+                .parents_map
+                .get(&view.get_view_key())
+                .map(|&vk| self.get_view(vk))
+            {
                 Some(parent) => {
                     view = parent;
                 }

@@ -34,12 +34,6 @@ impl ViewContext for ViewRef {
 }
 
 impl View for ViewRef {
-    fn set_parent(&mut self, vk: ViewKey) {
-        self.ptr.borrow().set_parent(vk)
-    }
-    fn get_parent(&self) -> Option<ViewKey> {
-        self.ptr.borrow().get_parent()
-    }
     fn install_plugins(&mut self, plugin: PluginRef) {
         self.ptr.borrow_mut().install_plugins(plugin)
     }

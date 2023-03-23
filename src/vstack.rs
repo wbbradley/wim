@@ -7,17 +7,9 @@ use crate::types::{Pos, Rect};
 use crate::view::{ViewContext, ViewKey};
 
 pub struct VStack {
-    parent: Option<ViewKey>,
     plugin: PluginRef,
     view_key: ViewKey,
     view_keys: Vec<ViewKey>,
-}
-
-impl VStack {
-    #[allow(dead_code)]
-    pub fn set_parent(&mut self, parent: Option<ViewKey>) {
-        self.parent = parent;
-    }
 }
 
 impl ViewContext for VStack {
@@ -26,9 +18,6 @@ impl ViewContext for VStack {
     }
 }
 impl View for VStack {
-    fn get_parent(&self) -> Option<ViewKey> {
-        self.parent
-    }
     fn install_plugins(&mut self, plugin: PluginRef) {
         self.plugin = plugin;
     }

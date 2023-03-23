@@ -19,10 +19,10 @@ pub trait ViewContext {
             _ => default,
         }
     }
-    fn get_property_string(&self, property: &str, default: &str) -> String {
+    fn get_property_string(&self, property: &str) -> Option<String> {
         match self.get_property(property) {
-            Some(Variant::String(b)) => b,
-            _ => default.to_string(),
+            Some(Variant::String(b)) => Some(b),
+            _ => None,
         }
     }
     fn get_property_pos(&self, property: &str) -> Option<Pos> {
@@ -34,8 +34,6 @@ pub trait ViewContext {
 }
 
 pub trait View: DispatchTarget + ViewContext {
-    fn set_parent(&mut self, vk: ViewKey);
-    fn get_parent(&self) -> Option<ViewKey>;
     fn install_plugins(&mut self, plugin: PluginRef);
     /// layout returns a vec of views that also need layout.
     #[must_use]

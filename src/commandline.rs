@@ -5,7 +5,6 @@ use crate::prelude::*;
 
 #[allow(dead_code)]
 pub struct CommandLine {
-    parent: Option<ViewKey>,
     plugin: PluginRef,
     view_key: ViewKey,
     cursor: Coord,
@@ -20,7 +19,6 @@ pub struct CommandLine {
 impl CommandLine {
     pub fn new(plugin: PluginRef, view_key: ViewKey) -> Self {
         Self {
-            parent: None,
             plugin,
             view_key,
             cursor: 0,
@@ -34,12 +32,6 @@ impl CommandLine {
 }
 
 impl View for CommandLine {
-    fn set_parent(&mut self, parent: ViewKey) {
-        self.parent = Some(parent);
-    }
-    fn get_parent(&self) -> Option<ViewKey> {
-        self.parent
-    }
     fn install_plugins(&mut self, plugin: PluginRef) {
         self.plugin = plugin;
     }
@@ -54,20 +46,22 @@ impl View for CommandLine {
             .focused_view()
             .get_property_bool(PROP_DOC_IS_MODIFIED, false);
         let current_filename = view_map
-            .get_view(self.parent.unwrap())
-            .get_property_string(PROP_DOC_FILENAME, "<no filename>");
+            .focused_view()
+            .get_property_string(PROP_DOC_FILENAME);
         let status_text = view_map
             .focused_view()
-            .get_property_string(PROP_DOCVIEW_STATUS, "");
-        log::trace!("PROP_DOCVIEW_STATUS={}", status_text);
+            .get_property_string(PROP_DOCVIEW_STATUS);
+        log::trace!("PROP_DOCVIEW_STATUS={:?}", status_text);
         {
             let mut line: Line = Line::new(buf, self.frame.width);
-            line_fmt!(
-                line,
-                " {} {}|",
-                current_filename,
-                if is_dirty { "(modified) " } else { "" }
-            );
+            if let Some(current_filename) = current_filename {
+                line_fmt!(
+                    line,
+                    " {} {}|",
+                    current_filename,
+                    if is_dirty { "(modified) " } else { "" }
+                );
+            }
             if let Status::Message {
                 ref message,
                 expiry,
@@ -77,7 +71,9 @@ impl View for CommandLine {
                     line_fmt!(line, " {}", message);
                 }
             }
-            line.end_with(&status_text);
+            if let Some(status_text) = status_text {
+                line.end_with(&status_text);
+            }
         }
 
         buf.append("\x1b[m");
