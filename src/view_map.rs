@@ -2,9 +2,10 @@ use crate::error::Result;
 use crate::keygen::ViewKeyGenerator;
 use crate::prelude::*;
 use crate::trie::{Mapping, TrieNode};
+use crate::types::Rect;
 
 pub struct ViewMap {
-    map: HashMap<ViewKey, Box<dyn View>>,
+    map: HashMap<ViewKey, ViewRef>,
     named_views: HashMap<String, ViewKey>,
     previous_views: Vec<ViewKey>,
     view_key_gen: ViewKeyGenerator,
@@ -39,38 +40,25 @@ impl ViewMap {
     pub fn get_next_key(&mut self) -> ViewKey {
         self.view_key_gen.next_key()
     }
+    pub fn get_root_view(&self) -> ViewRef {
+        self.get_view(self.root_view_key.unwrap())
+    }
     pub fn get_root_view_key(&self) -> ViewKey {
         self.root_view_key.unwrap()
     }
-    pub fn insert(&mut self, vk: ViewKey, view: Box<dyn View>, name: Option<String>) {
+    pub fn insert(&mut self, vk: ViewKey, view: ViewRef, name: Option<String>) {
         self.map.insert(vk, view);
         if let Some(name) = name {
             assert!(!self.named_views.contains_key(&name));
             self.named_views.insert(name, vk);
         }
     }
-    pub fn get_named_view(&self, name: &str) -> Option<ViewKey> {
-        match self.named_views.get(name).map(|x| *x) {
-            None => {
-                log::warn!(
-                    "named view '{}' not found. named views are {:?}",
-                    name,
-                    self.named_views
-                );
-                None
-            }
-            vk => vk,
-        }
+    pub fn get_named_view(&self, name: &str) -> Option<ViewRef> {
+        self.named_views.get(name).map(|&vk| self.get_view(vk))
     }
-    pub fn get_view(&self, vk: ViewKey) -> &dyn View {
+    pub fn get_view(&self, vk: ViewKey) -> ViewRef {
         match self.map.get(&vk) {
-            Some(&view) => &*view,
-            None => panic!("oh no, no view!"),
-        }
-    }
-    pub fn get_view_mut(&mut self, vk: ViewKey) -> &mut dyn View {
-        match self.map.get_mut(&vk) {
-            Some(&mut view) => &mut *view,
+            Some(view) => view.clone(),
             None => panic!("oh no, no view!"),
         }
     }
@@ -78,28 +66,18 @@ impl ViewMap {
         assert!(!self.previous_views.is_empty());
         *self.previous_views.last().unwrap()
     }
-    pub fn focused_view(&self) -> &dyn View {
+    pub fn focused_view(&self) -> ViewRef {
         self.get_view(self.focused_view_key())
-    }
-    pub fn focused_view_mut(&mut self) -> &mut dyn View {
-        assert!(!self.previous_views.is_empty());
-        self.get_view_mut(*self.previous_views.last().unwrap())
     }
     pub fn set_focused_view(&mut self, vk: ViewKey) {
         assert!(self.map.contains_key(&vk));
         self.focused_view_key = Some(vk);
     }
 
-    pub fn get_view_or_focused_view(&self, view_key: Option<ViewKey>) -> &dyn View {
+    pub fn get_view_or_focused_view(&self, view_key: Option<ViewKey>) -> ViewRef {
         match view_key {
             Some(view_key) => self.get_view(view_key),
             None => self.focused_view(),
-        }
-    }
-    pub fn get_view_or_focused_view_mut(&mut self, view_key: Option<ViewKey>) -> &mut dyn View {
-        match view_key {
-            Some(view_key) => self.get_view_mut(view_key),
-            None => self.focused_view_mut(),
         }
     }
     fn ancestor_path(&self, view_key: ViewKey) -> Vec<Target> {
@@ -116,7 +94,7 @@ impl ViewMap {
         }
         path
     }
-    pub fn handle_keys(&self, dks: &mut VecDeque<DK>) -> HandleKey {
+    pub fn handle_keys(&mut self, dks: &mut VecDeque<DK>) -> HandleKey {
         let path: Vec<Target> = self.ancestor_path(self.focused_view_key());
         let trie: TrieNode = TrieNode::from_ancestor_path(path, self);
         let inbound_keys: Vec<Key> = dks
@@ -163,6 +141,15 @@ impl ViewMap {
         }
     }
 
+    pub fn layout(&mut self, frame: Rect) {
+        let mut layout_jobs: Vec<(ViewKey, Rect)> = vec![(self.get_root_view_key(), frame)];
+        while let Some((vk, rect)) = layout_jobs.pop() {
+            let mut view = self.get_view(vk);
+            let next_jobs = view.layout(self, rect);
+            layout_jobs.extend(next_jobs);
+        }
+    }
+
     pub fn goto_previous_view(&mut self) {
         self.previous_views.pop();
     }
@@ -180,24 +167,12 @@ impl DispatchTarget for ViewMap {
 }
 
 impl Dispatcher for ViewMap {
-    fn resolve(&self, target: Target) -> &dyn DispatchTarget {
-        match target {
-            Target::ViewMap => self,
-            Target::Focused => self.focused_view().as_dispatch_target(),
-            Target::View(vk) => self.get_view(vk).as_dispatch_target(),
-            Target::Root => self
-                .get_view(self.root_view_key.unwrap())
-                .as_dispatch_target(),
-        }
-    }
     fn resolve_mut(&mut self, target: Target) -> &mut dyn DispatchTarget {
         match target {
             Target::ViewMap => self,
-            Target::Focused => self.focused_view_mut().as_dispatch_target_mut(),
-            Target::View(vk) => self.get_view_mut(vk).as_dispatch_target_mut(),
-            Target::Root => self
-                .get_view_mut(self.root_view_key.unwrap())
-                .as_dispatch_target_mut(),
+            Target::Focused => &mut self.focused_view(),
+            Target::View(vk) => &mut self.get_view(vk),
+            Target::Root => &mut self.get_view(self.root_view_key.unwrap()),
         }
     }
 }

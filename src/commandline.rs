@@ -47,23 +47,15 @@ impl CommandLine {
 }
 
 impl View for CommandLine {
-    fn as_view_context(&self) -> &dyn ViewContext {
-        self
-    }
-    fn as_dispatch_target(&self) -> &dyn DispatchTarget {
-        self
-    }
-    fn as_dispatch_target_mut(&mut self) -> &mut dyn DispatchTarget {
-        self
-    }
     fn get_parent(&self) -> Option<ViewKey> {
         self.parent
     }
     fn install_plugins(&mut self, plugin: PluginRef) {
         self.plugin = plugin;
     }
-    fn layout(&mut self, _view_map: &mut ViewMap, frame: Rect) {
+    fn layout(&mut self, _view_map: &ViewMap, frame: Rect) -> Vec<(ViewKey, Rect)> {
         self.frame = frame;
+        Default::default()
     }
     fn display(&self, view_map: &ViewMap, buf: &mut Buf, context: &dyn ViewContext) {
         place_cursor(buf, self.frame.top_left());

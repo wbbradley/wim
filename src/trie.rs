@@ -9,14 +9,14 @@ pub struct TrieNode {
 }
 
 impl TrieNode {
-    pub fn from_ancestor_path(ancestor_path: Vec<Target>, dispatcher: &dyn Dispatcher) -> Self {
+    pub fn from_ancestor_path(ancestor_path: Vec<Target>, dispatcher: &mut dyn Dispatcher) -> Self {
         ancestor_path
             .iter()
             .cloned()
-            .map(|target| dispatcher.resolve(target).get_key_bindings())
+            .map(|target| dispatcher.resolve_mut(target).get_key_bindings())
             .fold(Self::default(), |node, b| node.with_bindings(b))
     }
-    fn with_bindings(self, bindings: Bindings) -> Self {
+    fn with_bindings(mut self, bindings: Bindings) -> Self {
         for (keys, dk) in bindings {
             self.insert(dk, &keys);
         }

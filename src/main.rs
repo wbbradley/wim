@@ -38,6 +38,7 @@ mod utils;
 mod variant;
 mod view;
 mod view_map;
+mod viewref;
 mod vstack;
 mod widechar_width;
 
@@ -62,32 +63,28 @@ fn main() -> anyhow::Result<()> {
     res
 }
 
-fn run_app(plugin: PluginRef, view_map: ViewMap) -> anyhow::Result<()> {
+fn run_app(plugin: PluginRef, mut view_map: ViewMap) -> anyhow::Result<()> {
     let args: Vec<String> = env::args().collect();
     trace!("wim run with args: {:?}", args);
 
     let frame: Rect = Termios::get_window_size().into();
 
     let editor_view_key = Editor::install(plugin, &mut view_map);
+    let mut editor: ViewRef = view_map.get_view(editor_view_key);
     if args.len() > 1 {
-        let editor: &mut dyn View = view_map.get_view_mut(editor_view_key);
         editor.execute_command("open".to_string(), vec![Variant::String(args[1].clone())])?;
     }
     let mut buf = Buf::default();
     let mut should_refresh = true;
     let mut dks: VecDeque<DK> = Default::default();
     let mut key_timeout: Option<Instant> = None;
-    while !view_map
-        .get_view(editor_view_key)
-        .as_view_context()
-        .get_property_bool(crate::consts::PROP_EDITOR_SHOULD_QUIT, true)
-    {
+    while !editor.get_property_bool(crate::consts::PROP_EDITOR_SHOULD_QUIT, true) {
         if should_refresh {
-            let editor: &mut dyn View = view_map.get_view_mut(editor_view_key);
-            editor.layout(&mut view_map, frame);
+            view_map.layout(frame);
             buf.truncate();
-            trace!("redisplaying!");
-            editor.display(&view_map, &mut buf, &view_map);
+            view_map
+                .get_root_view()
+                .display(&view_map, &mut buf, &view_map);
             should_refresh = false;
         }
         if matches!(dks.front(), Some(DK::Key(_)) | None) {
@@ -106,14 +103,14 @@ fn run_app(plugin: PluginRef, view_map: ViewMap) -> anyhow::Result<()> {
             };
         }
         should_refresh = true;
-        pump(&mut view_map, &mut dks, editor_view_key)?;
+        pump(&mut view_map, &mut dks, &mut editor)?;
     }
     Ok(())
 }
 fn pump(
     view_map: &mut ViewMap,
     dks: &mut VecDeque<DK>,
-    editor_view_key: ViewKey,
+    editor: &mut ViewRef,
 ) -> anyhow::Result<()> {
     while matches!(dks.front(), Some(DK::Key(Key::None))) {
         trace!("popping Key::None off dks");
@@ -139,7 +136,6 @@ fn pump(
                     };
                     match result {
                         Ok(status) => {
-                            let editor: &mut dyn View = view_map.get_view_mut(editor_view_key);
                             editor.set_status(status);
                         }
                         Err(error) => anyhow::bail!(error),
@@ -154,7 +150,6 @@ fn pump(
                 }
             },
             HandleKey::Choices(choices) => {
-                let editor: &mut dyn View = view_map.get_view_mut(editor_view_key);
                 editor.set_status(status!("Valid next bindings: {:?}", choices));
                 return Ok(());
             }

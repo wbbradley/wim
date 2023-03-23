@@ -2,6 +2,12 @@ use crate::bindings::Bindings;
 use crate::error::{Error, Result};
 use crate::prelude::*;
 
+pub trait DispatchClient {
+    fn get_key_bindings(&self) -> Bindings;
+    fn execute_command(&self, name: String, args: Vec<Variant>) -> Result<Status>;
+    fn send_key(&self, key: Key) -> Result<Status>;
+}
+
 pub trait DispatchTarget {
     fn get_key_bindings(&self) -> Bindings {
         Default::default()
@@ -32,6 +38,5 @@ pub enum Target {
 }
 
 pub trait Dispatcher {
-    fn resolve(&self, target: Target) -> &dyn DispatchTarget;
     fn resolve_mut(&mut self, target: Target) -> &mut dyn DispatchTarget;
 }

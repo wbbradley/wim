@@ -160,25 +160,17 @@ impl DocView {
 }
 
 impl View for DocView {
-    fn as_view_context(&self) -> &dyn ViewContext {
-        self
-    }
-    fn as_dispatch_target(&self) -> &dyn DispatchTarget {
-        self
-    }
-    fn as_dispatch_target_mut(&mut self) -> &mut dyn DispatchTarget {
-        self
-    }
     fn get_parent(&self) -> Option<ViewKey> {
         self.parent.clone()
     }
     fn install_plugins(&mut self, plugin: PluginRef) {
         self.plugin = plugin;
     }
-    fn layout(&mut self, _view_map: &mut ViewMap, frame: Rect) {
+    fn layout(&mut self, _view_map: &ViewMap, frame: Rect) -> Vec<(ViewKey, Rect)> {
         log::trace!("docview frame is {:?}", frame);
         self.frame = frame;
         self.scroll();
+        vec![]
     }
     fn display(&self, _view_map: &ViewMap, buf: &mut Buf, _context: &dyn ViewContext) {
         let rows_drawn = self.draw_rows(buf);
