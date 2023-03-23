@@ -10,3 +10,21 @@ pub enum Variant {
     Bool(bool),
     Pos(Pos),
 }
+
+impl From<bool> for Variant {
+    fn from(b: bool) -> Self {
+        Self::Bool(b)
+    }
+}
+
+impl From<&str> for Variant {
+    fn from(s: &str) -> Self {
+        Self::String(s.into())
+    }
+}
+
+impl From<ViewKey> for Variant {
+    fn from(vk: ViewKey) -> Self {
+        Self::ViewKey(vk)
+    }
+}

@@ -21,7 +21,15 @@ pub struct Editor {
     frame: Rect,
 }
 
-impl ViewContext for Editor {}
+impl ViewContext for Editor {
+    fn get_property(&self, property: &str) -> Option<Variant> {
+        if property == PROP_EDITOR_SHOULD_QUIT {
+            Some(self.get_should_quit().into())
+        } else {
+            panic!("unhandled get_property '{}'", property);
+        }
+    }
+}
 impl View for Editor {
     fn get_parent(&self) -> Option<ViewKey> {
         None
@@ -56,13 +64,11 @@ impl View for Editor {
         ]
     }
 
-    fn display(&self, view_map: &ViewMap, buf: &mut Buf, context: &dyn ViewContext) {
+    fn display(&self, view_map: &ViewMap, buf: &mut Buf) {
         // Hide the cursor.
         buf.append("\x1b[?25l");
-        view_map.get_root_view().display(view_map, buf, context);
-        view_map
-            .get_view(self.command_line)
-            .display(view_map, buf, context);
+        view_map.get_view(self.top_view_key).display(view_map, buf);
+        view_map.get_view(self.command_line).display(view_map, buf);
         if let Some(cursor_pos) = view_map.focused_view().get_cursor_pos() {
             place_cursor(buf, cursor_pos);
         } else {
@@ -141,11 +147,8 @@ impl Editor {
         ))];
         let focused_view_key = views[0].get_view_key();
         let command_line_key = view_map.get_next_key();
-        build_view_map(
-            viewref(CommandLine::new(plugin.clone(), command_line_key)),
-            views,
-            view_map,
-        );
+        let commandline = viewref(CommandLine::new(plugin.clone(), command_line_key));
+        build_view_map(commandline, views, view_map);
         let slf = Self {
             plugin,
             view_key: view_map.get_next_key(),
@@ -155,6 +158,7 @@ impl Editor {
             top_view_key: focused_view_key,
             command_line: command_line_key,
         };
+        commandline.set_parent(slf.view_key);
         view_map.set_focused_view(focused_view_key);
         view_map.set_root_view_key(slf.view_key);
         let vk = slf.view_key;

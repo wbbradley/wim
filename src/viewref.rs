@@ -15,18 +15,6 @@ pub struct ViewRef {
     ptr: Rc<RefCell<dyn View>>,
 }
 
-impl DispatchClient for ViewRef {
-    fn get_key_bindings(&self) -> Bindings {
-        self.ptr.borrow().get_key_bindings()
-    }
-    fn execute_command(&self, name: String, args: Vec<Variant>) -> Result<Status> {
-        self.ptr.borrow_mut().execute_command(name, args)
-    }
-    fn send_key(&self, key: Key) -> Result<Status> {
-        self.ptr.borrow_mut().send_key(key)
-    }
-}
-
 impl DispatchTarget for ViewRef {
     fn get_key_bindings(&self) -> Bindings {
         self.ptr.borrow().get_key_bindings()
@@ -46,6 +34,9 @@ impl ViewContext for ViewRef {
 }
 
 impl View for ViewRef {
+    fn set_parent(&mut self, vk: ViewKey) {
+        self.ptr.borrow().set_parent(vk)
+    }
     fn get_parent(&self) -> Option<ViewKey> {
         self.ptr.borrow().get_parent()
     }
@@ -55,8 +46,8 @@ impl View for ViewRef {
     fn layout(&mut self, view_map: &ViewMap, frame: Rect) -> Vec<(ViewKey, Rect)> {
         self.ptr.borrow_mut().layout(view_map, frame)
     }
-    fn display(&self, view_map: &ViewMap, buf: &mut Buf, context: &dyn ViewContext) {
-        self.ptr.borrow().display(view_map, buf, context)
+    fn display(&self, view_map: &ViewMap, buf: &mut Buf) {
+        self.ptr.borrow().display(view_map, buf)
     }
     fn get_view_key(&self) -> ViewKey {
         self.ptr.borrow().get_view_key()

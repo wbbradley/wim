@@ -1,17 +1,7 @@
-use crate::bindings::Bindings;
-use crate::buf::{place_cursor, Buf};
-use crate::consts::{PROP_DOCVIEW_STATUS, PROP_DOC_FILENAME, PROP_DOC_IS_MODIFIED};
-use crate::dk::DK;
+use crate::buf::place_cursor;
 use crate::error::{Error, Result};
-use crate::key::Key;
 use crate::line::{line_fmt, Line};
-use crate::mode::Mode;
-use crate::plugin::PluginRef;
 use crate::prelude::*;
-use crate::status::Status;
-use crate::types::{Coord, Pos, Rect};
-use crate::view::{ViewContext, ViewKey};
-use std::time::Instant;
 
 #[allow(dead_code)]
 pub struct CommandLine {
@@ -41,12 +31,12 @@ impl CommandLine {
             status: Status::Cleared,
         }
     }
-    pub fn set_parent(&mut self, parent: Option<ViewKey>) {
-        self.parent = parent;
-    }
 }
 
 impl View for CommandLine {
+    fn set_parent(&mut self, parent: ViewKey) {
+        self.parent = Some(parent);
+    }
     fn get_parent(&self) -> Option<ViewKey> {
         self.parent
     }
@@ -57,12 +47,18 @@ impl View for CommandLine {
         self.frame = frame;
         Default::default()
     }
-    fn display(&self, view_map: &ViewMap, buf: &mut Buf, context: &dyn ViewContext) {
+    fn display(&self, view_map: &ViewMap, buf: &mut Buf) {
         place_cursor(buf, self.frame.top_left());
         buf.append("\x1b[7m");
-        let is_dirty = context.get_property_bool(PROP_DOC_IS_MODIFIED, false);
-        let current_filename = context.get_property_string(PROP_DOC_FILENAME, "<no filename>");
-        let status_text = context.get_property_string(PROP_DOCVIEW_STATUS, "");
+        let is_dirty = view_map
+            .focused_view()
+            .get_property_bool(PROP_DOC_IS_MODIFIED, false);
+        let current_filename = view_map
+            .get_view(self.parent.unwrap())
+            .get_property_string(PROP_DOC_FILENAME, "<no filename>");
+        let status_text = view_map
+            .focused_view()
+            .get_property_string(PROP_DOCVIEW_STATUS, "");
         log::trace!("PROP_DOCVIEW_STATUS={}", status_text);
         {
             let mut line: Line = Line::new(buf, self.frame.width);
@@ -127,7 +123,7 @@ impl DispatchTarget for CommandLine {
                 command("clear-text").at_view(vk),
                 command("focus-previous").at_view_map(),
                 command("invoke-execute")
-                    .arg(self.text.clone())
+                    .arg(self.text.as_ref())
                     .at_focused(),
             ]),
         );
@@ -165,4 +161,9 @@ impl DispatchTarget for CommandLine {
         }
     }
 }
-impl ViewContext for CommandLine {}
+
+impl ViewContext for CommandLine {
+    fn get_property(&self, _property: &str) -> Option<Variant> {
+        None
+    }
+}

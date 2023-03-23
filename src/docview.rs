@@ -161,7 +161,7 @@ impl DocView {
 
 impl View for DocView {
     fn get_parent(&self) -> Option<ViewKey> {
-        self.parent.clone()
+        self.parent
     }
     fn install_plugins(&mut self, plugin: PluginRef) {
         self.plugin = plugin;
@@ -172,7 +172,7 @@ impl View for DocView {
         self.scroll();
         vec![]
     }
-    fn display(&self, _view_map: &ViewMap, buf: &mut Buf, _context: &dyn ViewContext) {
+    fn display(&self, _view_map: &ViewMap, buf: &mut Buf) {
         let rows_drawn = self.draw_rows(buf);
         for y in rows_drawn..self.frame.height {
             place_cursor(

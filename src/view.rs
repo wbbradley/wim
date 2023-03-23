@@ -12,9 +12,7 @@ impl From<usize> for ViewKey {
 }
 
 pub trait ViewContext {
-    fn get_property(&self, _property: &str) -> Option<Variant> {
-        None
-    }
+    fn get_property(&self, _property: &str) -> Option<Variant>;
     fn get_property_bool(&self, property: &str, default: bool) -> bool {
         match self.get_property(property) {
             Some(Variant::Bool(b)) => b,
@@ -36,12 +34,13 @@ pub trait ViewContext {
 }
 
 pub trait View: DispatchTarget + ViewContext {
+    fn set_parent(&mut self, vk: ViewKey);
     fn get_parent(&self) -> Option<ViewKey>;
     fn install_plugins(&mut self, plugin: PluginRef);
     /// layout returns a vec of views that also need layout.
     #[must_use]
     fn layout(&mut self, view_map: &ViewMap, frame: Rect) -> Vec<(ViewKey, Rect)>;
-    fn display(&self, view_map: &ViewMap, buf: &mut Buf, context: &dyn ViewContext);
+    fn display(&self, view_map: &ViewMap, buf: &mut Buf);
     fn get_view_key(&self) -> ViewKey;
     fn get_cursor_pos(&self) -> Option<Pos>;
     fn get_view_mode(&self) -> Mode;

@@ -35,6 +35,7 @@ impl CommandBuilder {
     pub fn at_view(self, view_key: ViewKey) -> DK {
         self.at_target(Target::View(view_key))
     }
+    #[allow(dead_code)]
     pub fn at_root(self) -> DK {
         self.at_target(Target::Root)
     }

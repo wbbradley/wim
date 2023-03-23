@@ -13,7 +13,7 @@ impl TrieNode {
         ancestor_path
             .iter()
             .cloned()
-            .map(|target| dispatcher.resolve_mut(target).get_key_bindings())
+            .map(|target| dispatcher.resolve(target).get_key_bindings())
             .fold(Self::default(), |node, b| node.with_bindings(b))
     }
     fn with_bindings(mut self, bindings: Bindings) -> Self {

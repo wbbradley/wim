@@ -23,6 +23,7 @@ mod files;
 mod key;
 mod keygen;
 mod line;
+mod message;
 mod mode;
 mod noun;
 mod plugin;
@@ -71,20 +72,24 @@ fn run_app(plugin: PluginRef, mut view_map: ViewMap) -> anyhow::Result<()> {
 
     let editor_view_key = Editor::install(plugin, &mut view_map);
     let mut editor: ViewRef = view_map.get_view(editor_view_key);
-    if args.len() > 1 {
-        editor.execute_command("open".to_string(), vec![Variant::String(args[1].clone())])?;
-    }
     let mut buf = Buf::default();
     let mut should_refresh = true;
     let mut dks: VecDeque<DK> = Default::default();
     let mut key_timeout: Option<Instant> = None;
+    if args.len() > 1 {
+        let filename = args[1].as_ref();
+        dks.push_back(command("open").arg(filename).at_focused());
+    }
     while !editor.get_property_bool(crate::consts::PROP_EDITOR_SHOULD_QUIT, true) {
         if should_refresh {
-            view_map.layout(frame);
+            let mut layout_jobs: Vec<(ViewKey, Rect)> = vec![(view_map.get_root_view_key(), frame)];
+            while let Some((vk, rect)) = layout_jobs.pop() {
+                let mut view = view_map.get_view(vk);
+                let next_jobs = view.layout(&view_map, rect);
+                layout_jobs.extend(next_jobs);
+            }
             buf.truncate();
-            view_map
-                .get_root_view()
-                .display(&view_map, &mut buf, &view_map);
+            view_map.get_root_view().display(&view_map, &mut buf);
             should_refresh = false;
         }
         if matches!(dks.front(), Some(DK::Key(_)) | None) {
@@ -127,7 +132,7 @@ fn pump(
                     continue;
                 }
                 DK::Dispatch(target, message) => {
-                    let dispatch_target: &mut dyn DispatchTarget = view_map.resolve_mut(target);
+                    let mut dispatch_target = view_map.resolve(target);
                     let result = match message {
                         Message::SendKey(key) => dispatch_target.send_key(key),
                         Message::Command { name, args } => {

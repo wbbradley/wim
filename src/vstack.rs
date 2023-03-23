@@ -20,7 +20,11 @@ impl VStack {
     }
 }
 
-impl ViewContext for VStack {}
+impl ViewContext for VStack {
+    fn get_property(&self, property: &str) -> Option<Variant> {
+        panic!("not implemented: property: {}", property);
+    }
+}
 impl View for VStack {
     fn get_parent(&self) -> Option<ViewKey> {
         self.parent
@@ -63,11 +67,11 @@ impl View for VStack {
     fn get_view_key(&self) -> ViewKey {
         self.view_key
     }
-    fn display(&self, view_map: &ViewMap, buf: &mut Buf, context: &dyn ViewContext) {
+    fn display(&self, view_map: &ViewMap, buf: &mut Buf) {
         self.view_keys
             .iter()
             .cloned()
-            .for_each(|view_key| view_map.get_view(view_key).display(view_map, buf, context));
+            .for_each(|view_key| view_map.get_view(view_key).display(view_map, buf));
     }
     fn get_cursor_pos(&self) -> Option<Pos> {
         panic!("VStack should not be focused!");
