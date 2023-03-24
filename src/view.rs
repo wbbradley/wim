@@ -41,7 +41,6 @@ pub trait View: DispatchTarget + ViewContext {
     fn display(&self, view_map: &ViewMap, buf: &mut Buf);
     fn get_view_key(&self) -> ViewKey;
     fn get_cursor_pos(&self) -> Option<Pos>;
-    fn get_view_mode(&self) -> Mode;
     fn set_status(&mut self, status: Status) {
         log::warn!(
             "View '{}' is ignoring set_status calls. [status={:?}]",

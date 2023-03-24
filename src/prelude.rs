@@ -7,7 +7,6 @@ pub(crate) use crate::dk::DK;
 pub(crate) use crate::error::{error, not_impl};
 pub(crate) use crate::key::Key;
 pub(crate) use crate::message::Message;
-pub(crate) use crate::mode::Mode;
 pub(crate) use crate::noun::Noun;
 pub(crate) use crate::plugin::PluginRef;
 pub(crate) use crate::status::{status, Status};

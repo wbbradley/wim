@@ -24,7 +24,6 @@ mod key;
 mod keygen;
 mod line;
 mod message;
-mod mode;
 mod noun;
 mod plugin;
 mod prelude;

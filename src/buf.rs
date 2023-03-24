@@ -63,14 +63,13 @@ impl Buf {
     where
         T: ToBufBytes,
     {
-        // Note: `<=` because it's valid to insert after everything
-        // which would be equivalent to push.
         let bytes = text.to_bytes();
         self.b.splice(range, bytes.iter().copied());
     }
 
     pub fn write_to(&self, fd: libc::c_int) {
-        unsafe { libc::write(fd, self.b.as_ptr() as *const libc::c_void, self.b.len()) };
+        let ret = unsafe { libc::write(fd, self.b.as_ptr() as *const libc::c_void, self.b.len()) };
+        assert!(ret == self.b.len() as isize);
     }
     pub fn from_bytes<T>(text: T) -> Self
     where

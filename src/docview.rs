@@ -12,6 +12,7 @@ use crate::status::Status;
 use crate::types::{Coord, Pos, Rect, RelCoord, SafeCoordCast};
 use crate::utils::wcwidth;
 use crate::view::ViewContext;
+use mode::*;
 use std::fs::OpenOptions;
 use std::io::{Seek, SeekFrom, Write};
 
@@ -49,12 +50,18 @@ impl DocView {
         Ok(Status::Ok)
     }
     pub fn move_cursor_rel(&mut self, noun: Noun, rel: Rel) -> Result<Status> {
+        trace!("move_cursor_rel({:?}, {:?})", noun, rel);
         match (noun, rel) {
             (Noun::Char, Rel::Prior) => self.move_cursor(-1, 0),
             (Noun::Char, Rel::Next) => self.move_cursor(1, 0),
             (Noun::Line, Rel::Prior) => self.move_cursor(0, -1),
             (Noun::Line, Rel::Next) => self.move_cursor(0, 1),
-            // (Noun::Word, Rel::Next) => self.move_cursor_next_word(),
+            (Noun::Word, Rel::Next) => {
+                if let Some(pos) = self.doc.get_next_word(self.cursor) {
+                    self.jump_cursor(Some(pos.x), Some(pos.y));
+                }
+                Ok(Status::Ok)
+            }
             _ => Err(not_impl!(
                 "DocView: Don't know how to handle relative motion for ({:?}, {:?}).",
                 noun,
@@ -182,9 +189,6 @@ impl View for DocView {
     fn get_view_key(&self) -> ViewKey {
         self.key
     }
-    fn get_view_mode(&self) -> Mode {
-        self.mode
-    }
     fn get_cursor_pos(&self) -> Option<Pos> {
         Some(Pos {
             x: self.frame.x + self.render_cursor_x - self.scroll_offset.x,
@@ -200,71 +204,41 @@ impl DispatchTarget for DocView {
         match self.mode {
             Mode::Visual { .. } => {}
             Mode::Insert => {
-                bindings.insert(
-                    vec![Key::Esc],
-                    command("switch-mode").arg("normal").at_view(vk),
-                );
-                bindings.insert(vec![Key::Ascii('j'), Key::Ascii('k')], DK::Key(Key::Esc));
-                bindings.insert(
-                    vec![Key::Backspace],
-                    command("delete-backwards").at_view(vk),
-                );
-                bindings.insert(
-                    vec![Key::Enter],
-                    command("newline").arg("below").at_view(vk),
-                );
+                bindings.insert(Key::Esc, command("switch-mode").arg("normal").at_view(vk));
+                bindings.insert("jk", DK::Key(Key::Esc));
+                bindings.insert(Key::Backspace, command("delete-backwards").at_view(vk));
+                bindings.insert(Key::Enter, command("newline").arg("below").at_view(vk));
             }
             Mode::Normal => {
+                bindings.insert("c", command("operator").arg("change").at_view(vk));
+                bindings.insert("s", command("save").at_view(vk));
                 bindings.insert(
-                    vec![Key::Ctrl('w')],
-                    command("close-view").arg(vk).at_view_map(),
-                );
-                bindings.insert(vec![Key::Ctrl('s')], command("save").at_view(vk));
-                bindings.insert(
-                    vec![Key::Ascii('b')],
+                    "b",
                     command("move-rel").arg("word").arg("prior").at_view(vk),
                 );
+                bindings.insert("e", command("move-rel").arg("word").arg("end").at_view(vk));
+                bindings.insert("w", command("move-rel").arg("word").arg("next").at_view(vk));
+                bindings.insert("i", command("switch-mode").arg("insert").at_view(vk));
+                bindings.insert("h", command("move").arg("left").at_view(vk));
                 bindings.insert(
-                    vec![Key::Ascii('e')],
-                    command("move-rel").arg("word").arg("end").at_view(vk),
-                );
-                bindings.insert(
-                    vec![Key::Ascii('w')],
-                    command("move-rel").arg("word").arg("next").at_view(vk),
-                );
-                bindings.insert(
-                    vec![Key::Ascii('i')],
-                    command("switch-mode").arg("insert").at_view(vk),
-                );
-                bindings.insert(
-                    vec![Key::Ascii('h')],
-                    command("move").arg("left").at_view(vk),
-                );
-                bindings.insert(
-                    vec![Key::Ascii(':')],
+                    ":",
                     command("focus")
                         .arg(Target::Named("command-line".to_string()))
                         .at_view_map(),
                 );
+                bindings.insert("j", command("move").arg("down").at_view(vk));
+                bindings.insert("k", command("move").arg("up").at_view(vk));
+                bindings.insert("l", command("move").arg("right").at_view(vk));
+                bindings.insert("J", command("join-lines").at_view(vk));
                 bindings.insert(
-                    vec![Key::Ascii('j')],
-                    command("move").arg("down").at_view(vk),
-                );
-                bindings.insert(vec![Key::Ascii('k')], command("move").arg("up").at_view(vk));
-                bindings.insert(
-                    vec![Key::Ascii('l')],
-                    command("move").arg("right").at_view(vk),
-                );
-                bindings.insert(vec![Key::Ascii('J')], command("join-lines").at_view(vk));
-                bindings.insert(
-                    vec![Key::Ascii('o')],
+                    "o",
                     DK::Sequence(vec![
                         command("newline").arg("below").at_view(vk),
                         command("switch-mode").arg("insert").at_view(vk),
                     ]),
                 );
                 bindings.insert(
-                    vec![Key::Ascii('O')],
+                    "O",
                     DK::Sequence(vec![
                         command("newline").arg("above").at_view(vk),
                         command("move-rel").arg("line").arg("begin").at_view(vk),
@@ -272,12 +246,25 @@ impl DispatchTarget for DocView {
                     ]),
                 );
                 bindings.insert(
-                    vec![Key::Ascii('x')],
+                    "x",
                     command("delete-rel").arg("char").arg("next").at_view(vk),
                 );
                 bindings.insert(
-                    vec![Key::Ascii('X')],
+                    "X",
                     command("delete-rel").arg("char").arg("prior").at_view(vk),
+                );
+            }
+            Mode::NormalWithOp(_op) => {
+                bindings.insert(
+                    "iw",
+                    DK::Sequence(vec![
+                        command("internal").at_view(vk),
+                        command("word").at_view(vk),
+                    ]),
+                );
+                bindings.insert(
+                    "aw",
+                    DK::Sequence(vec![command("a").at_view(vk), command("word").at_view(vk)]),
                 );
             }
         }
@@ -296,11 +283,29 @@ impl DispatchTarget for DocView {
                     expiry: Instant::now() + Duration::from_millis(2500),
                 }),
             },
+            _ => Err(error!(
+                "don't yet know how to handle send_keys in mode '{:?}'",
+                self.mode
+            )),
         }
     }
     fn execute_command(&mut self, name: String, mut args: Vec<Variant>) -> Result<Status> {
-        match name.as_str() {
-            "switch-mode" => {
+        if name.as_str() == "switch-mode" {
+            ensure!(args.len() == 1);
+            if let Variant::String(arg) = args.remove(0) {
+                self.switch_mode(Mode::from_str(&arg)?);
+                return Ok(Status::Ok);
+            } else {
+                return Err(error!("'switch-mode' expects a string"));
+            }
+        }
+
+        match (self.mode, name.as_ref()) {
+            (Mode::Normal, "change" | "yank" | "delete") => {
+                self.mode = Mode::NormalWithOp(Op::from_str(name.as_ref())?);
+                Ok(Status::Ok)
+            }
+            (_mode, "switch-mode") => {
                 ensure!(args.len() == 1);
                 if let Variant::String(arg) = args.remove(0) {
                     self.switch_mode(Mode::from_str(&arg)?);
@@ -309,15 +314,15 @@ impl DispatchTarget for DocView {
                     Err(error!("'switch-mode' expects a string"))
                 }
             }
-            "delete-backwards" => {
+            (_, "delete-backwards") => {
                 ensure!(args.is_empty());
                 self.delete_backwards(Noun::Char)
             }
-            "delete-forwards" => {
+            (_, "delete-forwards") => {
                 ensure!(args.is_empty());
                 self.delete_forwards(Noun::Char)
             }
-            "open" => {
+            (Mode::Normal, "open") => {
                 ensure!(args.len() == 1);
                 if let Variant::String(arg) = args.remove(0) {
                     self.open(arg)
@@ -325,7 +330,7 @@ impl DispatchTarget for DocView {
                     Err(error!("'open' expects a filename"))
                 }
             }
-            "move" => {
+            (Mode::Normal, "move") => {
                 ensure!(args.len() == 1);
                 if let Variant::String(arg) = args.remove(0) {
                     match arg.as_str() {
@@ -339,7 +344,7 @@ impl DispatchTarget for DocView {
                     Err(error!("'move' expects a direction"))
                 }
             }
-            "newline" => {
+            (_, "newline") => {
                 ensure!(args.len() == 1);
                 if let Variant::String(arg) = args.remove(0) {
                     match arg.as_str() {
@@ -351,7 +356,7 @@ impl DispatchTarget for DocView {
                     Err(error!("'newline' expects a direction"))
                 }
             }
-            "move-rel" => {
+            (_, "move-rel") => {
                 ensure!(args.len() == 2);
                 if let (Variant::String(noun), Variant::String(rel)) =
                     (args.remove(0), args.remove(0))
@@ -364,19 +369,6 @@ impl DispatchTarget for DocView {
                     Err(error!("'move-rel' expects a pair (noun, rel)"))
                 }
             }
-            /*
-            Command::MoveRel(noun, rel) => self.move_cursor_rel(noun, rel),
-            Command::Move(direction) => match direction {
-            "up" => self.move_cursor(0, -1),
-            "down" => self.move_cursor(0, 1),
-            "left" => self.move_cursor(-1, 0),
-            "right" => self.move_cursor(1, 0),
-            },
-            Command::JoinLines => self.join_line(),
-            Command::NewlineAbove => self.insert_newline_above(),
-            Command::NewlineBelow => self.insert_newline_below(),
-            Command::DeleteForwards => self.delete_forwards(Noun::Char),
-             */
             _ => Err(not_impl!(
                 "DocView::execute_command needs to handle {:?} {:?}.",
                 name,
@@ -463,5 +455,79 @@ impl DocView {
             count += 1;
         }
         count
+    }
+}
+
+mod mode {
+    #[derive(Copy, Clone, Debug, Eq, PartialEq)]
+    pub enum Mode {
+        Insert,
+        Visual(VisualMode),
+        Normal,
+        NormalWithOp(Op),
+    }
+
+    #[derive(Copy, Clone, Debug, Eq, PartialEq)]
+    pub enum TextObj {}
+
+    impl std::str::FromStr for Mode {
+        type Err = crate::error::Error;
+
+        fn from_str(s: &str) -> Result<Self, Self::Err> {
+            match s {
+                "insert" => Ok(Self::Insert),
+                "normal" => Ok(Self::Normal),
+                "visual" => Ok(Self::Visual(VisualMode::Char)),
+                "visual-line" => Ok(Self::Visual(VisualMode::Line)),
+                "visual-block" => Ok(Self::Visual(VisualMode::Block)),
+                missing => Err(Self::Err::new(format!(
+                    "{} is not a valid editing Mode",
+                    missing
+                ))),
+            }
+        }
+    }
+
+    #[derive(Copy, Clone, Debug, Eq, PartialEq)]
+    pub enum Op {
+        Change,
+        Delete,
+        Yank,
+    }
+
+    impl std::str::FromStr for Op {
+        type Err = crate::error::Error;
+
+        fn from_str(s: &str) -> Result<Self, Self::Err> {
+            match s {
+                "change" => Ok(Self::Change),
+                "delete" => Ok(Self::Delete),
+                "yank" => Ok(Self::Yank),
+                missing => Err(Self::Err::new(format!("{} is not a valid Op", missing))),
+            }
+        }
+    }
+
+    #[derive(Copy, Clone, Debug, Eq, PartialEq)]
+    pub enum VisualMode {
+        Char,
+        Line,
+        Block,
+    }
+
+    impl std::str::FromStr for VisualMode {
+        type Err = crate::error::Error;
+
+        fn from_str(s: &str) -> Result<Self, Self::Err> {
+            match s {
+                "char" => Ok(Self::Char),
+                "line" => Ok(Self::Line),
+                "block" => Ok(Self::Block),
+                missing => Err(Self::Err::new(format!(
+                    "{} is not a valid visual Mode",
+                    missing
+                ))),
+            }
+        }
     }
 }

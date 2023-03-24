@@ -34,9 +34,6 @@ impl View for Editor {
     fn install_plugins(&mut self, plugin: PluginRef) {
         self.plugin = plugin;
     }
-    fn get_view_mode(&self) -> Mode {
-        Mode::Normal
-    }
     fn layout(&mut self, _view_map: &ViewMap, frame: Rect) -> Vec<(ViewKey, Rect)> {
         self.frame = frame;
         let mut ret = Vec::new();

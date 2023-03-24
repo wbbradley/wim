@@ -36,6 +36,19 @@ impl From<io::Error> for Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
+impl<T> ErrorContext<T> for std::result::Result<T, std::str::Utf8Error> {
+    fn context(self, message: &str) -> Result<T> {
+        match self {
+            Ok(t) => Ok(t),
+            Err(e) => Err(error!("{}: (utf8error: {})", message, e)),
+        }
+    }
+}
+
+pub trait ErrorContext<T> {
+    fn context(self, message: &str) -> Result<T>;
+}
+
 macro_rules! error {
     ($($args:expr),+) => {{
         $crate::error::Error::new(format!($($args),+))

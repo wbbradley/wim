@@ -90,9 +90,6 @@ impl View for CommandLine {
         }
     }
 
-    fn get_view_mode(&self) -> Mode {
-        Mode::Insert
-    }
     fn get_view_key(&self) -> ViewKey {
         self.view_key
     }
@@ -112,12 +109,9 @@ impl DispatchTarget for CommandLine {
     fn get_key_bindings(&self) -> Bindings {
         let vk = self.get_view_key();
         let mut bindings: Bindings = Default::default();
+        bindings.insert(Key::Esc, command("focus").arg(Target::Previous).at_view(vk));
         bindings.insert(
-            vec![Key::Esc],
-            command("focus").arg(Target::Previous).at_view(vk),
-        );
-        bindings.insert(
-            vec![Key::Enter],
+            Key::Enter,
             DK::Sequence(vec![
                 command("clear-text").at_view(vk),
                 command("focus").arg(Target::Previous).at_view_map(),

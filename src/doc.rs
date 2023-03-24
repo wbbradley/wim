@@ -38,6 +38,12 @@ impl Doc {
             row_iter: self.rows.iter(),
         }
     }
+    pub fn iter_from(&self, pos: Pos) -> IterChars {
+        IterChars {
+            rows: &self.rows,
+            pos,
+        }
+    }
     pub fn line_count(&self) -> usize {
         self.rows.len()
     }
@@ -116,6 +122,15 @@ impl Doc {
         }
         self.rows.insert(range.start, new_row);
     }
+
+    pub fn get_next_word(&self, from: Pos) -> Option<Pos> {
+        if let Some(row) = self.rows.get(from.y) {
+            if let Some(x) = row.next_word_start(from.x) {
+                return Some(Pos { x, y: from.y });
+            }
+        }
+        None
+    }
 }
 
 pub struct IterLines<'a> {
@@ -126,5 +141,37 @@ impl<'a> Iterator for IterLines<'a> {
     type Item = &'a Row;
     fn next(&mut self) -> Option<Self::Item> {
         self.row_iter.next()
+    }
+}
+
+pub struct IterChars<'a> {
+    rows: &'a Vec<Row>,
+    pos: Pos,
+}
+
+pub struct CharPos {
+    pub ch: char,
+    pub pos: Pos,
+}
+
+impl<'a> Iterator for IterChars<'a> {
+    type Item = CharPos;
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(row) = self.rows.get(self.pos.y) {
+            match row.char_at(self.pos.x) {
+                Some(ch) => {
+                    let ret = Some(Self::Item { ch, pos: self.pos });
+                    self.pos.x += 1;
+                    if self.pos.x >= row.len() {
+                        self.pos.x = 0;
+                        self.pos.y += 1;
+                    }
+                    ret
+                }
+                None => None,
+            }
+        } else {
+            None
+        }
     }
 }

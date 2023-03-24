@@ -50,9 +50,6 @@ impl View for VStack {
             })
             .collect()
     }
-    fn get_view_mode(&self) -> Mode {
-        Mode::Normal
-    }
     fn get_view_key(&self) -> ViewKey {
         self.view_key
     }

@@ -48,6 +48,12 @@ impl Row {
         render_x.as_coord()
     }
 
+    pub fn char_at(&self, x: Coord) -> Option<char> {
+        match std::str::from_utf8(self.buf.to_bytes()) {
+            Ok(s) => s.chars().nth(x),
+            Err(_) => None,
+        }
+    }
     pub fn insert_char(&mut self, x: Coord, ch: char) {
         let mut tmp = [0u8; 4];
         let ch_text = ch.encode_utf8(&mut tmp);
@@ -79,6 +85,34 @@ impl Row {
                 }
             }
             self.buf.len()
+        }
+    }
+
+    pub fn get_first_word(&self) -> Option<Coord> {
+        self.buf
+            .to_bytes()
+            .iter()
+            .position(|&b| classify(b as char) != CharType::Space)
+    }
+    pub fn next_word_start(&self, x: Coord) -> Option<Coord> {
+        if self.buf.len() <= x + 1 {
+            None
+        } else {
+            let bytes = self.buf.to_bytes();
+            let mut last_class = classify(bytes[x] as char);
+            bytes[x + 1..]
+                .iter()
+                .map(|&b| b as char)
+                .position(|ch| {
+                    let new_class = classify(ch);
+                    if new_class != last_class && new_class != CharType::Space {
+                        true
+                    } else {
+                        last_class = new_class;
+                        false
+                    }
+                })
+                .map(|index| x + 1 + index)
         }
     }
     pub fn prev_word_break(&self, mut x: Coord) -> Coord {

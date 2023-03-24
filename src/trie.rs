@@ -17,7 +17,7 @@ impl TrieNode {
             .fold(Self::default(), |node, b| node.with_bindings(b))
     }
     fn with_bindings(mut self, bindings: Bindings) -> Self {
-        for (keys, dk) in bindings {
+        for (keys, dk) in bindings.get_map() {
             self.insert(dk, &keys);
         }
         self

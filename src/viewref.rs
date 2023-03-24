@@ -49,9 +49,6 @@ impl View for ViewRef {
     fn get_cursor_pos(&self) -> Option<Pos> {
         self.ptr.borrow().get_cursor_pos()
     }
-    fn get_view_mode(&self) -> Mode {
-        self.ptr.borrow().get_view_mode()
-    }
     fn set_status(&mut self, status: Status) {
         self.ptr.borrow_mut().set_status(status)
     }
