@@ -81,9 +81,10 @@ fn run_app(plugin: PluginRef, mut view_map: ViewMap) -> anyhow::Result<()> {
         let filename = args[1].as_ref();
         dks.push_back(command("open").arg(filename).at_focused());
     }
+    let mut layout_jobs: Vec<(ViewKey, Rect)> = Default::default();
     while !editor.get_property_bool(crate::consts::PROP_EDITOR_SHOULD_QUIT, true) {
         if should_refresh {
-            let mut layout_jobs: Vec<(ViewKey, Rect)> = vec![(view_map.get_root_view_key(), frame)];
+            layout_jobs.push((view_map.get_root_view_key(), frame));
             while let Some((vk, rect)) = layout_jobs.pop() {
                 let mut view = view_map.get_view(vk);
                 let next_jobs = view.layout(&view_map, rect);
@@ -97,19 +98,25 @@ fn run_app(plugin: PluginRef, mut view_map: ViewMap) -> anyhow::Result<()> {
             if let Some(key) = read_key() {
                 key_timeout = Some(Instant::now() + Duration::from_secs(1));
                 dks.push_back(DK::Key(key));
-                should_refresh = true;
             } else if let Some(next_key_timeout) = key_timeout {
-                trace!("waiting...");
-                if Instant::now() > next_key_timeout {
+                if dks.front().is_none() {
+                    // We're not waiting for any completion.
                     key_timeout = None;
-                    dks.push_back(DK::Key(Key::None));
-                } else {
                     continue;
+                } else {
+                    // We're waiting for a key completion.
+                    if Instant::now() > next_key_timeout {
+                        key_timeout = None;
+                        dks.push_back(DK::Key(Key::None));
+                    } else {
+                        continue;
+                    }
                 }
             } else {
                 continue;
             };
         }
+        should_refresh = true;
         pump(&mut view_map, &mut dks, &mut editor)?;
     }
     Ok(())
