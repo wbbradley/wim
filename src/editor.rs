@@ -1,5 +1,4 @@
 use crate::bindings::Bindings;
-use crate::buf::place_cursor;
 use crate::commandline::CommandLine;
 use crate::docview::DocView;
 use crate::error::Result;
@@ -62,7 +61,7 @@ impl View for Editor {
         ret
     }
 
-    fn display(&self, view_map: &ViewMap, buf: &mut Buf) {
+    fn display(&self, view_map: &ViewMap, buf: &mut BitmapView) {
         // Hide the cursor.
         buf.append("\x1b[?25l");
         if let Some(top_view_key) = self.top_view_key {

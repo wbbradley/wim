@@ -14,24 +14,46 @@ impl Bitmap {
         Self {
             size,
             cursor: None,
-            bmp: {
-                let mut v = Vec::new();
-                v.reserve(size.area());
-                v
-            },
+            bmp: vec![
+                FormattedGlyph {
+                    glyph: Glyph { ch: ' ' },
+                    fg: Color::None,
+                    bg: Color::None,
+                };
+                size.area()
+            ],
         }
     }
-    fn set_glyph(&mut self, pos: Pos, glyph: Glyph) {
-        if !(0..self.size.width).contains(&pos.x) || !(0..self.size.height).contains(&pos.y) {
+}
+
+pub struct BitmapView<'a> {
+    bitmap: &'a mut Bitmap,
+    frame: Rect,
+}
+
+impl<'a> BitmapView<'a> {
+    pub fn get_size(&self) -> Size {
+        self.frame.size()
+    }
+    pub fn set_cursor(&mut self, pos: Pos) {
+        // bmp.cursor = buf, "\x1b[{};{}H", pos.y + 1, pos.x + 1);
+        if self.frame.contains(pos) {
+            self.bitmap.cursor = Some(self.frame.top_left() + pos);
+        }
+    }
+    pub fn set_glyph(&mut self, pos: Pos, glyph: Glyph) {
+        if !self.get_size().contains(pos) {
             log::warn!(
-                "attempt to set_glyph beyond bitmap boundary [pos={:?}, glyph={:?}, size={:?}]",
+                "attempt to set_glyph beyond bitmap view boundary [pos={:?}, glyph={:?}, frame={:?}, size={:?}]",
                 pos,
                 glyph,
-                self.size
+                self.frame,
+                self.bitmap.size
             );
             return;
         }
-        self.bmp[pos.x + pos.y * self.size.width] = FormattedGlyph {
+        let pos = pos + self.frame.top_left();
+        self.bitmap.bmp[pos.x + pos.y * self.bitmap.size.width] = FormattedGlyph {
             glyph,
             fg: Color::None,
             bg: Color::None,

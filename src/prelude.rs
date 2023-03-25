@@ -1,6 +1,8 @@
 pub(crate) use crate::bindings::Bindings;
-pub(crate) use crate::buf::Buf;
+pub(crate) use crate::bitmap::{Bitmap, BitmapView};
+pub(crate) use crate::glyph::{Glyph, FormattedGlyph}
 pub(crate) use crate::command::command;
+pub(crate) use crate::color::Color;
 pub(crate) use crate::consts::*;
 pub(crate) use crate::dispatch::{DispatchRef, DispatchTarget, Dispatcher};
 pub(crate) use crate::dk::DK;

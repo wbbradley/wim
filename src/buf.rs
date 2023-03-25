@@ -1,4 +1,4 @@
-use crate::types::{Coord, Pos};
+use crate::types::Coord;
 
 #[derive(Clone, Debug)]
 pub struct Buf {
@@ -30,6 +30,11 @@ impl ToCharVec for &String {
 }
 
 impl Buf {
+    pub fn from_str(s: &str) -> Self {
+        Self {
+            b: s.chars().collect(),
+        }
+    }
     pub fn truncate(&mut self) {
         self.b.truncate(0);
     }
@@ -70,20 +75,17 @@ impl Buf {
         b.extend_from_slice(text.to_char_vec());
         Self { b }
     }
-    pub fn render_from_bytes<T>(text: T) -> Self
-    where
-        T: ToCharVec,
-    {
+    */
+    pub fn render_from(buf: &Self) -> Self {
         // Deal with rendering Tabs.
         let mut b = Vec::new();
-        let bytes = text.to_char_vec();
-        let tabs = bytes.iter().copied().filter(|&x| x == b'\t').count();
+        let tabs = buf.b.iter().copied().filter(|&x| x == '\t').count();
         if tabs == 0 {
-            b.extend_from_slice(bytes);
+            b = buf.b.clone();
         } else {
-            b.reserve(bytes.len() + tabs * (TAB_STOP_SIZE - 1));
-            for &ch in bytes.to_char_vec() {
-                if ch == b'\t' {
+            b.reserve(buf.b.len() + tabs * (TAB_STOP_SIZE - 1));
+            for &ch in buf.b.iter() {
+                if ch == '\t' {
                     b.extend_from_slice(&BLANKS[..TAB_STOP_SIZE]);
                 } else {
                     b.push(ch);
@@ -92,14 +94,13 @@ impl Buf {
         }
         Self { b }
     }
-    */
 
     pub fn len(&self) -> usize {
         self.b.len()
     }
 }
 
-pub static BLANKS: &[u8] = &[b' '; 1024 * 2];
+pub static BLANKS: &[char] = &[' '; 1024 * 2];
 pub static TAB_STOP_SIZE: usize = 4;
 
 impl ToCharVec for Buf {
@@ -128,16 +129,3 @@ where
     &bytes[start..std::cmp::min(bytes.len(), start + max_len)]
 }
 */
-macro_rules! buf_fmt {
-    ($buf:expr, $($args:expr),+) => {{
-        let mut stackbuf = [0u8; 1024];
-        let formatted: &str = stackfmt::fmt_truncate(&mut stackbuf, format_args!($($args),+));
-        $buf.append(formatted);
-        formatted.len()
-    }};
-}
-pub(crate) use buf_fmt;
-
-pub fn place_cursor(buf: &mut Buf, pos: Pos) {
-    buf_fmt!(buf, "\x1b[{};{}H", pos.y + 1, pos.x + 1);
-}

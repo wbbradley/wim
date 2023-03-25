@@ -40,7 +40,7 @@ impl View for ViewRef {
     fn layout(&mut self, view_map: &ViewMap, frame: Rect) -> Vec<(ViewKey, Rect)> {
         self.ptr.borrow_mut().layout(view_map, frame)
     }
-    fn display(&self, view_map: &ViewMap, buf: &mut Buf) {
+    fn display(&self, view_map: &ViewMap, buf: &mut BitmapView) {
         self.ptr.borrow().display(view_map, buf)
     }
     fn get_view_key(&self) -> ViewKey {

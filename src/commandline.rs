@@ -1,4 +1,3 @@
-use crate::buf::place_cursor;
 use crate::error::{Error, Result};
 use crate::line::{line_fmt, Line};
 use crate::prelude::*;
@@ -11,7 +10,6 @@ pub struct CommandLine {
     render_cursor: Coord,
     scroll_offset: Coord,
     text: String,
-    frame: Rect,
     status: Status,
 }
 
@@ -25,7 +23,6 @@ impl CommandLine {
             render_cursor: 0,
             scroll_offset: 0,
             text: String::new(),
-            frame: Rect::zero(),
             status: Status::Ok,
         }
     }
@@ -35,13 +32,12 @@ impl View for CommandLine {
     fn install_plugins(&mut self, plugin: PluginRef) {
         self.plugin = plugin;
     }
-    fn layout(&mut self, _view_map: &ViewMap, frame: Rect) -> Vec<(ViewKey, Rect)> {
-        self.frame = frame;
+    fn layout(&mut self, _view_map: &ViewMap, size: Size) -> Vec<(ViewKey, Rect)> {
         Default::default()
     }
-    fn display(&self, view_map: &ViewMap, buf: &mut Buf) {
-        place_cursor(buf, self.frame.top_left());
-        buf.append("\x1b[7m");
+    fn display(&self, view_map: &ViewMap, bmp: &mut BitmapView) {
+        let size = bmp.get_size();
+        assert!(size.height == 2);
         let is_dirty = view_map
             .focused_view()
             .get_property_bool(PROP_DOC_IS_MODIFIED, false);

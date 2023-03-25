@@ -37,8 +37,8 @@ pub trait View: DispatchTarget + ViewContext {
     fn install_plugins(&mut self, plugin: PluginRef);
     /// layout returns a vec of views that also need layout.
     #[must_use]
-    fn layout(&mut self, view_map: &ViewMap, frame: Rect) -> Vec<(ViewKey, Rect)>;
-    fn display(&self, view_map: &ViewMap, buf: &mut Buf);
+    fn layout(&mut self, view_map: &ViewMap, size: Size) -> Vec<(ViewKey, Rect)>;
+    fn display(&self, view_map: &ViewMap, bmp: &mut BitmapView);
     fn get_view_key(&self) -> ViewKey;
     fn get_cursor_pos(&self) -> Option<Pos>;
     fn set_status(&mut self, status: Status) {

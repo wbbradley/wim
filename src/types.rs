@@ -61,6 +61,9 @@ impl Size {
     pub fn area(self) -> usize {
         self.width * self.height
     }
+    pub fn contains(self, pos: Pos) -> bool {
+        (0..self.width).contains(&pos.x) && (0..self.height).contains(&pos.y)
+    }
 }
 
 #[derive(Default, Copy, Clone, Debug, Eq, PartialEq)]
@@ -75,6 +78,16 @@ impl Pos {
         Self {
             x: self.x.clamp(r.x, r.x + r.width),
             y: self.y.clamp(r.y, r.y + r.height),
+        }
+    }
+}
+
+impl std::ops::Add<Pos> for Pos {
+    type Output = Self;
+    fn add(self, rhs: Pos) -> Self {
+        Self {
+            x: self.x + rhs.x,
+            y: self.y + rhs.y,
         }
     }
 }
@@ -104,6 +117,10 @@ pub struct Rect {
 
 #[allow(dead_code)]
 impl Rect {
+    pub fn contains(self, pos: Pos) -> bool {
+        (self.x..self.x + self.width).contains(&pos.x)
+            && (self.y..self.y + self.height).contains(&pos.y)
+    }
     pub fn zero() -> Self {
         unsafe { std::mem::zeroed() }
     }
@@ -116,17 +133,23 @@ impl Rect {
             y: self.y,
         }
     }
-    fn mid_x(self) -> Coord {
+    pub fn mid_x(self) -> Coord {
         ((self.x * 2) + self.width) / 2
     }
-    fn mid_y(self) -> Coord {
+    pub fn mid_y(self) -> Coord {
         ((self.y * 2) + self.height) / 2
     }
-    fn max_x(self) -> Coord {
+    pub fn max_x(self) -> Coord {
         self.x + self.width
     }
-    fn max_y(self) -> Coord {
+    pub fn max_y(self) -> Coord {
         self.y + self.height
+    }
+    pub fn size(self) -> Size {
+        Size {
+            width: self.width,
+            height: self.height,
+        }
     }
 }
 

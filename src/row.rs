@@ -21,9 +21,10 @@ impl Row {
         &self.render
     }
     pub fn from_line(line: &str) -> Self {
+        let buf = Buf::from_str(line);
         Self {
-            buf: Buf::from_bytes(line),
-            render: Buf::render_from_bytes(line),
+            render: Buf::render_from(&buf),
+            buf,
         }
     }
     pub fn len(&self) -> usize {

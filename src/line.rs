@@ -1,62 +1,53 @@
-use crate::buf::{Buf, ToCharVec, BLANKS};
+use crate::prelude::*;
 
-#[derive(Debug)]
 pub struct Line<'a> {
-    buf: &'a mut Buf,
-    start_index: usize,
-    pub max_line_length: usize,
+    bmp: &'a mut BitmapView<'a>,
+    pos: Pos,
 }
 
 impl<'a> Line<'a> {
-    pub fn new(buf: &'a mut Buf, max_line_length: usize) -> Self {
-        let len = buf.len();
-        Self {
-            buf,
-            max_line_length,
-            start_index: len,
+    pub fn new(bmp: &'a mut BitmapView<'a>, pos: Pos) -> Self {
+        assert!(bmp.get_size().contains(pos));
+        let len = bmp.get_size().width;
+        Self { bmp, pos }
+    }
+    fn max_line_length(&self) -> usize {
+        self.bmp.get_size().width
+    }
+    fn cur_dist_to_end(&self) -> usize {
+        self.max_line_length() - self.pos.x
+    }
+    pub fn append_str<T>(&mut self, b: &str) {
+        let max_pos = self.bmp.get_size().width;
+        for ch in b.chars() {
+            if self.pos.x >= max_pos {
+                log::trace!("stopped appending to Line prematurely [ch={}]", ch);
+                break;
+            }
+            self.bmp.set_glyph(self.pos, Glyph { ch });
+            self.pos.x += 1;
         }
-    }
-    pub fn cur_offset(&self) -> usize {
-        self.buf.len() - self.start_index
-    }
-    pub fn flush(&mut self) {
-        if self.max_line_length >= self.cur_offset() {
-            self.buf.append(&BLANKS[..self.remaining_space()]);
-        }
-    }
-    pub fn append<T>(&mut self, b: T)
-    where
-        T: ToCharVec,
-    {
-        self.buf.append(b)
     }
     pub fn remaining_space(&self) -> usize {
-        // TODO: have this calculate visible chars, not u8's left.
-        let cur_offset = self.cur_offset();
-        if cur_offset <= self.max_line_length {
-            self.max_line_length - self.cur_offset()
+        let mll = self.max_line_length();
+        if mll > self.pos.x {
+            mll - self.pos.x
         } else {
             0
         }
     }
-    pub fn end_with<T>(&mut self, s: T)
-    where
-        T: ToCharVec,
-    {
-        let b = s.to_bytes();
-        if self.remaining_space() > b.len() {
-            let spaces_needed = self.remaining_space() - b.len();
-            self.buf.append(&BLANKS[..spaces_needed]);
-            self.buf.append(b);
+    pub fn end_with_str(&mut self, s: &str) {
+        let count = s.chars().count();
+        if self.remaining_space() >= count {
+            let mll = self.max_line_length();
+            self.pos.x = mll - count;
+            for ch in s.chars() {
+                self.bmp.set_glyph(self.pos, Glyph { ch });
+                self.pos.x += 1;
+            }
         } else {
-            log::trace!("ran out of space to put {:?} at the end of a line.", b);
+            log::trace!("ran out of space to put '{}' at the end of a line.", s);
         }
-    }
-}
-
-impl<'a> Drop for Line<'a> {
-    fn drop(&mut self) {
-        self.flush()
     }
 }
 
@@ -64,7 +55,7 @@ macro_rules! line_fmt {
     ($line:expr, $($args:expr),+) => {{
         let mut stackbuf = [0u8; 4*1024];
         let formatted: &str = stackfmt::fmt_truncate(&mut stackbuf, format_args!($($args),+));
-        $line.append(formatted);
+        $line.append_str(formatted);
         formatted.len()
     }};
 }

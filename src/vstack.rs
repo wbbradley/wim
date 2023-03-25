@@ -53,7 +53,7 @@ impl View for VStack {
     fn get_view_key(&self) -> ViewKey {
         self.view_key
     }
-    fn display(&self, view_map: &ViewMap, buf: &mut Buf) {
+    fn display(&self, view_map: &ViewMap, buf: &mut BitmapView) {
         self.view_keys
             .iter()
             .cloned()
