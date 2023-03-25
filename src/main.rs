@@ -9,8 +9,10 @@ use log::LevelFilter;
 use std::env;
 
 mod bindings;
+mod bitmap;
 mod buf;
 mod classify;
+mod color;
 mod command;
 mod commandline;
 mod consts;
@@ -21,6 +23,7 @@ mod docview;
 mod editor;
 mod error;
 mod files;
+mod glyph;
 mod key;
 mod keygen;
 mod line;
@@ -73,7 +76,7 @@ fn run_app(plugin: PluginRef, mut view_map: ViewMap) -> anyhow::Result<()> {
 
     let editor_view_key = Editor::install(plugin, &mut view_map);
     let mut editor: ViewRef = view_map.get_view(editor_view_key);
-    let mut buf = Buf::default();
+    let mut buf = OutBuf::default();
     let mut should_refresh = true;
     let mut dks: VecDeque<DK> = Default::default();
     let mut key_timeout: Option<Instant> = None;

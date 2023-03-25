@@ -11,7 +11,7 @@ pub(crate) use crate::noun::Noun;
 pub(crate) use crate::plugin::PluginRef;
 pub(crate) use crate::status::{status, Status};
 pub(crate) use crate::target::Target;
-pub(crate) use crate::types::{Coord, Pos, Rect};
+pub(crate) use crate::types::{Coord, Pos, Rect, Size};
 pub(crate) use crate::variant::Variant;
 pub(crate) use crate::view::{View, ViewContext, ViewKey};
 pub(crate) use crate::view_map::ViewMap;

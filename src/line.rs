@@ -1,4 +1,4 @@
-use crate::buf::{Buf, ToBufBytes, BLANKS};
+use crate::buf::{Buf, ToCharVec, BLANKS};
 
 #[derive(Debug)]
 pub struct Line<'a> {
@@ -26,7 +26,7 @@ impl<'a> Line<'a> {
     }
     pub fn append<T>(&mut self, b: T)
     where
-        T: ToBufBytes,
+        T: ToCharVec,
     {
         self.buf.append(b)
     }
@@ -41,7 +41,7 @@ impl<'a> Line<'a> {
     }
     pub fn end_with<T>(&mut self, s: T)
     where
-        T: ToBufBytes,
+        T: ToCharVec,
     {
         let b = s.to_bytes();
         if self.remaining_space() > b.len() {

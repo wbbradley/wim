@@ -1,4 +1,4 @@
-use crate::buf::{Buf, ToBufBytes, TAB_STOP_SIZE};
+use crate::buf::{Buf, ToCharVec, TAB_STOP_SIZE};
 use crate::classify::{classify, CharType};
 use crate::types::{Coord, SafeCoordCast};
 use std::ops::Range;
@@ -37,7 +37,7 @@ impl Row {
     pub fn cursor_to_render_col(&self, cursor: Coord) -> Coord {
         let cursor = cursor;
         let mut render_x: usize = 0;
-        for (i, &ch) in self.buf.to_bytes().iter().enumerate() {
+        for (i, &ch) in self.buf.to_char_vec().iter().enumerate() {
             if i == cursor {
                 break;
             }
@@ -53,35 +53,33 @@ impl Row {
         if x == self.buf.len() {
             Some('\n')
         } else {
-            match std::str::from_utf8(self.buf.to_bytes()) {
+            match std::str::from_utf8(self.buf.to_char_vec()) {
                 Ok(s) => s.chars().nth(x),
                 Err(_) => None,
             }
         }
     }
     pub fn insert_char(&mut self, x: Coord, ch: char) {
-        let mut tmp = [0u8; 4];
-        let ch_text = ch.encode_utf8(&mut tmp);
-        self.buf.splice(x..x, ch_text.as_bytes());
-        self.render = Buf::render_from_bytes(self.buf.to_bytes());
+        self.buf.insert_char(x, ch);
+        self.render = Buf::render_from_bytes(self.buf.to_char_vec());
     }
 
     pub fn splice<T>(&mut self, range: Range<Coord>, text: T)
     where
-        T: ToBufBytes,
+        T: ToCharVec,
     {
-        self.buf.splice(range, text.to_bytes());
-        self.render = Buf::render_from_bytes(self.buf.to_bytes());
+        self.buf.splice(range, text.to_char_vec());
+        self.render = Buf::render_from_bytes(self.buf.to_char_vec());
     }
     pub fn append_row(&mut self, row: &Self) {
         self.buf.append(row);
-        self.render = Buf::render_from_bytes(self.buf.to_bytes());
+        self.render = Buf::render_from_bytes(self.buf.to_char_vec());
     }
     pub fn next_word_break(&self, x: Coord) -> Coord {
         if self.buf.len() <= x + 1 {
             self.buf.len()
         } else {
-            let bytes = self.buf.to_bytes();
+            let bytes = self.buf.to_char_vec();
             let start_class = classify(bytes[x] as char);
             for (i, &ch) in bytes[x + 1..].iter().enumerate() {
                 let next_class = classify(ch as char);
@@ -95,7 +93,7 @@ impl Row {
 
     pub fn get_first_word(&self) -> Option<Coord> {
         self.buf
-            .to_bytes()
+            .to_char_vec()
             .iter()
             .position(|&b| classify(b as char) != CharType::Space)
     }
@@ -104,7 +102,7 @@ impl Row {
         if x <= 1 {
             0
         } else {
-            let bytes = self.buf.to_bytes();
+            let bytes = self.buf.to_char_vec();
             let start_class = classify(bytes[x - 1] as char);
             for i in 1..=x {
                 let ch = bytes[x - i];
@@ -118,8 +116,8 @@ impl Row {
     }
 }
 
-impl ToBufBytes for &Row {
-    fn to_bytes(&self) -> &[u8] {
-        self.buf.to_bytes()
+impl ToCharVec for &Row {
+    fn to_char_vec(&self) -> Vec<char> {
+        self.buf.to_char_vec()
     }
 }

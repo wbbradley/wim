@@ -1,5 +1,5 @@
 use crate::bindings::Bindings;
-use crate::buf::{place_cursor, safe_byte_slice, Buf, ToBufBytes, BLANKS};
+use crate::buf::{place_cursor, Buf, BLANKS};
 use crate::consts::{
     PROP_DOCVIEW_CURSOR_POS, PROP_DOCVIEW_STATUS, PROP_DOC_FILENAME, PROP_DOC_IS_MODIFIED,
 };

@@ -1,8 +1,8 @@
-use crate::types::{Coord, Pos, SafeCoordCast};
+use crate::types::{Coord, Pos};
 
 #[derive(Clone, Debug)]
 pub struct Buf {
-    b: Vec<u8>,
+    b: Vec<char>,
 }
 
 impl Default for Buf {
@@ -13,29 +13,22 @@ impl Default for Buf {
     }
 }
 
-pub trait ToBufBytes {
-    fn to_bytes(&self) -> &[u8];
+pub trait ToCharVec {
+    fn to_char_vec(&self) -> Vec<char>;
 }
 
-impl ToBufBytes for &[u8] {
-    fn to_bytes(&self) -> &[u8] {
-        self
+impl ToCharVec for &str {
+    fn to_char_vec(&self) -> Vec<char> {
+        self.chars().collect()
     }
 }
 
-impl ToBufBytes for &str {
-    fn to_bytes(&self) -> &[u8] {
-        self.as_bytes()
+impl ToCharVec for &String {
+    fn to_char_vec(&self) -> Vec<char> {
+        self.chars().collect()
     }
 }
 
-impl ToBufBytes for &String {
-    fn to_bytes(&self) -> &[u8] {
-        self.as_bytes()
-    }
-}
-
-#[allow(dead_code)]
 impl Buf {
     pub fn truncate(&mut self) {
         self.b.truncate(0);
@@ -43,30 +36,25 @@ impl Buf {
     pub fn reserve(&mut self, size: usize) {
         self.b.reserve(size);
     }
-    pub fn append<T>(&mut self, text: T)
-    where
-        T: ToBufBytes,
-    {
-        self.b.extend_from_slice(text.to_bytes());
-    }
-    pub fn append_with_max_len<T, U>(&mut self, text: T, max_len: U)
-    where
-        T: ToBufBytes,
-        U: SafeCoordCast,
-    {
-        let slice = text.to_bytes();
-        self.b
-            .extend_from_slice(&slice[0..std::cmp::min(max_len.as_coord(), slice.len())]);
+    pub fn append<T>(&mut self, text: &str) {
+        self.b.extend(text.chars())
     }
 
-    pub fn splice<T>(&mut self, range: std::ops::Range<Coord>, text: T)
+    /*
+    pub fn splice<T>(&mut self, range: std::ops::Range<Coord>, text: &str)
     where
-        T: ToBufBytes,
+        T: ToCharVec,
     {
-        let bytes = text.to_bytes();
+        let bytes = text.to_char_vec();
         self.b.splice(range, bytes.iter().copied());
     }
+    */
 
+    pub fn insert_char(&mut self, x: Coord, ch: char) {
+        self.b.splice(x..x, [ch].into_iter());
+    }
+
+    /*
     pub fn write_to(&self, fd: libc::c_int) {
         let ret = unsafe { libc::write(fd, self.b.as_ptr() as *const libc::c_void, self.b.len()) };
         if ret == -1 {
@@ -76,25 +64,25 @@ impl Buf {
     }
     pub fn from_bytes<T>(text: T) -> Self
     where
-        T: ToBufBytes,
+        T: ToCharVec,
     {
         let mut b = Vec::new();
-        b.extend_from_slice(text.to_bytes());
+        b.extend_from_slice(text.to_char_vec());
         Self { b }
     }
     pub fn render_from_bytes<T>(text: T) -> Self
     where
-        T: ToBufBytes,
+        T: ToCharVec,
     {
         // Deal with rendering Tabs.
         let mut b = Vec::new();
-        let bytes = text.to_bytes();
+        let bytes = text.to_char_vec();
         let tabs = bytes.iter().copied().filter(|&x| x == b'\t').count();
         if tabs == 0 {
             b.extend_from_slice(bytes);
         } else {
             b.reserve(bytes.len() + tabs * (TAB_STOP_SIZE - 1));
-            for &ch in bytes.to_bytes() {
+            for &ch in bytes.to_char_vec() {
                 if ch == b'\t' {
                     b.extend_from_slice(&BLANKS[..TAB_STOP_SIZE]);
                 } else {
@@ -104,6 +92,7 @@ impl Buf {
         }
         Self { b }
     }
+    */
 
     pub fn len(&self) -> usize {
         self.b.len()
@@ -113,31 +102,32 @@ impl Buf {
 pub static BLANKS: &[u8] = &[b' '; 1024 * 2];
 pub static TAB_STOP_SIZE: usize = 4;
 
-impl ToBufBytes for Buf {
-    fn to_bytes(&self) -> &[u8] {
-        &self.b
+impl ToCharVec for Buf {
+    fn to_char_vec(&self) -> Vec<char> {
+        self.b.clone()
     }
 }
 
-impl ToBufBytes for &Buf {
-    fn to_bytes(&self) -> &[u8] {
-        &self.b
+impl ToCharVec for &Buf {
+    fn to_char_vec(&self) -> Vec<char> {
+        self.b.clone()
     }
 }
 
 pub static EMPTY: &[u8] = &[];
 
+/*
 pub fn safe_byte_slice<'a, T>(buf: &'a T, start: usize, max_len: usize) -> &'a [u8]
 where
-    T: ToBufBytes + 'a,
+    T: ToCharVec + 'a,
 {
-    let bytes = buf.to_bytes();
+    let bytes = buf.to_char_vec();
     if start >= bytes.len() {
         return EMPTY;
     }
     &bytes[start..std::cmp::min(bytes.len(), start + max_len)]
 }
-
+*/
 macro_rules! buf_fmt {
     ($buf:expr, $($args:expr),+) => {{
         let mut stackbuf = [0u8; 1024];

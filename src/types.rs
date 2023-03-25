@@ -57,6 +57,12 @@ pub struct Size {
     pub height: Coord,
 }
 
+impl Size {
+    pub fn area(self) -> usize {
+        self.width * self.height
+    }
+}
+
 #[derive(Default, Copy, Clone, Debug, Eq, PartialEq)]
 pub struct Pos {
     pub x: Coord,
