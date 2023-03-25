@@ -69,6 +69,9 @@ impl Buf {
 
     pub fn write_to(&self, fd: libc::c_int) {
         let ret = unsafe { libc::write(fd, self.b.as_ptr() as *const libc::c_void, self.b.len()) };
+        if ret == -1 {
+            crate::utils::die!("failed when calling libc::write");
+        }
         assert!(ret == self.b.len() as isize);
     }
     pub fn from_bytes<T>(text: T) -> Self

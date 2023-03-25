@@ -57,7 +57,11 @@ impl DocView {
             (Noun::Line, Rel::Prior) => self.move_cursor(0, -1),
             (Noun::Line, Rel::Next) => self.move_cursor(0, 1),
             (Noun::Word, Rel::Next) => {
-                if let Some(pos) = self.doc.get_next_word(self.cursor) {
+                self.jump_cursor_pos(self.doc.get_next_word_pos(self.cursor));
+                Ok(Status::Ok)
+            }
+            (Noun::Word, Rel::Prior) => {
+                if let Some(pos) = self.doc.get_prior_word_pos(self.cursor) {
                     self.jump_cursor(Some(pos.x), Some(pos.y));
                 }
                 Ok(Status::Ok)
@@ -87,6 +91,11 @@ impl DocView {
             self.render_cursor_x = 0;
         };
         log::trace!("clamp_cursor ends at {:?}", self.cursor);
+    }
+    pub fn jump_cursor_pos(&mut self, pos: Option<Pos>) {
+        if let Some(pos) = pos {
+            self.jump_cursor(Some(pos.x), Some(pos.y));
+        }
     }
     pub fn jump_cursor(&mut self, x: Option<Coord>, y: Option<Coord>) {
         if let Some(y) = y {
@@ -218,6 +227,10 @@ impl DispatchTarget for DocView {
                 );
                 bindings.insert("e", command("move-rel").arg("word").arg("end").at_view(vk));
                 bindings.insert("w", command("move-rel").arg("word").arg("next").at_view(vk));
+                bindings.insert(
+                    "b",
+                    command("move-rel").arg("word").arg("prior").at_view(vk),
+                );
                 bindings.insert("i", command("switch-mode").arg("insert").at_view(vk));
                 bindings.insert("h", command("move").arg("left").at_view(vk));
                 bindings.insert(

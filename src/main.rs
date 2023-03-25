@@ -10,6 +10,7 @@ use std::env;
 
 mod bindings;
 mod buf;
+mod classify;
 mod command;
 mod commandline;
 mod consts;

@@ -23,10 +23,7 @@ impl Bindings {
 
 impl KeysLike for &str {
     fn parse_keys(self) -> Vec<Key> {
-        self.chars()
-            .into_iter()
-            .map(|x| Key::Ascii(x.into()))
-            .collect()
+        self.chars().map(Key::Ascii).collect()
     }
 }
 

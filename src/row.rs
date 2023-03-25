@@ -1,4 +1,5 @@
 use crate::buf::{Buf, ToBufBytes, TAB_STOP_SIZE};
+use crate::classify::{classify, CharType};
 use crate::types::{Coord, SafeCoordCast};
 use std::ops::Range;
 
@@ -94,27 +95,6 @@ impl Row {
             .iter()
             .position(|&b| classify(b as char) != CharType::Space)
     }
-    pub fn next_word_start(&self, x: Coord) -> Option<Coord> {
-        if self.buf.len() <= x + 1 {
-            None
-        } else {
-            let bytes = self.buf.to_bytes();
-            let mut last_class = classify(bytes[x] as char);
-            bytes[x + 1..]
-                .iter()
-                .map(|&b| b as char)
-                .position(|ch| {
-                    let new_class = classify(ch);
-                    if new_class != last_class && new_class != CharType::Space {
-                        true
-                    } else {
-                        last_class = new_class;
-                        false
-                    }
-                })
-                .map(|index| x + 1 + index)
-        }
-    }
     pub fn prev_word_break(&self, mut x: Coord) -> Coord {
         x = x.clamp(0, self.buf.len());
         if x <= 1 {
@@ -131,23 +111,6 @@ impl Row {
             }
             0
         }
-    }
-}
-
-#[derive(Copy, Clone, Eq, PartialEq)]
-pub enum CharType {
-    Text,
-    Punct,
-    Space,
-}
-
-fn classify(ch: char) -> CharType {
-    if unsafe { libc::ispunct(ch as libc::c_int) } != 0 {
-        CharType::Punct
-    } else if unsafe { libc::isspace(ch as libc::c_int) } != 0 {
-        CharType::Space
-    } else {
-        CharType::Text
     }
 }
 
