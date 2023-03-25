@@ -49,7 +49,7 @@ impl View for CommandLine {
             .get_property_string(PROP_DOCVIEW_STATUS);
         log::trace!("PROP_DOCVIEW_STATUS={:?}", status_text);
         {
-            let mut line: Line = Line::new(buf, self.frame.width);
+            let mut line: Line = Line::new(bmp, Pos { x: 0, y: 0 });
             if let Some(current_filename) = current_filename {
                 line_fmt!(
                     line,
@@ -68,19 +68,11 @@ impl View for CommandLine {
                 }
             }
             if let Some(status_text) = status_text {
-                line.end_with(&status_text);
+                line.end_with_str(&status_text);
             }
         }
 
-        buf.append("\x1b[m");
-        place_cursor(
-            buf,
-            Pos {
-                x: self.frame.x,
-                y: self.frame.y + 1,
-            },
-        );
-        let mut line: Line = Line::new(buf, self.frame.width);
+        let mut line: Line = Line::new(bmp, Pos { x: 0, y: 1 });
         if view_map.focused_view_key() == self.view_key {
             line_fmt!(line, ":{}", self.text);
         }

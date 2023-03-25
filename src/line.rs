@@ -17,7 +17,7 @@ impl<'a> Line<'a> {
     fn cur_dist_to_end(&self) -> usize {
         self.max_line_length() - self.pos.x
     }
-    pub fn append_str<T>(&mut self, b: &str) {
+    pub fn append_str(&mut self, b: &str) {
         let max_pos = self.bmp.get_size().width;
         for ch in b.chars() {
             if self.pos.x >= max_pos {
