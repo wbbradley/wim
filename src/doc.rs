@@ -127,30 +127,41 @@ impl Doc {
 
     pub fn get_next_word_pos(&self, from: Pos) -> Option<Pos> {
         let mut iter = self.iter_from(from);
-        let mut last_class = iter.next().map(|cp| classify(cp.ch))?;
+        let first_cp = iter.next()?;
+        let mut last_class = classify(first_cp.ch);
+        let mut prior_pos = first_cp.pos;
         for cp in iter {
+            trace!("fwditer({:?})", cp);
             let new_class = classify(cp.ch);
             if new_class != last_class && new_class != CharType::Space {
                 return Some(cp.pos);
             } else {
                 last_class = new_class;
+                prior_pos = cp.pos;
             }
         }
-        None
+        Some(prior_pos)
     }
     pub fn get_prior_word_pos(&self, from: Pos) -> Option<Pos> {
         let mut iter = self.iter_from(from).rev();
+        trace!("AAAA");
         iter.next()?;
-        let mut last_class = classify(iter.next()?.ch);
+        trace!("BBBB");
+        let first_cp = iter.next()?;
+        let mut last_class = classify(first_cp.ch);
+        let mut prior_pos = first_cp.pos;
+        trace!("BBBDBD");
         for cp in iter {
+            trace!("reviter({:?})", cp);
             let new_class = classify(cp.ch);
-            if new_class != last_class && last_class != CharType::Space {
-                return Some(cp.pos);
+            if new_class != last_class && new_class == CharType::Space {
+                return Some(prior_pos);
             } else {
                 last_class = new_class;
+                prior_pos = cp.pos;
             }
         }
-        None
+        Some(prior_pos)
     }
 }
 
@@ -177,6 +188,7 @@ pub struct IterCharsRev<'a> {
     pos: Pos,
 }
 
+#[derive(Debug)]
 pub struct CharPos {
     pub ch: char,
     pub pos: Pos,
@@ -192,32 +204,47 @@ impl<'a> IterChars<'a> {
     }
 }
 
-impl<'a> Iterator for IterChars<'a> {
-    type Item = CharPos;
-    fn next(&mut self) -> Option<Self::Item> {
+impl<'a> IterChars<'a> {
+    fn advance(&mut self) {
         if let Some(row) = self.row {
             if self.pos.x == row.len() {
                 self.pos.x = 0;
                 self.pos.y += 1;
                 self.row = self.rows.get(self.pos.y);
-                return Some(Self::Item {
-                    ch: '\n',
-                    pos: Pos {
-                        x: row.len(),
-                        y: self.pos.y,
-                    },
-                });
+            } else {
+                self.pos.x += 1;
             }
-            match row.char_at(self.pos.x) {
-                Some(ch) => {
-                    let ret = Some(Self::Item { ch, pos: self.pos });
-                    self.pos.x += 1;
-                    ret
-                }
-                None => None,
+        }
+    }
+}
+
+impl<'a> Iterator for IterChars<'a> {
+    type Item = CharPos;
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(row) = self.row {
+            let ret = Some(CharPos {
+                ch: row.char_at(self.pos.x)?,
+                pos: self.pos,
+            });
+            self.advance();
+            return ret;
+        }
+        None
+    }
+}
+
+impl<'a> IterCharsRev<'a> {
+    fn advance(&mut self) {
+        if self.pos.x == 0 {
+            if self.pos.y == 0 {
+                self.row = None;
+                return;
             }
+            self.pos.y -= 1;
+            self.row = self.rows.get(self.pos.y);
+            self.pos.x = self.row.unwrap().len();
         } else {
-            None
+            self.pos.x -= 1;
         }
     }
 }
@@ -225,41 +252,27 @@ impl<'a> Iterator for IterChars<'a> {
 impl<'a> Iterator for IterCharsRev<'a> {
     type Item = CharPos;
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(row) = self.row {
-            if self.pos.x == 0 {
+        match self.row {
+            None if self.pos.y == self.rows.len() => {
+                if self.pos.y > 0 {
+                    self.pos.y -= 1;
+                    self.row = self.rows.get(self.pos.y);
+                    self.pos.x = self.row.map(|row| row.len()).unwrap_or(0);
+                }
+                Some(CharPos {
+                    ch: '\n',
+                    pos: self.pos,
+                })
+            }
+            Some(row) => {
                 let ret = Some(CharPos {
                     ch: row.char_at(self.pos.x)?,
                     pos: self.pos,
                 });
-
-                if self.pos.y > 0 {
-                    self.pos.y -= 1;
-                    self.row = self.rows.get(self.pos.y);
-                } else {
-                    self.row = None;
-                }
-                if let Some(row) = self.row {
-                    self.pos.x = row.len();
-                }
-                return ret;
-            } else if self.pos.x == row.len() {
-                let ret = Some(CharPos {
-                    ch: '\n',
-                    pos: self.pos,
-                });
-                self.pos.x -= 1;
-                return ret;
+                self.advance();
+                ret
             }
-            match row.char_at(self.pos.x) {
-                Some(ch) => {
-                    let ret = Some(Self::Item { ch, pos: self.pos });
-                    self.pos.x -= 1;
-                    ret
-                }
-                None => None,
-            }
-        } else {
-            None
+            None => None,
         }
     }
 }

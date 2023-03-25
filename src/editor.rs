@@ -5,7 +5,6 @@ use crate::docview::DocView;
 use crate::error::Result;
 use crate::plugin::PluginRef;
 use crate::prelude::*;
-use crate::read::read_key;
 use crate::status::Status;
 use crate::types::{Pos, Rect};
 use crate::view::ViewContext;
@@ -119,17 +118,6 @@ impl DispatchTarget for Editor {
 impl Editor {
     pub fn get_should_quit(&self) -> bool {
         self.should_quit
-    }
-    pub fn _read_key(&mut self) -> Option<Key> {
-        let key = read_key();
-        self.set_last_key(key);
-        key
-    }
-    pub fn welcome_status() -> Status {
-        Status::Message {
-            message: String::from("<C-c> to quit..."),
-            expiry: Instant::now() + Duration::from_secs(5),
-        }
     }
     pub fn install(plugin: PluginRef, view_map: &mut ViewMap) -> ViewKey {
         let command_line_key = view_map.get_next_key();

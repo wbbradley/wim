@@ -290,7 +290,7 @@ impl DispatchTarget for DocView {
                 expiry: Instant::now() + Duration::from_millis(5000),
             }),
             Mode::Insert => match key {
-                Key::Ascii(ch) => self.insert_char(ch),
+                Key::Utf8(ch) => self.insert_char(ch),
                 _ => Ok(Status::Message {
                     message: format!("No mapping found for {:?} in {:?} mode.", key, self.mode),
                     expiry: Instant::now() + Duration::from_millis(2500),

@@ -96,6 +96,7 @@ fn run_app(plugin: PluginRef, mut view_map: ViewMap) -> anyhow::Result<()> {
         }
         if matches!(dks.front(), Some(DK::Key(_)) | None) {
             if let Some(key) = read_key() {
+                trace!("read key '{:?}'", key);
                 key_timeout = Some(Instant::now() + Duration::from_secs(1));
                 dks.push_back(DK::Key(key));
             } else if let Some(next_key_timeout) = key_timeout {

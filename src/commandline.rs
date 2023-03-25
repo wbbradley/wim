@@ -125,7 +125,7 @@ impl DispatchTarget for CommandLine {
 
     fn send_key(&mut self, key: Key) -> Result<Status> {
         match key {
-            Key::Ascii(ch) => {
+            Key::Utf8(ch) => {
                 self.text.push(ch);
                 self.cursor += 1;
                 Ok(Status::Ok)

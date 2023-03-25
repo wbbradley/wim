@@ -71,9 +71,48 @@ pub fn read_key() -> Option<Key> {
                 Some(Key::Ctrl(d))
             }
         } else if ch < 127 {
-            Some(Key::Ascii(ch as char))
+            Some(Key::Utf8(ch as char))
         } else if ch == 127 {
             Some(Key::Backspace)
+        } else if ch & 0b11100000 == 0b11000000 {
+            log::trace!("saw {:#04x}", ch);
+            let ch = ch as u32;
+            let b = read_u8()? as u32;
+            log::trace!("saw {:#04x}", b);
+            assert!(b & 0b11000000 == 0b10000000);
+            Some(Key::Utf8(char::from_u32(
+                ((ch & 0b00011111) << 6) | (b & 0b00111111),
+            )?))
+        } else if ch & 0b11110000 == 0b11100000 {
+            log::trace!("saw {:#04x}", ch);
+            let ch = ch as u32;
+            let b = read_u8()? as u32;
+            log::trace!("saw {:#04x}", b);
+            assert!(b & 0b11000000 == 0b10000000);
+            let c = read_u8()? as u32;
+            log::trace!("saw {:#04x}", c);
+            assert!(c & 0b11000000 == 0b10000000);
+            let val = ((ch & 0b00001111) << 12) | ((b & 0b00111111) << 6) | (c & 0b00111111);
+            log::trace!("saw {:#08x} s", val);
+            Some(Key::Utf8(char::from_u32(val)?))
+        } else if ch & 0b11111000 == 0b11110000 {
+            let ch = ch as u32;
+            log::trace!("saw {:#04x}", ch);
+            let b = read_u8()? as u32;
+            log::trace!("saw {:#04x}", b);
+            assert!(b & 0b11000000 == 0b10000000);
+            let c = read_u8()? as u32;
+            log::trace!("saw {:#04x}", c);
+            assert!(c & 0b11000000 == 0b10000000);
+            let d = read_u8()? as u32;
+            log::trace!("saw {:#04x}", d);
+            assert!(d & 0b11000000 == 0b10000000);
+            Some(Key::Utf8(char::from_u32(
+                ((ch & 0b00001111) << 18)
+                    | ((b & 0b00111111) << 12)
+                    | ((c & 0b00111111) << 6)
+                    | (d & 0b00111111),
+            )?))
         } else {
             panic!("unhandled key '{}'", ch as char);
         }

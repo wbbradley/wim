@@ -16,7 +16,7 @@ pub enum Key {
     Backspace,
     Enter,
     Ctrl(char),
-    Ascii(char),
+    Utf8(char),
     Function(u8),
     None,
 }
@@ -34,7 +34,7 @@ impl std::fmt::Display for Key {
             Key::Left => write!(f, "<Left>"),
             Key::Right => write!(f, "<Right>"),
             Key::Ctrl(ch) => write!(f, "<C-{}>", ch),
-            Key::Ascii(ch) => write!(f, "{}", ch),
+            Key::Utf8(ch) => write!(f, "{}", ch),
             Key::Enter => write!(f, "<Enter>"),
             Key::Esc => write!(f, "<Esc>"),
             Key::EscSeq1(a) => write!(f, "<Esc-{}>", *a as char),

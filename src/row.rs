@@ -50,9 +50,13 @@ impl Row {
     }
 
     pub fn char_at(&self, x: Coord) -> Option<char> {
-        match std::str::from_utf8(self.buf.to_bytes()) {
-            Ok(s) => s.chars().nth(x),
-            Err(_) => None,
+        if x == self.buf.len() {
+            Some('\n')
+        } else {
+            match std::str::from_utf8(self.buf.to_bytes()) {
+                Ok(s) => s.chars().nth(x),
+                Err(_) => None,
+            }
         }
     }
     pub fn insert_char(&mut self, x: Coord, ch: char) {
