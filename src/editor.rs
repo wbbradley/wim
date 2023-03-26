@@ -108,7 +108,6 @@ impl Editor {
             plugin,
             view_key: editor_view_key,
             should_quit: false,
-            frame: Rect::zero(),
             last_key: None,
             top_view_key: Some(focused_view_key),
             command_line_key,
@@ -156,6 +155,6 @@ impl Editor {
 
 impl Drop for Editor {
     fn drop(&mut self) {
-        println!("Closing wim.\r\n  Screen size was {:?}\r", self.frame);
+        println!("Thanks for wimming.\r\n");
     }
 }

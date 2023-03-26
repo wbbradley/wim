@@ -1,3 +1,4 @@
+use crate::buf::buf_fmt;
 use crate::color::Color;
 use crate::glyph::{FormattedGlyph, Glyph};
 use crate::prelude::*;
@@ -8,20 +9,34 @@ pub struct Bitmap {
     cursor: Option<Pos>,
     bmp: Vec<FormattedGlyph>,
 }
+const DEFAULT_GLYPH: FormattedGlyph = FormattedGlyph {
+    glyph: Glyph { ch: ' ' },
+    fg: Color::None,
+    bg: Color::None,
+};
 
 impl Bitmap {
     pub fn new(size: Size) -> Self {
         Self {
             size,
             cursor: None,
-            bmp: vec![
-                FormattedGlyph {
-                    glyph: Glyph { ch: ' ' },
-                    fg: Color::None,
-                    bg: Color::None,
-                };
-                size.area()
-            ],
+            bmp: vec![DEFAULT_GLYPH; size.area()],
+        }
+    }
+    pub fn clear(&mut self) {
+        self.bmp.truncate(0);
+        for _ in 0..self.size.area() {
+            self.bmp.push(DEFAULT_GLYPH);
+        }
+    }
+    pub fn write_to(&self, buf: &mut Buf) {
+        let size = self.size;
+        for y in 0..size.height {
+            buf_fmt!(buf, "\x1b[{};{}H", y + 1, 1);
+            for x in 0..size.width {
+                let formatted_glyph: &FormattedGlyph = &self.bmp[x + y * size.width];
+                formatted_glyph.write_to(buf);
+            }
         }
     }
 }

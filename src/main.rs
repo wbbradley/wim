@@ -1,4 +1,5 @@
 use crate::editor::Editor;
+use crate::layout::recursive_layout;
 use crate::plugin::{Plugin, PluginRef};
 use crate::prelude::*;
 use crate::read::read_key;
@@ -26,6 +27,7 @@ mod files;
 mod glyph;
 mod key;
 mod keygen;
+mod layout;
 mod line;
 mod message;
 mod noun;
@@ -83,28 +85,21 @@ fn run_app(plugin: PluginRef, mut view_map: ViewMap) -> anyhow::Result<()> {
         let filename = args[1].as_ref();
         dks.push_back(command("open").arg(filename).at_focused());
     }
-    let mut layout_jobs: Vec<(ViewKey, Rect)> = Default::default();
     let mut layout_rects: HashMap<ViewKey, Rect> = Default::default();
 
     while !editor.get_property_bool(crate::consts::PROP_EDITOR_SHOULD_QUIT, true) {
         if should_refresh {
-            let root_view_key = view_map.get_root_view_key();
-            layout_jobs.push((root_view_key, frame));
             layout_rects.clear();
-            while let Some((vk, rect)) = layout_jobs.pop() {
-                // Stash the layout rects as we go.
-                assert!(!layout_rects.contains_key(&vk));
-                layout_rects.insert(vk, rect);
-                // Allow the view to layout itself and its children.
-                let mut view = view_map.get_view(vk);
-                let next_jobs = view.layout(&view_map, rect.size());
-                // Remember what children still need to undergo layout.
-                layout_jobs.extend(next_jobs);
-            }
+            recursive_layout(
+                &view_map,
+                view_map.get_root_view_key(),
+                frame,
+                &mut layout_rects,
+            );
+
+            // Render the composite bitmap.
             let mut bmp = Bitmap::new(frame.size());
-            let mut buf = Buf::new();
-            buf.append("\x1b[?25l");
-            for (vk, rect) in layout_rects {
+            for (&vk, &frame) in layout_rects.iter() {
                 view_map.get_view(vk).display(
                     &view_map,
                     BitmapView {
@@ -113,7 +108,11 @@ fn run_app(plugin: PluginRef, mut view_map: ViewMap) -> anyhow::Result<()> {
                     },
                 );
             }
+            // Rasterize the bitmap into a buf.
+            let mut buf = Buf::default();
+            buf.append("\x1b[?25l");
             buf.append("\x1b[?25h");
+            bmp.write_to(&mut buf);
             buf.write_to(libc::STDIN_FILENO);
             should_refresh = false;
         }

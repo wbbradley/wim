@@ -32,10 +32,10 @@ impl View for CommandLine {
     fn install_plugins(&mut self, plugin: PluginRef) {
         self.plugin = plugin;
     }
-    fn layout(&mut self, _view_map: &ViewMap, size: Size) -> Vec<(ViewKey, Rect)> {
+    fn layout(&mut self, _view_map: &ViewMap, _size: Size) -> Vec<(ViewKey, Rect)> {
         Default::default()
     }
-    fn display(&self, view_map: &ViewMap, bmp: BitmapView) {
+    fn display(&self, view_map: &ViewMap, mut bmp: BitmapView) {
         let size = bmp.get_size();
         assert!(size.height == 2);
         let is_dirty = view_map
@@ -49,7 +49,7 @@ impl View for CommandLine {
             .get_property_string(PROP_DOCVIEW_STATUS);
         log::trace!("PROP_DOCVIEW_STATUS={:?}", status_text);
         {
-            let mut line: Line = Line::new(bmp, Pos { x: 0, y: 0 });
+            let mut line: Line = Line::new(&mut bmp, Pos { x: 0, y: 0 });
             if let Some(current_filename) = current_filename {
                 line_fmt!(
                     line,
@@ -72,7 +72,7 @@ impl View for CommandLine {
             }
         }
 
-        let mut line: Line = Line::new(bmp, Pos { x: 0, y: 1 });
+        let mut line: Line = Line::new(&mut bmp, Pos { x: 0, y: 1 });
         if view_map.focused_view_key() == self.view_key {
             line_fmt!(line, ":{}", self.text);
         }

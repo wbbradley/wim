@@ -8,7 +8,6 @@ pub struct Line<'a> {
 impl<'a> Line<'a> {
     pub fn new(bmp: &'a mut BitmapView<'a>, pos: Pos) -> Self {
         assert!(bmp.get_size().contains(pos));
-        let len = bmp.get_size().width;
         Self { bmp, pos }
     }
     fn max_line_length(&self) -> usize {

@@ -1,4 +1,3 @@
-use crate::buf::{Buf, ToCharVec};
 use crate::classify::{classify, CharType};
 use crate::consts::{BLANKS, TAB_STOP_SIZE};
 use crate::types::{Coord, SafeCoordCast};
@@ -14,17 +13,18 @@ pub struct Row {
 impl Row {
     #[inline]
     pub fn append(&mut self, text: &str) {
-        self.buf.append(text);
+        self.buf.extend(text.chars());
     }
-    pub fn render_buf(&self) -> &Buf {
+    pub fn render_buf(&self) -> &[char] {
         &self.render
     }
     pub fn from_line(line: &str) -> Self {
-        let buf = Buf::from_str(line);
-        Self {
-            render: Buf::render_from(&buf),
-            buf,
-        }
+        let mut slf = Self {
+            buf: line.chars().collect(),
+            render: Vec::new(),
+        };
+        slf.update_render();
+        slf
     }
     pub fn len(&self) -> usize {
         self.buf.len()
@@ -37,7 +37,7 @@ impl Row {
     pub fn cursor_to_render_col(&self, cursor: Coord) -> Coord {
         let cursor = cursor;
         let mut render_x: usize = 0;
-        for (i, &ch) in self.buf.to_char_vec().iter().enumerate() {
+        for (i, ch) in self.buf.into_iter().enumerate() {
             if i == cursor {
                 break;
             }
@@ -59,7 +59,7 @@ impl Row {
     }
     pub fn insert_char(&mut self, x: Coord, ch: char) {
         self.buf.splice(x..x, [ch].into_iter());
-        self.render = render_from_bytes(self.buf);
+        self.update_render();
     }
     pub fn update_render(&mut self) {
         // Deal with rendering Tabs.
@@ -80,24 +80,21 @@ impl Row {
         }
     }
 
-    pub fn splice<T>(&mut self, range: Range<Coord>, text: T)
-    where
-        T: ToCharVec,
-    {
-        self.buf.splice(range, text.to_char_vec());
-        self.render = Buf::render_from_bytes(self.buf.to_char_vec());
+    pub fn splice(&mut self, range: Range<Coord>, text: &str) {
+        self.buf.splice(range, text.chars());
+        self.update_render();
     }
+
     pub fn append_row(&mut self, row: &Self) {
-        self.buf.append(row);
-        self.render = Buf::render_from_bytes(self.buf.to_char_vec());
+        self.buf.extend(&row.buf);
+        self.update_render();
     }
     pub fn next_word_break(&self, x: Coord) -> Coord {
         if self.buf.len() <= x + 1 {
             self.buf.len()
         } else {
-            let bytes = self.buf.to_char_vec();
-            let start_class = classify(bytes[x] as char);
-            for (i, &ch) in bytes[x + 1..].iter().enumerate() {
+            let start_class = classify(self.buf[x] as char);
+            for (i, &ch) in self.buf[x + 1..].iter().enumerate() {
                 let next_class = classify(ch as char);
                 if next_class != start_class {
                     return x + i + 1;
@@ -109,19 +106,17 @@ impl Row {
 
     pub fn get_first_word(&self) -> Option<Coord> {
         self.buf
-            .to_char_vec()
-            .iter()
-            .position(|&b| classify(b as char) != CharType::Space)
+            .into_iter()
+            .position(|b| classify(b) != CharType::Space)
     }
     pub fn prev_word_break(&self, mut x: Coord) -> Coord {
         x = x.clamp(0, self.buf.len());
         if x <= 1 {
             0
         } else {
-            let bytes = self.buf.to_char_vec();
-            let start_class = classify(bytes[x - 1] as char);
+            let start_class = classify(self.buf[x - 1] as char);
             for i in 1..=x {
-                let ch = bytes[x - i];
+                let ch = self.buf[x - i];
                 let next_class = classify(ch as char);
                 if next_class != start_class {
                     return x - i + 1;
@@ -129,11 +124,5 @@ impl Row {
             }
             0
         }
-    }
-}
-
-impl ToCharVec for &Row {
-    fn to_char_vec(&self) -> Vec<char> {
-        self.buf.to_char_vec()
     }
 }

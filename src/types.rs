@@ -160,6 +160,18 @@ impl Rect {
     }
 }
 
+impl std::ops::Add<Pos> for Rect {
+    type Output = Rect;
+    fn add(self, pos: Pos) -> Self {
+        Self {
+            x: self.x + pos.x,
+            y: self.y + pos.y,
+            width: self.width,
+            height: self.height,
+        }
+    }
+}
+
 impl From<Size> for Rect {
     fn from(s: Size) -> Self {
         Self {
