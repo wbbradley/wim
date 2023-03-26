@@ -21,6 +21,7 @@ impl Bitmap {
     }
     pub fn clear(&mut self) {
         self.bmp.truncate(0);
+        self.cursor = None;
         for _ in 0..self.size.area() {
             self.bmp.push(DEFAULT_GLYPH);
         }
@@ -31,9 +32,12 @@ impl Bitmap {
             buf_fmt!(buf, "\x1b[{};{}H", y + 1, 1);
             for x in 0..size.width {
                 let formatted_glyph: &FormattedGlyph = &self.bmp[x + y * size.width];
-                formatted_glyph.write_to(buf);
+                formatted_glyph.write_formatted_glyph_to(buf);
             }
         }
+    }
+    pub fn get_cursor(&self) -> Option<Pos> {
+        self.cursor
     }
 }
 
@@ -50,7 +54,6 @@ impl<'a> BitmapView<'a> {
         self.frame.size()
     }
     pub fn set_cursor(&mut self, pos: Pos) {
-        // bmp.cursor = buf, "\x1b[{};{}H", pos.y + 1, pos.x + 1);
         if self.frame.contains(pos) {
             self.bitmap.cursor = Some(self.frame.top_left() + pos);
         }

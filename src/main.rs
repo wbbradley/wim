@@ -1,3 +1,4 @@
+use crate::buf::buf_fmt;
 use crate::editor::Editor;
 use crate::layout::recursive_layout;
 use crate::plugin::{Plugin, PluginRef};
@@ -86,7 +87,8 @@ fn run_app(plugin: PluginRef, mut view_map: ViewMap) -> anyhow::Result<()> {
     }
     let mut layout_rects: HashMap<ViewKey, Rect> = Default::default();
     let mut bmp = Bitmap::new(frame.size());
-
+    let mut buf = Buf::default();
+    let mut last_md5 = md5::Digest([0; 16]);
     while !editor.get_property_bool(crate::consts::PROP_EDITOR_SHOULD_QUIT, true) {
         if should_refresh {
             layout_rects.clear();
@@ -100,15 +102,24 @@ fn run_app(plugin: PluginRef, mut view_map: ViewMap) -> anyhow::Result<()> {
             // Render the composite bitmap.
             bmp.clear();
             for (&vk, &frame) in layout_rects.iter() {
-                view_map
-                    .get_view(vk)
-                    .display(&view_map, &mut BitmapView::new(&mut bmp, frame));
+                let mut bmp_view = BitmapView::new(&mut bmp, frame);
+                view_map.get_view(vk).display(&view_map, &mut bmp_view);
             }
             // Rasterize the bitmap into a buf.
-            let mut buf = Buf::default();
+            buf.truncate();
             buf.append("\x1b[?25l");
-            buf.append("\x1b[?25h");
             bmp.write_to(&mut buf);
+            buf.append("\x1b[?25h");
+
+            let new_md5 = buf.md5();
+            if new_md5 == last_md5 {
+                buf.truncate();
+            } else {
+                last_md5 = new_md5;
+            }
+            if let Some(cursor) = bmp.get_cursor() {
+                buf_fmt!(buf, "\x1b[{};{}H", cursor.y + 1, cursor.x + 1);
+            }
             buf.write_to(libc::STDIN_FILENO);
             should_refresh = false;
         }

@@ -100,6 +100,11 @@ impl Buf {
     pub fn len(&self) -> usize {
         self.b.len()
     }
+    pub fn md5(&self) -> md5::Digest {
+        let slice =
+            unsafe { std::slice::from_raw_parts(self.b.as_ptr() as *const u8, self.b.len() * 4) };
+        md5::compute(slice)
+    }
 }
 
 pub static BLANKS: &[u8] = &[b' '; 1024 * 2];

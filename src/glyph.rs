@@ -24,7 +24,7 @@ impl FormattedGlyph {
             bg: Color::None,
         }
     }
-    pub fn write_to(&self, buf: &mut Buf) {
+    pub fn write_formatted_glyph_to(&self, buf: &mut Buf) {
         buf_fmt!(buf, "{}", self.glyph.ch);
     }
 }
