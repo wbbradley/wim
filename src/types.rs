@@ -206,16 +206,16 @@ impl Arbitrary for Rect {
 #[cfg(test)]
 mod tests {
     use super::*;
-    quickcheck! {
-        fn prop(r: Rect, p: Pos) -> bool {
-            r + p == {
-                let q = r.top_left() + p;
-                Rect {
-                    x: q.x,
-                    y: q.y,
-                    width: r.width,
-                    height: r.height,
-                }
+
+    #[quickcheck]
+    fn rect_pos_addition(r: Rect, p: Pos) -> bool {
+        r + p == {
+            let q = r.top_left() + p;
+            Rect {
+                x: q.x,
+                y: q.y,
+                width: r.width,
+                height: r.height,
             }
         }
     }

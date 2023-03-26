@@ -11,8 +11,10 @@ use log::LevelFilter;
 use std::env;
 
 #[cfg(test)]
-#[macro_use]
 extern crate quickcheck;
+#[cfg(test)]
+#[macro_use(quickcheck)]
+extern crate quickcheck_macros;
 
 mod bindings;
 mod bitmap;
