@@ -59,7 +59,7 @@ impl View for Editor {
         ret
     }
 
-    fn display(&self, view_map: &ViewMap, bmp: BitmapView) {
+    fn display(&self, view_map: &ViewMap, bmp: &mut BitmapView) {
         // Hide the cursor.
         if let Some(cursor_pos) = view_map.focused_view().get_cursor_pos() {
             bmp.set_cursor(cursor_pos);

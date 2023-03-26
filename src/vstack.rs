@@ -53,7 +53,7 @@ impl View for VStack {
     fn get_view_key(&self) -> ViewKey {
         self.view_key
     }
-    fn display(&self, _view_map: &ViewMap, _bmp: BitmapView) {
+    fn display(&self, _view_map: &ViewMap, _bmp: &mut BitmapView) {
         // TODO: draw borders between views.
     }
     fn get_cursor_pos(&self) -> Option<Pos> {

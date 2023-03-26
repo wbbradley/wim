@@ -41,9 +41,6 @@ impl ViewMap {
     pub fn get_next_key(&mut self) -> ViewKey {
         self.view_key_gen.next_key()
     }
-    pub fn get_root_view(&self) -> ViewRef {
-        self.get_view(self.root_view_key.unwrap())
-    }
     pub fn get_root_view_key(&self) -> ViewKey {
         self.root_view_key.unwrap()
     }

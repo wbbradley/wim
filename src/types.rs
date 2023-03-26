@@ -79,7 +79,7 @@ pub struct Pos {
 #[allow(dead_code)]
 impl Pos {
     pub fn zero() -> Self {
-        std::mem::zeroed()
+        Self { x: 0, y: 0 }
     }
     pub fn clamp(&self, r: &Rect) -> Self {
         Self {
@@ -114,7 +114,7 @@ impl From<Pos> for Size {
     }
 }
 
-#[derive(Default, Copy, Clone, Debug)]
+#[derive(Default, Copy, Clone, Debug, Eq, PartialEq)]
 pub struct Rect {
     pub x: Coord,
     pub y: Coord,
@@ -183,19 +183,19 @@ impl From<Size> for Rect {
     }
 }
 
-fn reverse<T: Clone>(xs: &[T]) -> Vec<T> {
-    let mut rev = vec![];
-    for x in xs.iter() {
-        rev.insert(0, x.clone())
-    }
-    rev
-}
-
 #[cfg(test)]
 mod tests {
     quickcheck! {
-        fn prop(xs: Vec<u32>) -> bool {
-            xs == reverse(&reverse(&xs))
+        fn prop(r: Rect, p: Pos) -> bool {
+            r + p == {
+                let q = r.top_left() + p;
+                Rect {
+                    x: q.x,
+                    y: q.y,
+                    width: r.width,
+                    height: r.height,
+                }
+            }
         }
     }
 }

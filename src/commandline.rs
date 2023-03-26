@@ -1,5 +1,5 @@
+use crate::bitmap::bmp_fmt_at;
 use crate::error::{Error, Result};
-use crate::line::{line_fmt, Line};
 use crate::prelude::*;
 
 #[allow(dead_code)]
@@ -35,7 +35,7 @@ impl View for CommandLine {
     fn layout(&mut self, _view_map: &ViewMap, _size: Size) -> Vec<(ViewKey, Rect)> {
         Default::default()
     }
-    fn display(&self, view_map: &ViewMap, mut bmp: BitmapView) {
+    fn display(&self, view_map: &ViewMap, bmp: &mut BitmapView) {
         let size = bmp.get_size();
         assert!(size.height == 2);
         let is_dirty = view_map
@@ -49,10 +49,11 @@ impl View for CommandLine {
             .get_property_string(PROP_DOCVIEW_STATUS);
         log::trace!("PROP_DOCVIEW_STATUS={:?}", status_text);
         {
-            let mut line: Line = Line::new(&mut bmp, Pos { x: 0, y: 0 });
+            let mut pos = Pos::zero();
             if let Some(current_filename) = current_filename {
-                line_fmt!(
-                    line,
+                bmp_fmt_at!(
+                    bmp,
+                    pos,
                     " {} {}|",
                     current_filename,
                     if is_dirty { "(modified) " } else { "" }
@@ -64,17 +65,17 @@ impl View for CommandLine {
             } = self.status
             {
                 if expiry > Instant::now() {
-                    line_fmt!(line, " {}", message);
+                    bmp_fmt_at!(bmp, pos, " {}", message);
                 }
             }
             if let Some(status_text) = status_text {
-                line.end_with_str(&status_text);
+                bmp.end_line_with_str(pos, &status_text);
             }
         }
 
-        let mut line: Line = Line::new(&mut bmp, Pos { x: 0, y: 1 });
         if view_map.focused_view_key() == self.view_key {
-            line_fmt!(line, ":{}", self.text);
+            let mut pos = Pos { x: 0, y: 1 };
+            bmp_fmt_at!(bmp, pos, ":{}", self.text);
         }
     }
 

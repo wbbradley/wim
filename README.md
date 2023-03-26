@@ -12,17 +12,18 @@ Using [wcwidth implementation for Rust](https://github.com/ridiculousfish/widech
 
 ## Normal-mode model
 
-Cmd ::= Operator TextObj |
+Cmd ::= TextObj |
         Operator (ForcedMotion)? Motion
 Operator ::= Delete | Change | Yank
 
-
+ge 
 ## Next items
 
-- Save
-- Specific editor bindings composition
+ge ge ge ge ge ge ge ge ge ge ge ge - Save - Specific editor bindings composition
   - "send-operator"
+
   - "send-text-object"
+  this is a new line.
   - "send-motion"
 - Undo
 - Move status-bar to editor window.

@@ -53,7 +53,7 @@ impl Doc {
                 rows: &self.rows[y..=y],
                 row: self.rows.get(y),
                 pos: Pos { x: 0, y },
-                y_offset: y,
+                y_offset: 0,
             }
         } else {
             IterChars {
@@ -64,6 +64,14 @@ impl Doc {
             }
         }
     }
+    pub fn render_line(&self, pos: Pos) -> std::slice::Iter<'_, char> {
+        if pos.y < self.rows.len() {
+            self.rows.get(pos.y).unwrap().render_chars_from(pos.x)
+        } else {
+            EMPTY.iter()
+        }
+    }
+
     pub fn line_count(&self) -> usize {
         self.rows.len()
     }

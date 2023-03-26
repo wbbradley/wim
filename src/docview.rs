@@ -185,7 +185,7 @@ impl View for DocView {
         self.scroll(size);
         vec![]
     }
-    fn display(&self, _view_map: &ViewMap, bmp: BitmapView) {
+    fn display(&self, _view_map: &ViewMap, bmp: &mut BitmapView) {
         let mut y = 0;
         let size = bmp.get_size();
         let offset_line_count = if self.scroll_offset.y >= self.doc.line_count() {
@@ -200,17 +200,21 @@ impl View for DocView {
             bmp.append_chars_at(
                 Pos { x: 0, y },
                 self.doc
-                    .iter_line(self.scroll_offset.y + y)
-                    .map(|cp| cp.ch)
-                    .take_while(|&ch| ch != '\n'),
+                    .render_line(Pos {
+                        x: self.scroll_offset.x,
+                        y: self.scroll_offset.y + y,
+                    })
+                    .copied(),
             );
+            y += 1;
         }
         loop {
             if y >= size.height {
                 break;
             }
 
-            bmp.set_glyph(Pos { x: 0, y }, Glyph { ch: '~' });
+            bmp.set_glyph(Pos { x: 0, y }, '~'.into());
+            y += 1;
         }
     }
 

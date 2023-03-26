@@ -1,4 +1,4 @@
-use crate::types::{Pos, SafeCoordCast};
+use crate::types::SafeCoordCast;
 
 #[derive(Clone, Debug)]
 pub struct Buf {
@@ -117,8 +117,9 @@ impl ToBufBytes for &Buf {
     }
 }
 
-pub static EMPTY: &[u8] = &[];
+// pub static EMPTY: &[u8] = &[];
 
+/*
 pub fn safe_byte_slice<'a, T>(buf: &'a T, start: usize, max_len: usize) -> &'a [u8]
 where
     T: ToBufBytes + 'a,
@@ -129,6 +130,7 @@ where
     }
     &bytes[start..std::cmp::min(bytes.len(), start + max_len)]
 }
+*/
 
 macro_rules! buf_fmt {
     ($buf:expr, $($args:expr),+) => {{
@@ -140,6 +142,8 @@ macro_rules! buf_fmt {
 }
 pub(crate) use buf_fmt;
 
+/*
 pub fn place_cursor(buf: &mut Buf, pos: Pos) {
     buf_fmt!(buf, "\x1b[{};{}H", pos.y + 1, pos.x + 1);
 }
+*/

@@ -8,5 +8,6 @@ pub static PROP_DOCVIEW_STATUS: &str = "docview-status";
 pub static PROP_DOC_FILENAME: &str = "doc-filename";
 pub static PROP_DOC_IS_MODIFIED: &str = "doc-is-modified?";
 
+pub static EMPTY: &[char] = &[];
 pub static BLANKS: &[char] = &[' '; 1024 * 2];
 pub static TAB_STOP_SIZE: usize = 4;

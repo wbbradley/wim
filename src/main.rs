@@ -28,7 +28,6 @@ mod glyph;
 mod key;
 mod keygen;
 mod layout;
-mod line;
 mod message;
 mod noun;
 mod plugin;
@@ -86,6 +85,7 @@ fn run_app(plugin: PluginRef, mut view_map: ViewMap) -> anyhow::Result<()> {
         dks.push_back(command("open").arg(filename).at_focused());
     }
     let mut layout_rects: HashMap<ViewKey, Rect> = Default::default();
+    let mut bmp = Bitmap::new(frame.size());
 
     while !editor.get_property_bool(crate::consts::PROP_EDITOR_SHOULD_QUIT, true) {
         if should_refresh {
@@ -98,15 +98,11 @@ fn run_app(plugin: PluginRef, mut view_map: ViewMap) -> anyhow::Result<()> {
             );
 
             // Render the composite bitmap.
-            let mut bmp = Bitmap::new(frame.size());
+            bmp.clear();
             for (&vk, &frame) in layout_rects.iter() {
-                view_map.get_view(vk).display(
-                    &view_map,
-                    BitmapView {
-                        bitmap: &mut bmp,
-                        frame,
-                    },
-                );
+                view_map
+                    .get_view(vk)
+                    .display(&view_map, &mut BitmapView::new(&mut bmp, frame));
             }
             // Rasterize the bitmap into a buf.
             let mut buf = Buf::default();

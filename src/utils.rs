@@ -116,6 +116,7 @@ where
     Ok(BufReader::new(file).lines())
 }
 
+#[allow(dead_code)]
 pub fn wcwidth(buf: &[u8]) -> usize {
     let utf8_str = std::str::from_utf8(buf).unwrap();
     utf8_str

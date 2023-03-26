@@ -1,4 +1,4 @@
-use crate::classify::{classify, CharType};
+use crate::classify::classify;
 use crate::consts::{BLANKS, TAB_STOP_SIZE};
 use crate::types::{Coord, SafeCoordCast};
 use std::ops::Range;
@@ -11,13 +11,13 @@ pub struct Row {
 }
 
 impl Row {
-    #[inline]
-    pub fn append(&mut self, text: &str) {
-        self.buf.extend(text.chars());
-    }
-    pub fn render_buf(&self) -> &[char] {
-        &self.render
-    }
+    // #[inline]
+    // pub fn append(&mut self, text: &str) {
+    //     self.buf.extend(text.chars());
+    // }
+    // pub fn render_buf(&self) -> &[char] {
+    //     &self.render
+    // }
     pub fn from_line(line: &str) -> Self {
         let mut slf = Self {
             buf: line.chars().collect(),
@@ -29,15 +29,15 @@ impl Row {
     pub fn len(&self) -> usize {
         self.buf.len()
     }
-    pub fn col_len(&self) -> usize {
-        self.render.len()
-    }
+    // pub fn col_len(&self) -> usize {
+    //     self.render.len()
+    // }
 
     /// Adjust the render column to account for tabs.
     pub fn cursor_to_render_col(&self, cursor: Coord) -> Coord {
         let cursor = cursor;
         let mut render_x: usize = 0;
-        for (i, ch) in self.buf.into_iter().enumerate() {
+        for (i, &ch) in self.buf.iter().enumerate() {
             if i == cursor {
                 break;
             }
@@ -63,14 +63,14 @@ impl Row {
     }
     pub fn update_render(&mut self) {
         // Deal with rendering Tabs.
-        let tabs = self.buf.into_iter().filter(|&x| x == '\t').count();
+        let tabs = self.buf.iter().copied().filter(|&x| x == '\t').count();
         if tabs == 0 {
             self.render.truncate(0);
             self.render.extend_from_slice(&self.buf);
         } else {
             self.render
                 .reserve(self.buf.len() + tabs * (TAB_STOP_SIZE - 1));
-            for ch in self.buf {
+            for ch in self.buf.iter().copied() {
                 if ch == '\t' {
                     self.render.extend_from_slice(&BLANKS[..TAB_STOP_SIZE]);
                 } else {
@@ -104,25 +104,28 @@ impl Row {
         }
     }
 
-    pub fn get_first_word(&self) -> Option<Coord> {
-        self.buf
-            .into_iter()
-            .position(|b| classify(b) != CharType::Space)
-    }
     pub fn prev_word_break(&self, mut x: Coord) -> Coord {
         x = x.clamp(0, self.buf.len());
         if x <= 1 {
             0
         } else {
-            let start_class = classify(self.buf[x - 1] as char);
+            let start_class = classify(self.buf[x - 1]);
             for i in 1..=x {
                 let ch = self.buf[x - i];
-                let next_class = classify(ch as char);
+                let next_class = classify(ch);
                 if next_class != start_class {
                     return x - i + 1;
                 }
             }
             0
         }
+    }
+    // pub fn chars_from(&self, mut x: Coord) -> std::slice::Iter<'_, char> {
+    //     x = x.clamp(0, self.buf.len());
+    //     self.buf[x..].iter()
+    // }
+    pub fn render_chars_from(&self, mut x: Coord) -> std::slice::Iter<'_, char> {
+        x = x.clamp(0, self.render.len());
+        self.render[x..].iter()
     }
 }
