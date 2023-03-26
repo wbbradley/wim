@@ -21,17 +21,17 @@ impl View for VStack {
     fn install_plugins(&mut self, plugin: PluginRef) {
         self.plugin = plugin;
     }
-    fn layout(&mut self, _view_map: &ViewMap, frame: Rect) -> Vec<(ViewKey, Rect)> {
-        let expected_per_view_height = std::cmp::max(1, frame.height / self.view_keys.len());
+    fn layout(&mut self, _view_map: &ViewMap, size: Size) -> Vec<(ViewKey, Rect)> {
+        let expected_per_view_height = std::cmp::max(1, size.height / self.view_keys.len());
         let mut used = 0;
         self.view_keys
             .iter()
             .filter_map(|view_key| {
-                if frame.height - used < expected_per_view_height {
+                if size.height - used < expected_per_view_height {
                     return None;
                 }
-                let view_height = if used + expected_per_view_height * 2 > frame.height {
-                    frame.height - used
+                let view_height = if used + expected_per_view_height * 2 > size.height {
+                    size.height - used
                 } else {
                     expected_per_view_height
                 };
@@ -39,9 +39,9 @@ impl View for VStack {
                 let ret = Some((
                     *view_key,
                     Rect {
-                        x: frame.x,
+                        x: 0,
                         y: used,
-                        width: frame.width,
+                        width: size.width,
                         height: view_height,
                     },
                 ));
@@ -53,11 +53,8 @@ impl View for VStack {
     fn get_view_key(&self) -> ViewKey {
         self.view_key
     }
-    fn display(&self, view_map: &ViewMap, buf: &mut BitmapView) {
-        self.view_keys
-            .iter()
-            .cloned()
-            .for_each(|view_key| view_map.get_view(view_key).display(view_map, buf));
+    fn display(&self, _view_map: &ViewMap, _bmp: BitmapView) {
+        // TODO: draw borders between views.
     }
     fn get_cursor_pos(&self) -> Option<Pos> {
         panic!("VStack should not be focused!");

@@ -10,7 +10,7 @@ pub struct Bitmap {
 }
 
 impl Bitmap {
-    fn new(size: Size) -> Self {
+    pub fn new(size: Size) -> Self {
         Self {
             size,
             cursor: None,
@@ -58,5 +58,21 @@ impl<'a> BitmapView<'a> {
             fg: Color::None,
             bg: Color::None,
         };
+    }
+    pub fn append_chars_at<T>(&mut self, mut pos: Pos, chs: T) -> usize
+    where
+        T: Iterator<Item = char>,
+    {
+        let max_pos = self.get_size().width;
+        let mut count = 0;
+        for ch in chs {
+            if pos.x >= max_pos {
+                break;
+            }
+            self.set_glyph(pos, Glyph { ch });
+            pos.x += 1;
+            count += 1;
+        }
+        count
     }
 }

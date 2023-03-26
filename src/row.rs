@@ -1,21 +1,20 @@
-use crate::buf::{Buf, ToCharVec, TAB_STOP_SIZE};
+use crate::buf::{Buf, ToCharVec};
 use crate::classify::{classify, CharType};
+use crate::consts::{BLANKS, TAB_STOP_SIZE};
 use crate::types::{Coord, SafeCoordCast};
 use std::ops::Range;
 
 #[allow(dead_code)]
 #[derive(Clone, Default, Debug)]
 pub struct Row {
-    buf: Buf,
-    render: Buf,
+    buf: Vec<char>,
+    render: Vec<char>,
 }
 
-#[allow(dead_code)]
 impl Row {
     #[inline]
     pub fn append(&mut self, text: &str) {
-        panic!("not used ({})", text);
-        // self.buf.append(text)
+        self.buf.append(text);
     }
     pub fn render_buf(&self) -> &Buf {
         &self.render
@@ -42,7 +41,7 @@ impl Row {
             if i == cursor {
                 break;
             }
-            if ch == b'\t' {
+            if ch == '\t' {
                 render_x += (TAB_STOP_SIZE - 1) - render_x % TAB_STOP_SIZE;
             }
             render_x += 1;
@@ -51,18 +50,34 @@ impl Row {
     }
 
     pub fn char_at(&self, x: Coord) -> Option<char> {
+        assert!(self.buf.len() >= x);
         if x == self.buf.len() {
             Some('\n')
         } else {
-            match std::str::from_utf8(self.buf.to_char_vec()) {
-                Ok(s) => s.chars().nth(x),
-                Err(_) => None,
-            }
+            self.buf.get(x).copied()
         }
     }
     pub fn insert_char(&mut self, x: Coord, ch: char) {
-        self.buf.insert_char(x, ch);
-        self.render = Buf::render_from_bytes(self.buf.to_char_vec());
+        self.buf.splice(x..x, [ch].into_iter());
+        self.render = render_from_bytes(self.buf);
+    }
+    pub fn update_render(&mut self) {
+        // Deal with rendering Tabs.
+        let tabs = self.buf.into_iter().filter(|&x| x == '\t').count();
+        if tabs == 0 {
+            self.render.truncate(0);
+            self.render.extend_from_slice(&self.buf);
+        } else {
+            self.render
+                .reserve(self.buf.len() + tabs * (TAB_STOP_SIZE - 1));
+            for ch in self.buf {
+                if ch == '\t' {
+                    self.render.extend_from_slice(&BLANKS[..TAB_STOP_SIZE]);
+                } else {
+                    self.render.push(ch);
+                }
+            }
+        }
     }
 
     pub fn splice<T>(&mut self, range: Range<Coord>, text: T)

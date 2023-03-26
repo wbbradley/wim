@@ -1,12 +1,11 @@
 pub(crate) use crate::bindings::Bindings;
 pub(crate) use crate::bitmap::{Bitmap, BitmapView};
-pub(crate) use crate::glyph::{Glyph, FormattedGlyph}
 pub(crate) use crate::command::command;
-pub(crate) use crate::color::Color;
 pub(crate) use crate::consts::*;
 pub(crate) use crate::dispatch::{DispatchRef, DispatchTarget, Dispatcher};
 pub(crate) use crate::dk::DK;
 pub(crate) use crate::error::{error, not_impl};
+pub(crate) use crate::glyph::Glyph;
 pub(crate) use crate::key::Key;
 pub(crate) use crate::message::Message;
 pub(crate) use crate::noun::Noun;

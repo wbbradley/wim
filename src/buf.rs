@@ -2,7 +2,7 @@ use crate::types::Coord;
 
 #[derive(Clone, Debug)]
 pub struct Buf {
-    b: Vec<char>,
+    b: Vec<u8>,
 }
 
 impl Default for Buf {
@@ -41,7 +41,7 @@ impl Buf {
     pub fn reserve(&mut self, size: usize) {
         self.b.reserve(size);
     }
-    pub fn append<T>(&mut self, text: &str) {
+    pub fn append(&mut self, text: &str) {
         self.b.extend(text.chars())
     }
 
@@ -76,32 +76,10 @@ impl Buf {
         Self { b }
     }
     */
-    pub fn render_from(buf: &Self) -> Self {
-        // Deal with rendering Tabs.
-        let mut b = Vec::new();
-        let tabs = buf.b.iter().copied().filter(|&x| x == '\t').count();
-        if tabs == 0 {
-            b = buf.b.clone();
-        } else {
-            b.reserve(buf.b.len() + tabs * (TAB_STOP_SIZE - 1));
-            for &ch in buf.b.iter() {
-                if ch == '\t' {
-                    b.extend_from_slice(&BLANKS[..TAB_STOP_SIZE]);
-                } else {
-                    b.push(ch);
-                }
-            }
-        }
-        Self { b }
-    }
-
     pub fn len(&self) -> usize {
         self.b.len()
     }
 }
-
-pub static BLANKS: &[char] = &[' '; 1024 * 2];
-pub static TAB_STOP_SIZE: usize = 4;
 
 impl ToCharVec for Buf {
     fn to_char_vec(&self) -> Vec<char> {

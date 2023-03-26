@@ -1,3 +1,7 @@
+#[cfg(test)]
+#[macro_use]
+extern crate quickcheck;
+
 pub type Coord = usize;
 pub type RelCoord = isize;
 
@@ -74,6 +78,9 @@ pub struct Pos {
 
 #[allow(dead_code)]
 impl Pos {
+    pub fn zero() -> Self {
+        std::mem::zeroed()
+    }
     pub fn clamp(&self, r: &Rect) -> Self {
         Self {
             x: self.x.clamp(r.x, r.x + r.width),
@@ -160,6 +167,23 @@ impl From<Size> for Rect {
             y: 0,
             width: s.width,
             height: s.height,
+        }
+    }
+}
+
+fn reverse<T: Clone>(xs: &[T]) -> Vec<T> {
+    let mut rev = vec![];
+    for x in xs.iter() {
+        rev.insert(0, x.clone())
+    }
+    rev
+}
+
+#[cfg(test)]
+mod tests {
+    quickcheck! {
+        fn prop(xs: Vec<u32>) -> bool {
+            xs == reverse(&reverse(&xs))
         }
     }
 }

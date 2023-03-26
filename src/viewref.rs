@@ -37,11 +37,11 @@ impl View for ViewRef {
     fn install_plugins(&mut self, plugin: PluginRef) {
         self.ptr.borrow_mut().install_plugins(plugin)
     }
-    fn layout(&mut self, view_map: &ViewMap, frame: Rect) -> Vec<(ViewKey, Rect)> {
-        self.ptr.borrow_mut().layout(view_map, frame)
+    fn layout(&mut self, view_map: &ViewMap, size: Size) -> Vec<(ViewKey, Rect)> {
+        self.ptr.borrow_mut().layout(view_map, size)
     }
-    fn display(&self, view_map: &ViewMap, buf: &mut BitmapView) {
-        self.ptr.borrow().display(view_map, buf)
+    fn display(&self, view_map: &ViewMap, bmp: BitmapView) {
+        self.ptr.borrow().display(view_map, bmp)
     }
     fn get_view_key(&self) -> ViewKey {
         self.ptr.borrow().get_view_key()

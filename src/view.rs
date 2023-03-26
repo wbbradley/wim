@@ -38,7 +38,7 @@ pub trait View: DispatchTarget + ViewContext {
     /// layout returns a vec of views that also need layout.
     #[must_use]
     fn layout(&mut self, view_map: &ViewMap, size: Size) -> Vec<(ViewKey, Rect)>;
-    fn display(&self, view_map: &ViewMap, bmp: &mut BitmapView);
+    fn display(&self, view_map: &ViewMap, bmp: BitmapView);
     fn get_view_key(&self) -> ViewKey;
     fn get_cursor_pos(&self) -> Option<Pos>;
     fn set_status(&mut self, status: Status) {

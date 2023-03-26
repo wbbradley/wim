@@ -16,3 +16,6 @@ regex = "1.7.2"
 simple-logging = "2.0.2"
 stackfmt = "0.1.2"
 thiserror = "1.0.39"
+
+[dev-dependencies]
+quickcheck = "1.0.3"

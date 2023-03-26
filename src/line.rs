@@ -17,17 +17,6 @@ impl<'a> Line<'a> {
     fn cur_dist_to_end(&self) -> usize {
         self.max_line_length() - self.pos.x
     }
-    pub fn append_str(&mut self, b: &str) {
-        let max_pos = self.bmp.get_size().width;
-        for ch in b.chars() {
-            if self.pos.x >= max_pos {
-                log::trace!("stopped appending to Line prematurely [ch={}]", ch);
-                break;
-            }
-            self.bmp.set_glyph(self.pos, Glyph { ch });
-            self.pos.x += 1;
-        }
-    }
     pub fn remaining_space(&self) -> usize {
         let mll = self.max_line_length();
         if mll > self.pos.x {
@@ -35,6 +24,9 @@ impl<'a> Line<'a> {
         } else {
             0
         }
+    }
+    pub fn append_str(&mut self, s: &str) {
+        self.pos.x += self.bmp.append_chars_at(self.pos, s.chars());
     }
     pub fn end_with_str(&mut self, s: &str) {
         let count = s.chars().count();

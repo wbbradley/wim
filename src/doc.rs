@@ -34,9 +34,9 @@ impl Doc {
             None => None,
         }
     }
-    pub fn iter_lines(&self) -> IterLines {
+    pub fn iter_lines(&self, y: Coord) -> IterLines {
         IterLines {
-            row_iter: self.rows.iter(),
+            row_iter: self.rows[y..].iter(),
         }
     }
     pub fn iter_from(&self, pos: Pos) -> IterChars {
@@ -44,6 +44,24 @@ impl Doc {
             rows: &self.rows,
             row: self.rows.get(pos.y),
             pos,
+            y_offset: 0,
+        }
+    }
+    pub fn iter_line(&self, y: Coord) -> IterChars {
+        if self.rows.len() > y {
+            IterChars {
+                rows: &self.rows[y..=y],
+                row: self.rows.get(y),
+                pos: Pos { x: 0, y },
+                y_offset: y,
+            }
+        } else {
+            IterChars {
+                rows: &[],
+                row: None,
+                pos: Pos::zero(),
+                y_offset: 0,
+            }
         }
     }
     pub fn line_count(&self) -> usize {
@@ -177,15 +195,17 @@ impl<'a> Iterator for IterLines<'a> {
 }
 
 pub struct IterChars<'a> {
-    rows: &'a Vec<Row>,
+    rows: &'a [Row],
     row: Option<&'a Row>,
     pos: Pos,
+    y_offset: Coord,
 }
 
 pub struct IterCharsRev<'a> {
-    rows: &'a Vec<Row>,
+    rows: &'a [Row],
     row: Option<&'a Row>,
     pos: Pos,
+    y_offset: Coord,
 }
 
 #[derive(Debug)]
@@ -200,6 +220,7 @@ impl<'a> IterChars<'a> {
             rows: self.rows,
             row: self.row,
             pos: self.pos,
+            y_offset: self.y_offset,
         }
     }
 }
@@ -224,7 +245,10 @@ impl<'a> Iterator for IterChars<'a> {
         if let Some(row) = self.row {
             let ret = Some(CharPos {
                 ch: row.char_at(self.pos.x)?,
-                pos: self.pos,
+                pos: Pos {
+                    x: self.pos.x,
+                    y: self.pos.y + self.y_offset,
+                },
             });
             self.advance();
             return ret;
@@ -261,13 +285,19 @@ impl<'a> Iterator for IterCharsRev<'a> {
                 }
                 Some(CharPos {
                     ch: '\n',
-                    pos: self.pos,
+                    pos: Pos {
+                        x: self.pos.x,
+                        y: self.pos.y + self.y_offset,
+                    },
                 })
             }
             Some(row) => {
                 let ret = Some(CharPos {
                     ch: row.char_at(self.pos.x)?,
-                    pos: self.pos,
+                    pos: Pos {
+                        x: self.pos.x,
+                        y: self.pos.y + self.y_offset,
+                    },
                 });
                 self.advance();
                 ret

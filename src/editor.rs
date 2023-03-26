@@ -16,7 +16,6 @@ pub struct Editor {
     view_key: ViewKey,
     top_view_key: Option<ViewKey>,
     command_line_key: ViewKey,
-    frame: Rect,
 }
 
 impl ViewContext for Editor {
@@ -32,8 +31,7 @@ impl View for Editor {
     fn install_plugins(&mut self, plugin: PluginRef) {
         self.plugin = plugin;
     }
-    fn layout(&mut self, _view_map: &ViewMap, frame: Rect) -> Vec<(ViewKey, Rect)> {
-        self.frame = frame;
+    fn layout(&mut self, _view_map: &ViewMap, size: Size) -> Vec<(ViewKey, Rect)> {
         let mut ret = Vec::new();
 
         if let Some(top_view_key) = self.top_view_key {
@@ -42,8 +40,8 @@ impl View for Editor {
                 Rect {
                     x: 0,
                     y: 0,
-                    width: frame.width,
-                    height: frame.height - 2,
+                    width: size.width,
+                    height: size.height - 2,
                 },
             ));
         } else {
@@ -53,37 +51,19 @@ impl View for Editor {
             self.command_line_key,
             Rect {
                 x: 0,
-                y: frame.height - 2,
-                width: frame.width,
+                y: size.height - 2,
+                width: size.width,
                 height: 2,
             },
         ));
         ret
     }
 
-    fn display(&self, view_map: &ViewMap, buf: &mut BitmapView) {
+    fn display(&self, view_map: &ViewMap, bmp: BitmapView) {
         // Hide the cursor.
-        buf.append("\x1b[?25l");
-        if let Some(top_view_key) = self.top_view_key {
-            view_map.get_view(top_view_key).display(view_map, buf);
-        }
-        view_map
-            .get_view(self.command_line_key)
-            .display(view_map, buf);
-
         if let Some(cursor_pos) = view_map.focused_view().get_cursor_pos() {
-            place_cursor(buf, cursor_pos);
-        } else {
-            place_cursor(
-                buf,
-                Pos {
-                    x: self.frame.width - 1,
-                    y: self.frame.height - 1,
-                },
-            );
+            bmp.set_cursor(cursor_pos);
         }
-        buf.append("\x1b[?25h");
-        buf.write_to(libc::STDIN_FILENO);
     }
 
     fn get_view_key(&self) -> ViewKey {

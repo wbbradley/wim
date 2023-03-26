@@ -1,20 +1,18 @@
 use crate::bindings::Bindings;
-use crate::buf::{Buf, BLANKS};
 use crate::consts::{
     PROP_DOCVIEW_CURSOR_POS, PROP_DOCVIEW_STATUS, PROP_DOC_FILENAME, PROP_DOC_IS_MODIFIED,
 };
 use crate::doc::Doc;
-use crate::error::{ensure, Error, Result};
+use crate::error::{ensure, Result};
 use crate::plugin::PluginRef;
 use crate::prelude::*;
 use crate::rel::Rel;
 use crate::status::Status;
-use crate::types::{Coord, Pos, Rect, RelCoord, SafeCoordCast};
-use crate::utils::wcwidth;
+use crate::types::{Coord, Pos, Rect, RelCoord};
 use crate::view::ViewContext;
 use mode::*;
-use std::fs::OpenOptions;
-use std::io::{Seek, SeekFrom, Write};
+// use std::fs::OpenOptions;
+// use std::io::{Seek, SeekFrom, Write};
 
 pub struct DocView {
     plugin: PluginRef,
@@ -23,24 +21,23 @@ pub struct DocView {
     render_cursor_x: Coord,
     doc: Doc,
     scroll_offset: Pos,
-    frame: Rect,
     mode: Mode,
 }
 
 #[allow(dead_code)]
 impl DocView {
-    pub fn scroll(&mut self) {
+    pub fn scroll(&mut self, size: Size) {
         if self.cursor.y < self.scroll_offset.y {
             self.scroll_offset.y = self.cursor.y;
         }
-        if self.cursor.y >= self.scroll_offset.y + self.frame.height {
-            self.scroll_offset.y = self.cursor.y - self.frame.height + 1;
+        if self.cursor.y >= self.scroll_offset.y + size.height {
+            self.scroll_offset.y = self.cursor.y - size.height + 1;
         }
         if self.render_cursor_x < self.scroll_offset.x {
             self.scroll_offset.x = self.render_cursor_x;
         }
-        if self.render_cursor_x >= self.scroll_offset.x + self.frame.width {
-            self.scroll_offset.x = self.render_cursor_x - self.frame.width + 1;
+        if self.render_cursor_x >= self.scroll_offset.x + size.width {
+            self.scroll_offset.x = self.render_cursor_x - size.width + 1;
         }
     }
     pub fn move_cursor(&mut self, x: RelCoord, y: RelCoord) -> Result<Status> {
@@ -114,6 +111,8 @@ impl DocView {
         })
     }
     pub fn save_file(&mut self) -> Result<Status> {
+        Err(not_impl!("come back"))
+        /*
         // TODO: write + rename.
         let save_buffer = self.get_save_buffer();
         if let Some(filename) = self.doc.get_filename() {
@@ -130,6 +129,7 @@ impl DocView {
         } else {
             Err(Error::new("no filename specified!"))
         }
+        */
     }
     pub fn insert_newline_above(&mut self) -> Result<Status> {
         self.doc.insert_newline(self.cursor.y);
@@ -157,7 +157,11 @@ impl DocView {
         self.doc.join_lines(self.cursor.y..self.cursor.y + 1);
         Ok(Status::Ok)
     }
-    pub fn get_save_buffer(&self) -> Buf {
+    /*
+    pub fn write<T>(&self, buf: std::buf::BufWriter<W>)
+    where
+        W: Write,
+    {
         let mut buf = Buf::default();
         for row in self.doc.iter_lines() {
             buf.append(row);
@@ -165,6 +169,7 @@ impl DocView {
         }
         buf
     }
+    */
     fn switch_mode(&mut self, mode: Mode) {
         self.mode = mode;
         self.clamp_cursor();
@@ -175,33 +180,47 @@ impl View for DocView {
     fn install_plugins(&mut self, plugin: PluginRef) {
         self.plugin = plugin;
     }
-    fn layout(&mut self, _view_map: &ViewMap, frame: Rect) -> Vec<(ViewKey, Rect)> {
-        log::trace!("docview frame is {:?}", frame);
-        self.frame = frame;
-        self.scroll();
+    fn layout(&mut self, _view_map: &ViewMap, size: Size) -> Vec<(ViewKey, Rect)> {
+        log::trace!("docview size is {:?}", size);
+        self.scroll(size);
         vec![]
     }
-    fn display(&self, _view_map: &ViewMap, buf: &mut Buf) {
-        let rows_drawn = self.draw_rows(buf);
-        for y in rows_drawn..self.frame.height {
-            place_cursor(
-                buf,
-                Pos {
-                    x: self.frame.x,
-                    y: self.frame.y + y,
-                },
+    fn display(&self, _view_map: &ViewMap, bmp: BitmapView) {
+        let mut y = 0;
+        let size = bmp.get_size();
+        let offset_line_count = if self.scroll_offset.y >= self.doc.line_count() {
+            return;
+        } else {
+            self.doc.line_count() - self.scroll_offset.y
+        };
+        loop {
+            if y >= size.height || y >= offset_line_count {
+                break;
+            }
+            bmp.append_chars_at(
+                Pos { x: 0, y },
+                self.doc
+                    .iter_line(self.scroll_offset.y + y)
+                    .map(|cp| cp.ch)
+                    .take_while(|&ch| ch != '\n'),
             );
-            buf.append("~");
-            buf.append(&BLANKS[0..self.frame.width - 1]);
+        }
+        loop {
+            if y >= size.height {
+                break;
+            }
+
+            bmp.set_glyph(Pos { x: 0, y }, Glyph { ch: '~' });
         }
     }
+
     fn get_view_key(&self) -> ViewKey {
         self.key
     }
     fn get_cursor_pos(&self) -> Option<Pos> {
         Some(Pos {
-            x: self.frame.x + self.render_cursor_x - self.scroll_offset.x,
-            y: self.frame.y + self.cursor.y - self.scroll_offset.y,
+            x: self.render_cursor_x - self.scroll_offset.x,
+            y: self.cursor.y - self.scroll_offset.y,
         })
     }
 }
@@ -424,50 +443,8 @@ impl DocView {
             render_cursor_x: 0,
             doc: Doc::empty(),
             scroll_offset: Default::default(),
-            frame: Rect::zero(),
             mode: Mode::Normal,
         }
-    }
-
-    fn draw_rows(&self, buf: &mut Buf) -> Coord {
-        let frame = self.frame;
-        let mut count = 0;
-        for (i, row) in self.doc.iter_lines().enumerate().skip(self.scroll_offset.y) {
-            if i.as_coord() - self.scroll_offset.y >= frame.height {
-                break;
-            }
-            let slice = safe_byte_slice(row.render_buf(), self.scroll_offset.x, frame.width);
-            place_cursor(
-                buf,
-                Pos {
-                    x: frame.x,
-                    y: frame.y + count,
-                },
-            );
-            buf.append(slice);
-            let written_graphemes = wcwidth(slice);
-            if written_graphemes > frame.width {
-                panic!(
-                    "Uh-oh, written_graphemes > frame.width ({} >= {})",
-                    written_graphemes, frame.width
-                );
-            }
-            buf.append(&BLANKS[..frame.width - written_graphemes]);
-            count += 1;
-        }
-        for _ in self.doc.line_count()..frame.height {
-            place_cursor(
-                buf,
-                Pos {
-                    x: frame.x,
-                    y: frame.y + count,
-                },
-            );
-            buf.append("~");
-            buf.append(&BLANKS[0..frame.width - 1]);
-            count += 1;
-        }
-        count
     }
 }
 

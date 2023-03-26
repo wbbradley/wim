@@ -35,7 +35,7 @@ impl View for CommandLine {
     fn layout(&mut self, _view_map: &ViewMap, size: Size) -> Vec<(ViewKey, Rect)> {
         Default::default()
     }
-    fn display(&self, view_map: &ViewMap, bmp: &mut BitmapView) {
+    fn display(&self, view_map: &ViewMap, bmp: BitmapView) {
         let size = bmp.get_size();
         assert!(size.height == 2);
         let is_dirty = view_map
@@ -83,8 +83,8 @@ impl View for CommandLine {
     }
     fn get_cursor_pos(&self) -> Option<Pos> {
         Some(Pos {
-            x: self.frame.x + 1 + self.cursor - self.scroll_offset,
-            y: self.frame.y + 1,
+            x: 1 + self.cursor - self.scroll_offset,
+            y: 1,
         })
     }
     fn set_status(&mut self, status: Status) {
