@@ -18,7 +18,7 @@ impl Doc {
     pub fn empty() -> Self {
         Self {
             filename: None,
-            rows: Vec::default(),
+            rows: vec![Row::default()],
             dirty: false,
         }
     }

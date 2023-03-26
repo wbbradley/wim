@@ -189,7 +189,7 @@ impl View for DocView {
         let mut y = 0;
         let size = bmp.get_size();
         let offset_line_count = if self.scroll_offset.y >= self.doc.line_count() {
-            return;
+            self.doc.line_count()
         } else {
             self.doc.line_count() - self.scroll_offset.y
         };
