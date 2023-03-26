@@ -1,9 +1,9 @@
-use crate::buf::buf_fmt;
+use crate::buf::{buf_fmt, Buf};
 use crate::color::Color;
 use crate::glyph::{FormattedGlyph, Glyph};
 use crate::prelude::*;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Bitmap {
     size: Size,
     cursor: Option<Pos>,
@@ -38,6 +38,10 @@ impl Bitmap {
     }
     pub fn get_cursor(&self) -> Option<Pos> {
         self.cursor
+    }
+    pub fn diff(bmp_last: &Self, bmp: &Self, buf: &mut Buf) {
+        assert!(bmp_last.size == bmp.size);
+        bmp.write_to(buf);
     }
 }
 

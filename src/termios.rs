@@ -54,6 +54,8 @@ impl Termios {
     pub fn enter_raw_mode() -> Self {
         let mut termios = Self::new();
         termios.enable_raw_mode().unwrap();
+        // Clear the screen to begin.
+        put!("\x1b[2J");
         termios
     }
     pub fn exit_raw_mode(&self) {

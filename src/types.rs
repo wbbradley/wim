@@ -1,9 +1,8 @@
-#[cfg(test)]
-#[macro_use]
-extern crate quickcheck;
-
 pub type Coord = usize;
 pub type RelCoord = isize;
+
+#[cfg(test)]
+use quickcheck::Arbitrary;
 
 #[allow(clippy::wrong_self_convention)]
 pub trait SafeCoordCast {
@@ -55,7 +54,7 @@ impl SafeCoordCast for u16 {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct Size {
     pub width: Coord,
     pub height: Coord,
@@ -95,6 +94,15 @@ impl std::ops::Add<Pos> for Pos {
         Self {
             x: self.x + rhs.x,
             y: self.y + rhs.y,
+        }
+    }
+}
+#[cfg(test)]
+impl Arbitrary for Pos {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        Self {
+            x: Coord::arbitrary(g) % 10000,
+            y: Coord::arbitrary(g) % 10000,
         }
     }
 }
@@ -184,7 +192,20 @@ impl From<Size> for Rect {
 }
 
 #[cfg(test)]
+impl Arbitrary for Rect {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        Self {
+            x: Coord::arbitrary(g) % 10000,
+            y: Coord::arbitrary(g) % 10000,
+            width: Coord::arbitrary(g) % 10000,
+            height: Coord::arbitrary(g) % 10000,
+        }
+    }
+}
+
+#[cfg(test)]
 mod tests {
+    use super::*;
     quickcheck! {
         fn prop(r: Rect, p: Pos) -> bool {
             r + p == {

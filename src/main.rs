@@ -10,6 +10,10 @@ use crate::view_map::HandleKey;
 use log::LevelFilter;
 use std::env;
 
+#[cfg(test)]
+#[macro_use]
+extern crate quickcheck;
+
 mod bindings;
 mod bitmap;
 mod buf;
@@ -70,6 +74,22 @@ fn main() -> anyhow::Result<()> {
     res
 }
 
+fn write_bmp_diff(buf: &mut Buf, bmp_last: &mut Bitmap, bmp: &mut Bitmap, fd: libc::c_int) {
+    buf.truncate(0);
+    buf.extend(b"\x1b[?25l");
+    Bitmap::diff(bmp_last, bmp, buf);
+    if let Some(cursor) = bmp.get_cursor() {
+        buf_fmt!(buf, "\x1b[{};{}H", cursor.y + 1, cursor.x + 1);
+    }
+    buf.extend(b"\x1b[?25h");
+    let ret = unsafe { libc::write(fd, buf.as_ptr() as *const libc::c_void, buf.len()) };
+    if ret == -1 {
+        crate::utils::die!("failed when calling libc::write");
+    }
+    assert!(ret == buf.len() as isize);
+    std::mem::swap(bmp, bmp_last);
+}
+
 fn run_app(plugin: PluginRef, mut view_map: ViewMap) -> anyhow::Result<()> {
     let args: Vec<String> = env::args().collect();
     trace!("wim run with args: {:?}", args);
@@ -87,8 +107,8 @@ fn run_app(plugin: PluginRef, mut view_map: ViewMap) -> anyhow::Result<()> {
     }
     let mut layout_rects: HashMap<ViewKey, Rect> = Default::default();
     let mut bmp = Bitmap::new(frame.size());
+    let mut bmp_last = bmp.clone();
     let mut buf = Buf::default();
-    let mut last_md5 = md5::Digest([0; 16]);
     while !editor.get_property_bool(crate::consts::PROP_EDITOR_SHOULD_QUIT, true) {
         if should_refresh {
             layout_rects.clear();
@@ -105,22 +125,9 @@ fn run_app(plugin: PluginRef, mut view_map: ViewMap) -> anyhow::Result<()> {
                 let mut bmp_view = BitmapView::new(&mut bmp, frame);
                 view_map.get_view(vk).display(&view_map, &mut bmp_view);
             }
-            // Rasterize the bitmap into a buf.
-            buf.truncate();
-            buf.append("\x1b[?25l");
-            bmp.write_to(&mut buf);
-            buf.append("\x1b[?25h");
+            // Rasterize the bitmap to the terminal and swap the write buffers..
+            write_bmp_diff(&mut buf, &mut bmp_last, &mut bmp, libc::STDIN_FILENO);
 
-            let new_md5 = buf.md5();
-            if new_md5 == last_md5 {
-                buf.truncate();
-            } else {
-                last_md5 = new_md5;
-            }
-            if let Some(cursor) = bmp.get_cursor() {
-                buf_fmt!(buf, "\x1b[{};{}H", cursor.y + 1, cursor.x + 1);
-            }
-            buf.write_to(libc::STDIN_FILENO);
             should_refresh = false;
         }
         if matches!(dks.front(), Some(DK::Key(_)) | None) {
