@@ -1,4 +1,4 @@
-use crate::buf::{buf_fmt, Buf};
+use crate::buf::Buf;
 use crate::color::Color;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -24,8 +24,10 @@ impl FormattedGlyph {
             bg: Color::None,
         }
     }
-    pub fn write_formatted_glyph_to(&self, buf: &mut Buf) {
-        buf_fmt!(buf, "{}", self.glyph.ch);
+    pub fn encode_utf8_to_buf(&self, buf: &mut Buf) {
+        let mut b = [0; 4];
+        self.glyph.ch.encode_utf8(&mut b);
+        buf.extend(b);
     }
 }
 

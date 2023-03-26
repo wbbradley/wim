@@ -7,7 +7,7 @@ use crate::prelude::*;
 pub struct Bitmap {
     size: Size,
     cursor: Option<Pos>,
-    bmp: Vec<FormattedGlyph>,
+    glyphs: Vec<FormattedGlyph>,
 }
 const DEFAULT_GLYPH: FormattedGlyph = FormattedGlyph::from_char(' ');
 
@@ -16,23 +16,24 @@ impl Bitmap {
         Self {
             size,
             cursor: None,
-            bmp: vec![DEFAULT_GLYPH; size.area()],
+            glyphs: vec![DEFAULT_GLYPH; size.area()],
         }
     }
     pub fn clear(&mut self) {
-        self.bmp.truncate(0);
+        self.glyphs.truncate(0);
         self.cursor = None;
         for _ in 0..self.size.area() {
-            self.bmp.push(DEFAULT_GLYPH);
+            self.glyphs.push(DEFAULT_GLYPH);
         }
     }
+    #[allow(dead_code)]
     pub fn write_to(&self, buf: &mut Buf) {
         let size = self.size;
         for y in 0..size.height {
             buf_fmt!(buf, "\x1b[{};{}H", y + 1, 1);
             for x in 0..size.width {
-                let formatted_glyph: &FormattedGlyph = &self.bmp[x + y * size.width];
-                formatted_glyph.write_formatted_glyph_to(buf);
+                let formatted_glyph: &FormattedGlyph = &self.glyphs[x + y * size.width];
+                formatted_glyph.encode_utf8_to_buf(buf);
             }
         }
     }
@@ -41,7 +42,19 @@ impl Bitmap {
     }
     pub fn diff(bmp_last: &Self, bmp: &Self, buf: &mut Buf) {
         assert!(bmp_last.size == bmp.size);
-        bmp.write_to(buf);
+        let size = bmp.size;
+        for y in 0..size.height {
+            let line_range = y * size.width..(y + 1) * size.width;
+            let line_changed = bmp_last.glyphs[line_range.clone()] != bmp.glyphs[line_range];
+
+            if line_changed {
+                buf_fmt!(buf, "\x1b[{};{}H", y + 1, 1);
+                for x in 0..size.width {
+                    let formatted_glyph: &FormattedGlyph = &bmp.glyphs[x + y * size.width];
+                    formatted_glyph.encode_utf8_to_buf(buf);
+                }
+            }
+        }
     }
 }
 
@@ -51,8 +64,11 @@ pub struct BitmapView<'a> {
 }
 
 impl<'a> BitmapView<'a> {
-    pub fn new(bmp: &'a mut Bitmap, frame: Rect) -> Self {
-        Self { bitmap: bmp, frame }
+    pub fn new(glyphs: &'a mut Bitmap, frame: Rect) -> Self {
+        Self {
+            bitmap: glyphs,
+            frame,
+        }
     }
     pub fn get_size(&self) -> Size {
         self.frame.size()
@@ -74,7 +90,7 @@ impl<'a> BitmapView<'a> {
             return;
         }
         let pos = pos + self.frame.top_left();
-        self.bitmap.bmp[pos.x + pos.y * self.bitmap.size.width] =
+        self.bitmap.glyphs[pos.x + pos.y * self.bitmap.size.width] =
             FormattedGlyph::new(glyph, Color::None, Color::None);
     }
     pub fn append_chars_at_pos<T>(&mut self, pos: &mut Pos, chs: T)
