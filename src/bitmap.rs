@@ -61,6 +61,7 @@ impl Bitmap {
         }
         Ok(())
     }
+    #[allow(dead_code)]
     pub fn get_glyph(&self, pos: Pos) -> &Glyph {
         &self.glyphs[pos.x + pos.y * self.size.width]
     }

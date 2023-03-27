@@ -47,6 +47,7 @@ mod prelude;
 mod read;
 mod rel;
 mod row;
+mod settings;
 mod size;
 mod status;
 mod target;
@@ -64,6 +65,7 @@ mod widechar_width;
 pub static VERSION: &str = "v0.1.0";
 
 fn main() -> Result<()> {
+    let settings = Settings::load()?;
     simple_logging::log_to_file("wim.log", LevelFilter::Trace)?;
     let plugin = Plugin::new();
 
@@ -77,7 +79,7 @@ fn main() -> Result<()> {
     }));
 
     let view_map: crate::view_map::ViewMap = ViewMap::new();
-    let res = run_app(plugin, view_map);
+    let res = run_app(plugin, view_map, settings);
     termios.exit_raw_mode();
     res
 }
@@ -106,7 +108,7 @@ fn write_bmp_diff(
     Ok(())
 }
 
-fn run_app(plugin: PluginRef, mut view_map: ViewMap) -> Result<()> {
+fn run_app(plugin: PluginRef, mut view_map: ViewMap, settings: Settings) -> Result<()> {
     let args: Vec<String> = env::args().collect();
     trace!("wim run with args: {:?}", args);
 
@@ -118,12 +120,7 @@ fn run_app(plugin: PluginRef, mut view_map: ViewMap) -> Result<()> {
 
     let default_glyph = Glyph {
         ch: ' ',
-        format: BgColor::Rgb {
-            r: 10,
-            g: 50,
-            b: 10,
-        }
-        .into(),
+        format: settings.display.bg + settings.display.fg,
     };
     let mut dks: VecDeque<DK> = Default::default();
     let mut key_timeout: Option<Instant> = None;
@@ -163,13 +160,12 @@ fn run_app(plugin: PluginRef, mut view_map: ViewMap) -> Result<()> {
             }
             // Rasterize the bitmap to the terminal and swap the write buffers..
             write_bmp_diff(&mut buf, &mut bmp_last, &mut bmp, libc::STDIN_FILENO)?;
-            trace!("first glyph = {:?}", bmp.get_glyph(Pos::zero()));
-            {
-                use std::fs::File;
-                use std::io::prelude::*;
-                let mut file = File::create("buf.bin")?;
-                file.write_all(buf.as_bytes())?;
-            }
+            // {
+            //     use std::fs::File;
+            //     use std::io::prelude::*;
+            //     let mut file = File::create("buf.bin")?;
+            //     file.write_all(buf.as_bytes())?;
+            // }
             should_refresh = false;
         }
 

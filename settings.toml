@@ -1,0 +1,8 @@
+[display.fg.rgb]
+r = 100
+g = 200
+b = 200
+[display.bg.rgb]
+r = 10
+g = 20
+b = 20

@@ -45,6 +45,15 @@ impl<T> ErrorContext<T> for std::result::Result<T, std::str::Utf8Error> {
     }
 }
 
+impl<T> ErrorContext<T> for std::result::Result<T, toml::de::Error> {
+    fn context(self, message: &str) -> Result<T> {
+        match self {
+            Ok(t) => Ok(t),
+            Err(e) => Err(error!("{}: (toml decoding error: {})", message, e)),
+        }
+    }
+}
+
 impl ErrorContext<()> for std::fmt::Result {
     fn context(self, message: &str) -> Result<()> {
         match self {

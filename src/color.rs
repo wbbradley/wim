@@ -1,8 +1,10 @@
 use crate::format::Format;
+use serde_derive::Deserialize;
 use std::fmt;
 
 #[allow(dead_code)]
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Deserialize, Debug, Clone, Copy, Eq, PartialEq)]
+#[serde(rename_all = "lowercase")]
 pub enum FgColor {
     None,
     Black,
@@ -17,7 +19,8 @@ pub enum FgColor {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Deserialize, Debug, Clone, Copy, Eq, PartialEq)]
+#[serde(rename_all = "lowercase")]
 pub enum BgColor {
     None,
     Black,
