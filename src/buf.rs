@@ -8,11 +8,13 @@ impl Buf {
         self.0.truncate(s)
     }
     pub fn push_char(&mut self, ch: char) {
-        let mut stackbuf = [0u8; 4];
-        self.0.extend(ch.encode_utf8(&mut stackbuf).as_bytes());
+        self.0.extend(ch.encode_utf8(&mut [0u8; 4]).as_bytes());
     }
     pub fn as_ptr(&self) -> *const u8 {
         self.0.as_ptr()
+    }
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
     }
 }
 

@@ -96,10 +96,12 @@ fn write_bmp_diff(
     }
     buf.extend(b"\x1b[?25h");
     let ret = unsafe { libc::write(fd, buf.as_ptr() as *const libc::c_void, buf.len()) };
+    assert!(ret == buf.len() as isize);
     if ret == -1 {
         crate::utils::die!("failed when calling libc::write");
     }
     assert!(ret == buf.len() as isize);
+    bmp.dirty = false;
     std::mem::swap(bmp, bmp_last);
     Ok(())
 }
@@ -117,9 +119,9 @@ fn run_app(plugin: PluginRef, mut view_map: ViewMap) -> Result<()> {
     let default_glyph = Glyph {
         ch: ' ',
         format: BgColor::Rgb {
-            r: 60,
+            r: 10,
             g: 50,
-            b: 40,
+            b: 10,
         }
         .into(),
     };
@@ -132,7 +134,7 @@ fn run_app(plugin: PluginRef, mut view_map: ViewMap) -> Result<()> {
     let mut layout_rects: HashMap<ViewKey, Rect> = Default::default();
     let mut terminal_size: Size = Termios::get_window_size();
     let mut bmp = Bitmap::new(terminal_size, default_glyph);
-    let mut bmp_last = bmp.clone();
+    let mut bmp_last = Bitmap::new(terminal_size, default_glyph);
 
     let mut buf = Buf::default();
     while !editor.get_property_bool(crate::consts::PROP_EDITOR_SHOULD_QUIT, true) {
@@ -140,7 +142,8 @@ fn run_app(plugin: PluginRef, mut view_map: ViewMap) -> Result<()> {
             should_refresh = true;
             terminal_size = Termios::get_window_size();
             bmp.resize(terminal_size);
-            bmp_last.resize_with_junk(terminal_size);
+            bmp_last.resize(terminal_size);
+            crate::utils::put!("\x1b[2J");
         }
 
         if should_refresh {
@@ -160,9 +163,16 @@ fn run_app(plugin: PluginRef, mut view_map: ViewMap) -> Result<()> {
             }
             // Rasterize the bitmap to the terminal and swap the write buffers..
             write_bmp_diff(&mut buf, &mut bmp_last, &mut bmp, libc::STDIN_FILENO)?;
-
+            trace!("first glyph = {:?}", bmp.get_glyph(Pos::zero()));
+            {
+                use std::fs::File;
+                use std::io::prelude::*;
+                let mut file = File::create("buf.bin")?;
+                file.write_all(buf.as_bytes())?;
+            }
             should_refresh = false;
         }
+
         if matches!(dks.front(), Some(DK::Key(_)) | None) {
             if let Some(key) = read_key() {
                 trace!("read key '{:?}'", key);

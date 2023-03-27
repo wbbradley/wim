@@ -62,6 +62,7 @@ impl Termios {
     pub fn exit_raw_mode(&self) {
         let mut in_raw_mode = self.in_raw_mode.lock().unwrap();
         if *in_raw_mode {
+            put!("\x1b[2J\x1b[H\x1b[0m");
             if unsafe {
                 libc::tcsetattr(
                     libc::STDIN_FILENO,
@@ -72,8 +73,7 @@ impl Termios {
             {
                 die!("Termios::drop");
             }
-            put!("\x1b[2J");
-            put!("\x1b[H");
+            put!("\x1b[2J\x1b[H\x1b[0m");
             *in_raw_mode = false;
         }
     }

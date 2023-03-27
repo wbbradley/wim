@@ -10,6 +10,14 @@ pub struct Glyph {
 }
 
 impl Glyph {
+    #[allow(dead_code)]
+    pub fn with(&self, ch: char) -> Self {
+        Self {
+            ch,
+            format: self.format,
+        }
+    }
+    #[allow(dead_code)]
     pub fn from_char(ch: char) -> Self {
         Self {
             ch,

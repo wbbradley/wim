@@ -12,6 +12,7 @@ pub struct Bitmap {
     cursor: Option<Pos>,
     glyphs: Vec<Glyph>,
     default_glyph: Glyph,
+    pub dirty: bool,
 }
 
 impl Bitmap {
@@ -21,23 +22,19 @@ impl Bitmap {
             cursor: None,
             default_glyph,
             glyphs: vec![default_glyph; size.area()],
+            dirty: true,
         }
     }
 
     pub fn resize(&mut self, size: Size) {
         self.size = size;
-    }
-
-    pub fn resize_with_junk(&mut self, size: Size) {
-        self.size = size;
-        self.glyphs.truncate(0);
-        self.glyphs.resize(self.size.area(), Glyph::from_char('\0'));
+        self.clear();
     }
 
     pub fn clear(&mut self) {
         self.cursor = None;
-        self.glyphs.truncate(0);
-        self.glyphs.resize(self.size.area(), self.default_glyph);
+        self.glyphs = vec![self.default_glyph; self.size.area()];
+        self.dirty = true;
     }
 
     pub fn get_cursor(&self) -> Option<Pos> {
@@ -46,22 +43,26 @@ impl Bitmap {
 
     pub fn diff(bmp_last: &Self, bmp: &Self, buf: &mut Buf) -> Result<()> {
         assert!(bmp_last.size == bmp.size);
+        write!(buf, "\x1b[0m").context("clearing graphic rendition")?;
+        let mut last_format: Format = Format::none();
         let size = bmp.size;
         for y in 0..size.height {
             let line_range = y * size.width..(y + 1) * size.width;
-            let line_changed = bmp_last.glyphs[line_range.clone()] != bmp.glyphs[line_range];
+            let line_changed =
+                bmp_last.dirty || bmp_last.glyphs[line_range.clone()] != bmp.glyphs[line_range];
 
             if line_changed {
-                write!(buf, "\x1b[{};{}H\x1b[0m", y + 1, 1).context("writing raster start")?;
-                let mut last_format: Format = Format::none();
+                write!(buf, "\x1b[{};{}H", y + 1, 1).context("writing raster start")?;
                 for x in 0..size.width {
                     let glyph: &Glyph = &bmp.glyphs[x + y * size.width];
                     last_format = glyph.encode_utf8_to_buf(buf, last_format)?;
                 }
             }
         }
-        write!(buf, "\x1b[m").context("clear-formatting")?;
         Ok(())
+    }
+    pub fn get_glyph(&self, pos: Pos) -> &Glyph {
+        &self.glyphs[pos.x + pos.y * self.size.width]
     }
 }
 
@@ -85,19 +86,21 @@ impl<'a> BitmapView<'a> {
             self.bitmap.cursor = Some(self.frame.top_left() + pos);
         }
     }
-    pub fn set_glyph(&mut self, pos: Pos, glyph: Glyph) {
+
+    fn get_glyph(&mut self, pos: Pos) -> &mut Glyph {
         if !self.get_size().contains(pos) {
-            log::warn!(
-                "attempt to set_glyph beyond bitmap view boundary [pos={:?}, glyph={:?}, frame={:?}, size={:?}]",
-                pos,
-                glyph,
-                self.frame,
-                self.bitmap.size
+            panic!(
+                "attempt to get_glyph beyond bitmap view boundary [pos={:?}, frame={:?}]",
+                pos, self.frame,
             );
-            return;
         }
         let pos = pos + self.frame.top_left();
-        let target_glyph = &mut self.bitmap.glyphs[pos.x + pos.y * self.bitmap.size.width];
+        // trace!("getting glyph at {:?}", pos);
+        &mut self.bitmap.glyphs[pos.x + pos.y * self.bitmap.size.width]
+    }
+
+    pub fn set_glyph(&mut self, pos: Pos, glyph: Glyph) {
+        let target_glyph = self.get_glyph(pos);
         target_glyph.ch = glyph.ch;
 
         match glyph.format {
@@ -123,6 +126,12 @@ impl<'a> BitmapView<'a> {
             }
         }
     }
+
+    pub fn set_bg(&mut self, pos: Pos, bg: BgColor) {
+        let target_glyph = self.get_glyph(pos);
+        target_glyph.format.bg = bg;
+    }
+
     pub fn append_chars_at_pos<T>(&mut self, pos: &mut Pos, chs: T, format: Format)
     where
         T: Iterator<Item = char>,
@@ -146,11 +155,14 @@ impl<'a> BitmapView<'a> {
         count
     }
     pub fn end_line_with_str(&mut self, mut pos: Pos, s: &str) {
+        log::trace!("calling end_line_with_str(pos={:?}, s={:?})", pos, s);
         let count = s.chars().count();
         if self.frame.width <= pos.x {
+            log::trace!("pos.x is too high!");
             return;
         }
         let remaining_space = self.frame.width - pos.x;
+        log::trace!("remaining_space = {}, count = {}", remaining_space, count);
         if remaining_space >= count {
             let mll = self.frame.width;
             pos.x = mll - count;
