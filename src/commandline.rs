@@ -1,5 +1,7 @@
 use crate::bitmap::bmp_fmt_at;
+use crate::color::{BgColor, FgColor};
 use crate::error::{Error, Result};
+use crate::format::Format;
 use crate::prelude::*;
 
 #[allow(dead_code)]
@@ -51,20 +53,27 @@ impl View for CommandLine {
         {
             let mut pos = Pos { x: 1, y: 0 };
             if let Some(current_filename) = current_filename {
-                /*
                 bmp_fmt_at!(
                     bmp,
                     pos,
                     Format {
-                        fg: Color::Red,
-                        bg: Color::None
+                        fg: FgColor::Red,
+                        bg: BgColor::None
                     },
                     "{}",
                     current_filename
                 );
                 pos.x += 1;
-                bmp_fmt_at!(bmp, pos, "| {}", if is_dirty { "(modified) " } else { "" });
-                */
+                bmp_fmt_at!(
+                    bmp,
+                    pos,
+                    Format {
+                        fg: FgColor::White,
+                        bg: BgColor::Red
+                    },
+                    "| {}",
+                    if is_dirty { "(modified) " } else { "" }
+                );
             }
             if let Status::Message {
                 ref message,
@@ -72,7 +81,7 @@ impl View for CommandLine {
             } = self.status
             {
                 if expiry > Instant::now() {
-                    bmp_fmt_at!(bmp, pos, " {}", message);
+                    bmp_fmt_at!(bmp, pos, Format::none(), " {}", message);
                 }
             }
             if let Some(status_text) = status_text {
@@ -82,7 +91,7 @@ impl View for CommandLine {
 
         if view_map.focused_view_key() == self.view_key {
             let mut pos = Pos { x: 0, y: 1 };
-            bmp_fmt_at!(bmp, pos, ":{}", self.text);
+            bmp_fmt_at!(bmp, pos, Format::none(), ":{}", self.text);
         }
     }
 

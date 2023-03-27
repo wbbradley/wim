@@ -205,6 +205,7 @@ impl View for DocView {
                         y: self.scroll_offset.y + y,
                     })
                     .copied(),
+                Format::none(),
             );
             y += 1;
         }

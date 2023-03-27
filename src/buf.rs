@@ -11,6 +11,9 @@ impl Buf {
         let mut stackbuf = [0u8; 4];
         self.0.extend(ch.encode_utf8(&mut stackbuf).as_bytes());
     }
+    pub fn as_ptr(&self) -> *const u8 {
+        self.0.as_ptr()
+    }
 }
 
 impl<'a> Extend<&'a u8> for Buf {

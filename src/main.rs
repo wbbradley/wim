@@ -1,4 +1,5 @@
 use crate::editor::Editor;
+use crate::error::{ErrorContext, Result};
 use crate::layout::recursive_layout;
 use crate::plugin::{Plugin, PluginRef};
 use crate::prelude::*;
@@ -8,6 +9,7 @@ use crate::types::Rect;
 use crate::view_map::HandleKey;
 use log::LevelFilter;
 use std::env;
+use std::fmt::Write;
 
 #[cfg(test)]
 extern crate quickcheck;
@@ -30,6 +32,7 @@ mod docview;
 mod editor;
 mod error;
 mod files;
+mod format;
 mod glyph;
 mod key;
 mod keygen;
@@ -56,7 +59,7 @@ mod widechar_width;
 
 pub static VERSION: &str = "v0.1.0";
 
-fn main() -> anyhow::Result<()> {
+fn main() -> Result<()> {
     simple_logging::log_to_file("wim.log", LevelFilter::Trace)?;
     let plugin = Plugin::new();
 
@@ -75,12 +78,17 @@ fn main() -> anyhow::Result<()> {
     res
 }
 
-fn write_bmp_diff(buf: &mut Buf, bmp_last: &mut Bitmap, bmp: &mut Bitmap, fd: libc::c_int) {
+fn write_bmp_diff(
+    buf: &mut Buf,
+    bmp_last: &mut Bitmap,
+    bmp: &mut Bitmap,
+    fd: libc::c_int,
+) -> Result<()> {
     buf.truncate(0);
     buf.extend(b"\x1b[?25l");
-    Bitmap::diff(bmp_last, bmp, buf);
+    Bitmap::diff(bmp_last, bmp, buf)?;
     if let Some(cursor) = bmp.get_cursor() {
-        write!(buf, "\x1b[{};{}H", cursor.y + 1, cursor.x + 1);
+        write!(buf, "\x1b[{};{}H", cursor.y + 1, cursor.x + 1).context("write-cursor")?
     }
     buf.extend(b"\x1b[?25h");
     let ret = unsafe { libc::write(fd, buf.as_ptr() as *const libc::c_void, buf.len()) };
@@ -89,9 +97,10 @@ fn write_bmp_diff(buf: &mut Buf, bmp_last: &mut Bitmap, bmp: &mut Bitmap, fd: li
     }
     assert!(ret == buf.len() as isize);
     std::mem::swap(bmp, bmp_last);
+    Ok(())
 }
 
-fn run_app(plugin: PluginRef, mut view_map: ViewMap) -> anyhow::Result<()> {
+fn run_app(plugin: PluginRef, mut view_map: ViewMap) -> Result<()> {
     let args: Vec<String> = env::args().collect();
     trace!("wim run with args: {:?}", args);
 
@@ -127,7 +136,7 @@ fn run_app(plugin: PluginRef, mut view_map: ViewMap) -> anyhow::Result<()> {
                 view_map.get_view(vk).display(&view_map, &mut bmp_view);
             }
             // Rasterize the bitmap to the terminal and swap the write buffers..
-            write_bmp_diff(&mut buf, &mut bmp_last, &mut bmp, libc::STDIN_FILENO);
+            write_bmp_diff(&mut buf, &mut bmp_last, &mut bmp, libc::STDIN_FILENO)?;
 
             should_refresh = false;
         }
@@ -159,11 +168,7 @@ fn run_app(plugin: PluginRef, mut view_map: ViewMap) -> anyhow::Result<()> {
     }
     Ok(())
 }
-fn pump(
-    view_map: &mut ViewMap,
-    dks: &mut VecDeque<DK>,
-    editor: &mut ViewRef,
-) -> anyhow::Result<()> {
+fn pump(view_map: &mut ViewMap, dks: &mut VecDeque<DK>, editor: &mut ViewRef) -> Result<()> {
     while matches!(dks.front(), Some(DK::Key(Key::None))) {
         trace!("popping Key::None off dks");
         dks.pop_front();
@@ -186,12 +191,7 @@ fn pump(
                             dispatch_target.execute_command(name, args)
                         }
                     };
-                    match result {
-                        Ok(status) => {
-                            editor.set_status(status);
-                        }
-                        Err(error) => anyhow::bail!(error),
-                    }
+                    editor.set_status(result?);
                 }
                 DK::Sequence(next_dks) => {
                     next_dks

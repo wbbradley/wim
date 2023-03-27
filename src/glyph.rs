@@ -1,31 +1,15 @@
 use crate::buf::Buf;
-use crate::color::Color;
+use crate::error::{ErrorContext, Result};
+use crate::format::Format;
+use std::fmt::Write;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct Glyph {
-    ch: char,
-    format: Format,
-}
-
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub struct Format {
-    fg: Color,
-    bg: Color,
-}
-
-impl Format {
-    pub fn none() -> Self {
-        Self {
-            fg: Color::None,
-            bg: Color::None,
-        }
-    }
+    pub ch: char,
+    pub format: Format,
 }
 
 impl Glyph {
-    pub fn new(ch: char, format: Format) -> Self {
-        Self { ch, format }
-    }
     pub const fn from_char(ch: char) -> Self {
         Self {
             ch,
@@ -39,12 +23,15 @@ impl Glyph {
             fg: last_fg,
             bg: last_bg,
         }: Format,
-    ) -> Format {
+    ) -> Result<Format> {
         if last_fg != self.format.fg {
-            write!(buf, "{}", self.format.fg);
+            write!(buf, "{}", self.format.fg).context("write fg")?
+        }
+        if last_bg != self.format.bg {
+            write!(buf, "{}", self.format.bg).context("write bg")?
         }
         buf.push_char(self.ch);
-        self.format
+        Ok(self.format)
     }
 }
 

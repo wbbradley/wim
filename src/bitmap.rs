@@ -1,6 +1,7 @@
 use crate::buf::Buf;
-use crate::color::Color;
-use crate::glyph::{Format, Glyph};
+use crate::error::{ErrorContext, Result};
+use crate::format::Format;
+use crate::glyph::Glyph;
 use crate::prelude::*;
 use std::fmt::Write;
 
@@ -30,7 +31,7 @@ impl Bitmap {
     pub fn get_cursor(&self) -> Option<Pos> {
         self.cursor
     }
-    pub fn diff(bmp_last: &Self, bmp: &Self, buf: &mut Buf) {
+    pub fn diff(bmp_last: &Self, bmp: &Self, buf: &mut Buf) -> Result<()> {
         assert!(bmp_last.size == bmp.size);
         let size = bmp.size;
         for y in 0..size.height {
@@ -38,13 +39,15 @@ impl Bitmap {
             let line_changed = bmp_last.glyphs[line_range.clone()] != bmp.glyphs[line_range];
 
             if line_changed {
-                write!(buf, "\x1b[{};{}H", y + 1, 1);
+                write!(buf, "\x1b[{};{}H\x1b[0m", y + 1, 1).context("writing raster start")?;
+                let mut last_format: Format = Format::none();
                 for x in 0..size.width {
                     let glyph: &Glyph = &bmp.glyphs[x + y * size.width];
-                    glyph.encode_utf8_to_buf(buf);
+                    last_format = glyph.encode_utf8_to_buf(buf, last_format)?;
                 }
             }
         }
+        Ok(())
     }
 }
 
@@ -80,16 +83,15 @@ impl<'a> BitmapView<'a> {
             return;
         }
         let pos = pos + self.frame.top_left();
-        self.bitmap.glyphs[pos.x + pos.y * self.bitmap.size.width] =
-            FormattedGlyph::new(glyph, Color::None, Color::None);
+        self.bitmap.glyphs[pos.x + pos.y * self.bitmap.size.width] = glyph;
     }
-    pub fn append_chars_at_pos<T>(&mut self, pos: &mut Pos, chs: T)
+    pub fn append_chars_at_pos<T>(&mut self, pos: &mut Pos, chs: T, format: Format)
     where
         T: Iterator<Item = char>,
     {
-        pos.x += self.append_chars_at(*pos, chs);
+        pos.x += self.append_chars_at(*pos, chs, format);
     }
-    pub fn append_chars_at<T>(&mut self, mut pos: Pos, chs: T) -> usize
+    pub fn append_chars_at<T>(&mut self, mut pos: Pos, chs: T, format: Format) -> usize
     where
         T: Iterator<Item = char>,
     {
@@ -99,7 +101,7 @@ impl<'a> BitmapView<'a> {
             if pos.x >= max_pos {
                 break;
             }
-            self.set_glyph(pos, ch.into());
+            self.set_glyph(pos, Glyph { ch, format });
             pos.x += 1;
             count += 1;
         }
@@ -125,10 +127,10 @@ impl<'a> BitmapView<'a> {
 }
 
 macro_rules! bmp_fmt_at {
-    ($bmp:expr, $pos:expr, $($args:expr),+) => {{
+    ($bmp:expr, $pos:expr, $format:expr, $($args:expr),+) => {{
         let mut stackbuf = [0u8; 4*1024];
         let formatted: &str = stackfmt::fmt_truncate(&mut stackbuf, format_args!($($args),+));
-        $bmp.append_chars_at_pos(&mut $pos, formatted.chars());
+        $bmp.append_chars_at_pos(&mut $pos, formatted.chars(), $format);
     }};
 }
 pub(crate) use bmp_fmt_at;

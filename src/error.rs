@@ -45,6 +45,15 @@ impl<T> ErrorContext<T> for std::result::Result<T, std::str::Utf8Error> {
     }
 }
 
+impl ErrorContext<()> for std::fmt::Result {
+    fn context(self, message: &str) -> Result<()> {
+        match self {
+            Ok(_) => Ok(()),
+            Err(e) => Err(error!("{}: (fmt error: {})", message, e)),
+        }
+    }
+}
+
 pub trait ErrorContext<T> {
     fn context(self, message: &str) -> Result<T>;
 }
