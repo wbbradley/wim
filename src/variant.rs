@@ -11,6 +11,12 @@ pub enum Variant {
     Target(Target),
 }
 
+impl From<i64> for Variant {
+    fn from(b: i64) -> Self {
+        Self::Int(b)
+    }
+}
+
 impl From<bool> for Variant {
     fn from(b: bool) -> Self {
         Self::Bool(b)

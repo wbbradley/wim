@@ -243,6 +243,22 @@ impl DispatchTarget for DocView {
                 bindings.insert(Key::Enter, command("newline").arg("below").at_view(vk));
             }
             Mode::Normal => {
+                bindings.insert(
+                    Key::Ctrl('u'),
+                    command("move-rel")
+                        .arg("line")
+                        .arg("prior")
+                        .arg(44)
+                        .at_view(vk),
+                );
+                bindings.insert(
+                    Key::Ctrl('d'),
+                    command("move-rel")
+                        .arg("line")
+                        .arg("next")
+                        .arg(44)
+                        .at_view(vk),
+                );
                 bindings.insert("c", command("operator").arg("change").at_view(vk));
                 bindings.insert("s", command("save").at_view(vk));
                 bindings.insert(
@@ -394,12 +410,23 @@ impl DispatchTarget for DocView {
                 }
             }
             (_, "move-rel") => {
-                ensure!(args.len() == 2);
+                ensure!((2..=3).contains(&args.len()));
                 if let (Variant::String(noun), Variant::String(rel)) =
                     (args.remove(0), args.remove(0))
                 {
+                    let count = if let Variant::Int(count) = args.remove(0) {
+                        count
+                    } else {
+                        1
+                    };
+
                     match (Noun::from_str(&noun), Rel::from_str(&rel)) {
-                        (Ok(noun), Ok(rel)) => self.move_cursor_rel(noun, rel),
+                        (Ok(noun), Ok(rel)) => {
+                            for _ in 0..count {
+                                self.move_cursor_rel(noun, rel)?;
+                            }
+                            Ok(Status::Ok)
+                        }
                         _ => Err(error!("'move-rel' expects a pair (noun, rel)")),
                     }
                 } else {
