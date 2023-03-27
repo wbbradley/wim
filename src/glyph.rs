@@ -4,53 +4,55 @@ use crate::color::Color;
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct Glyph {
     ch: char,
+    format: Format,
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub struct FormattedGlyph {
-    glyph: Glyph,
+pub struct Format {
     fg: Color,
     bg: Color,
 }
 
-impl FormattedGlyph {
-    pub fn new(glyph: Glyph, fg: Color, bg: Color) -> Self {
-        Self { glyph, fg, bg }
-    }
-    pub const fn from_char(ch: char) -> Self {
+impl Format {
+    pub fn none() -> Self {
         Self {
-            glyph: Glyph { ch },
             fg: Color::None,
             bg: Color::None,
         }
     }
-    pub fn encode_utf8_to_buf(&self, buf: &mut Buf) {
-        let mut b = [0; 4];
-        self.glyph.ch.encode_utf8(&mut b);
-        buf.extend(b);
+}
+
+impl Glyph {
+    pub fn new(ch: char, format: Format) -> Self {
+        Self { ch, format }
+    }
+    pub const fn from_char(ch: char) -> Self {
+        Self {
+            ch,
+            format: Format::none(),
+        }
+    }
+    pub fn encode_utf8_to_buf(
+        &self,
+        buf: &mut Buf,
+        Format {
+            fg: last_fg,
+            bg: last_bg,
+        }: Format,
+    ) -> Format {
+        if last_fg != self.format.fg {
+            write!(buf, "{}", self.format.fg);
+        }
+        buf.push_char(self.ch);
+        self.format
     }
 }
-
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub struct Formatting {
-    val: u32,
-}
-
-// const FormattingBold: u32 = 1;
-// const FormattingUnderling: u32 = 2;
 
 impl From<char> for Glyph {
     fn from(ch: char) -> Self {
-        Self { ch }
-    }
-}
-
-impl From<char> for FormattedGlyph {
-    fn from(ch: char) -> Self {
         Self {
-            glyph: ch.into(),
-            fg: Color::None,
-            bg: Color::None,
+            ch,
+            format: Format::none(),
         }
     }
 }

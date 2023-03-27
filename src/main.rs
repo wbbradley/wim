@@ -1,4 +1,3 @@
-use crate::buf::buf_fmt;
 use crate::editor::Editor;
 use crate::layout::recursive_layout;
 use crate::plugin::{Plugin, PluginRef};
@@ -81,7 +80,7 @@ fn write_bmp_diff(buf: &mut Buf, bmp_last: &mut Bitmap, bmp: &mut Bitmap, fd: li
     buf.extend(b"\x1b[?25l");
     Bitmap::diff(bmp_last, bmp, buf);
     if let Some(cursor) = bmp.get_cursor() {
-        buf_fmt!(buf, "\x1b[{};{}H", cursor.y + 1, cursor.x + 1);
+        write!(buf, "\x1b[{};{}H", cursor.y + 1, cursor.x + 1);
     }
     buf.extend(b"\x1b[?25h");
     let ret = unsafe { libc::write(fd, buf.as_ptr() as *const libc::c_void, buf.len()) };

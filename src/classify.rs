@@ -6,9 +6,9 @@ pub enum CharType {
 }
 
 pub fn classify(ch: char) -> CharType {
-    if unsafe { libc::ispunct(ch as libc::c_int) } != 0 {
+    if ch.is_ascii_punctuation() {
         CharType::Punct
-    } else if unsafe { libc::isspace(ch as libc::c_int) } != 0 {
+    } else if ch.is_whitespace() {
         CharType::Space
     } else {
         CharType::Text

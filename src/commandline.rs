@@ -49,15 +49,22 @@ impl View for CommandLine {
             .get_property_string(PROP_DOCVIEW_STATUS);
         log::trace!("PROP_DOCVIEW_STATUS={:?}", status_text);
         {
-            let mut pos = Pos::zero();
+            let mut pos = Pos { x: 1, y: 0 };
             if let Some(current_filename) = current_filename {
+                /*
                 bmp_fmt_at!(
                     bmp,
                     pos,
-                    " {} {}|",
-                    current_filename,
-                    if is_dirty { "(modified) " } else { "" }
+                    Format {
+                        fg: Color::Red,
+                        bg: Color::None
+                    },
+                    "{}",
+                    current_filename
                 );
+                pos.x += 1;
+                bmp_fmt_at!(bmp, pos, "| {}", if is_dirty { "(modified) " } else { "" });
+                */
             }
             if let Status::Message {
                 ref message,

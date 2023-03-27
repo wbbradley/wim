@@ -1,15 +1,16 @@
-use crate::buf::{buf_fmt, Buf};
+use crate::buf::Buf;
 use crate::color::Color;
-use crate::glyph::{FormattedGlyph, Glyph};
+use crate::glyph::{Format, Glyph};
 use crate::prelude::*;
+use std::fmt::Write;
 
 #[derive(Debug, Clone)]
 pub struct Bitmap {
     size: Size,
     cursor: Option<Pos>,
-    glyphs: Vec<FormattedGlyph>,
+    glyphs: Vec<Glyph>,
 }
-const DEFAULT_GLYPH: FormattedGlyph = FormattedGlyph::from_char(' ');
+const DEFAULT_GLYPH: Glyph = Glyph::from_char(' ');
 
 impl Bitmap {
     pub fn new(size: Size) -> Self {
@@ -26,17 +27,6 @@ impl Bitmap {
             self.glyphs.push(DEFAULT_GLYPH);
         }
     }
-    #[allow(dead_code)]
-    pub fn write_to(&self, buf: &mut Buf) {
-        let size = self.size;
-        for y in 0..size.height {
-            buf_fmt!(buf, "\x1b[{};{}H", y + 1, 1);
-            for x in 0..size.width {
-                let formatted_glyph: &FormattedGlyph = &self.glyphs[x + y * size.width];
-                formatted_glyph.encode_utf8_to_buf(buf);
-            }
-        }
-    }
     pub fn get_cursor(&self) -> Option<Pos> {
         self.cursor
     }
@@ -48,10 +38,10 @@ impl Bitmap {
             let line_changed = bmp_last.glyphs[line_range.clone()] != bmp.glyphs[line_range];
 
             if line_changed {
-                buf_fmt!(buf, "\x1b[{};{}H", y + 1, 1);
+                write!(buf, "\x1b[{};{}H", y + 1, 1);
                 for x in 0..size.width {
-                    let formatted_glyph: &FormattedGlyph = &bmp.glyphs[x + y * size.width];
-                    formatted_glyph.encode_utf8_to_buf(buf);
+                    let glyph: &Glyph = &bmp.glyphs[x + y * size.width];
+                    glyph.encode_utf8_to_buf(buf);
                 }
             }
         }
