@@ -1,3 +1,5 @@
+use crate::size::Size;
+
 pub type Coord = usize;
 pub type RelCoord = isize;
 
@@ -54,21 +56,6 @@ impl SafeCoordCast for u16 {
     }
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub struct Size {
-    pub width: Coord,
-    pub height: Coord,
-}
-
-impl Size {
-    pub fn area(self) -> usize {
-        self.width * self.height
-    }
-    pub fn contains(self, pos: Pos) -> bool {
-        (0..self.width).contains(&pos.x) && (0..self.height).contains(&pos.y)
-    }
-}
-
 #[derive(Default, Copy, Clone, Debug, Eq, PartialEq)]
 pub struct Pos {
     pub x: Coord,
@@ -110,15 +97,6 @@ impl Arbitrary for Pos {
 impl From<&Pos> for Pos {
     fn from(v: &Pos) -> Self {
         *v
-    }
-}
-
-impl From<Pos> for Size {
-    fn from(coord: Pos) -> Self {
-        Self {
-            width: coord.x,
-            height: coord.y,
-        }
     }
 }
 

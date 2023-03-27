@@ -1,5 +1,6 @@
 use crate::read::read_u8;
-use crate::types::{Coord, Pos, SafeCoordCast, Size};
+use crate::size::Size;
+use crate::types::{Coord, Pos, SafeCoordCast};
 use crate::utils::{die, put};
 use std::sync::{Arc, Mutex};
 

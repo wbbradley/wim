@@ -1,3 +1,4 @@
+use crate::format::Format;
 use std::fmt;
 
 #[allow(dead_code)]
@@ -64,20 +65,36 @@ impl fmt::Display for BgColor {
     }
 }
 
-/*
-pub struct FgColorToAnsiIter {
-    stackbuf: [u8; 32],
-}
-
-impl IntoIter<Item = u8, IntoIter = FgColorToAnsiIter> for FgColorChange {
-    pub fn into_iter(self) -> Self {
-        self
+impl From<BgColor> for Format {
+    fn from(bg: BgColor) -> Self {
+        Self {
+            bg,
+            fg: FgColor::None,
+        }
     }
 }
 
-impl Iterator for FgColorToAnsiIter {
-    type Item = u8;
-    fn next(&mut self) -> Option<u8> {
+impl From<FgColor> for Format {
+    fn from(fg: FgColor) -> Self {
+        Self {
+            fg,
+            bg: BgColor::None,
+        }
     }
 }
-*/
+
+impl std::ops::Add<FgColor> for BgColor {
+    type Output = Format;
+    #[inline]
+    fn add(self, fg: FgColor) -> Format {
+        Format { fg, bg: self }
+    }
+}
+
+impl std::ops::Add<BgColor> for FgColor {
+    type Output = Format;
+    #[inline]
+    fn add(self, bg: BgColor) -> Format {
+        Format { fg: self, bg }
+    }
+}

@@ -10,7 +10,7 @@ pub struct Glyph {
 }
 
 impl Glyph {
-    pub const fn from_char(ch: char) -> Self {
+    pub fn from_char(ch: char) -> Self {
         Self {
             ch,
             format: Format::none(),

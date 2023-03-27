@@ -8,8 +8,11 @@ use crate::termios::Termios;
 use crate::types::Rect;
 use crate::view_map::HandleKey;
 use log::LevelFilter;
+use signal_hook::consts::signal::SIGWINCH;
+use signal_hook::flag as signal_flag;
 use std::env;
 use std::fmt::Write;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 #[cfg(test)]
 extern crate quickcheck;
@@ -44,6 +47,7 @@ mod prelude;
 mod read;
 mod rel;
 mod row;
+mod size;
 mod status;
 mod target;
 mod termios;
@@ -104,11 +108,21 @@ fn run_app(plugin: PluginRef, mut view_map: ViewMap) -> Result<()> {
     let args: Vec<String> = env::args().collect();
     trace!("wim run with args: {:?}", args);
 
-    let frame: Rect = Termios::get_window_size().into();
-
     let editor_view_key = Editor::install(plugin, &mut view_map);
     let mut editor: ViewRef = view_map.get_view(editor_view_key);
     let mut should_refresh = true;
+    let should_resize = Arc::new(AtomicBool::new(false));
+    signal_flag::register(SIGWINCH, Arc::clone(&should_resize))?;
+
+    let default_glyph = Glyph {
+        ch: ' ',
+        format: BgColor::Rgb {
+            r: 60,
+            g: 50,
+            b: 40,
+        }
+        .into(),
+    };
     let mut dks: VecDeque<DK> = Default::default();
     let mut key_timeout: Option<Instant> = None;
     if args.len() > 1 {
@@ -116,16 +130,25 @@ fn run_app(plugin: PluginRef, mut view_map: ViewMap) -> Result<()> {
         dks.push_back(command("open").arg(filename).at_focused());
     }
     let mut layout_rects: HashMap<ViewKey, Rect> = Default::default();
-    let mut bmp = Bitmap::new(frame.size());
+    let mut terminal_size: Size = Termios::get_window_size();
+    let mut bmp = Bitmap::new(terminal_size, default_glyph);
     let mut bmp_last = bmp.clone();
+
     let mut buf = Buf::default();
     while !editor.get_property_bool(crate::consts::PROP_EDITOR_SHOULD_QUIT, true) {
+        if should_resize.swap(false, Ordering::Relaxed) {
+            should_refresh = true;
+            terminal_size = Termios::get_window_size();
+            bmp.resize(terminal_size);
+            bmp_last.resize_with_junk(terminal_size);
+        }
+
         if should_refresh {
             layout_rects.clear();
             recursive_layout(
                 &view_map,
                 view_map.get_root_view_key(),
-                frame,
+                terminal_size.into(),
                 &mut layout_rects,
             );
 

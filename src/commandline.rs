@@ -51,26 +51,19 @@ impl View for CommandLine {
             .get_property_string(PROP_DOCVIEW_STATUS);
         log::trace!("PROP_DOCVIEW_STATUS={:?}", status_text);
         {
+            let bgcolor = BgColor::Rgb {
+                r: 40,
+                g: 35,
+                b: 40,
+            };
             let mut pos = Pos { x: 1, y: 0 };
             if let Some(current_filename) = current_filename {
-                bmp_fmt_at!(
-                    bmp,
-                    pos,
-                    Format {
-                        fg: FgColor::Red,
-                        bg: BgColor::None
-                    },
-                    "{}",
-                    current_filename
-                );
+                bmp_fmt_at!(bmp, pos, FgColor::Red + bgcolor, "{}", current_filename);
                 pos.x += 1;
                 bmp_fmt_at!(
                     bmp,
                     pos,
-                    Format {
-                        fg: FgColor::White,
-                        bg: BgColor::Red
-                    },
+                    FgColor::White + bgcolor,
                     "| {}",
                     if is_dirty { "(modified) " } else { "" }
                 );
@@ -81,7 +74,7 @@ impl View for CommandLine {
             } = self.status
             {
                 if expiry > Instant::now() {
-                    bmp_fmt_at!(bmp, pos, Format::none(), " {}", message);
+                    bmp_fmt_at!(bmp, pos, bgcolor.into(), " {}", message);
                 }
             }
             if let Some(status_text) = status_text {

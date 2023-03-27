@@ -1,4 +1,5 @@
 use crate::buf::Buf;
+use crate::color::{BgColor, FgColor};
 use crate::error::{ErrorContext, Result};
 use crate::format::Format;
 use crate::glyph::Glyph;
@@ -10,27 +11,39 @@ pub struct Bitmap {
     size: Size,
     cursor: Option<Pos>,
     glyphs: Vec<Glyph>,
+    default_glyph: Glyph,
 }
-const DEFAULT_GLYPH: Glyph = Glyph::from_char(' ');
 
 impl Bitmap {
-    pub fn new(size: Size) -> Self {
+    pub fn new(size: Size, default_glyph: Glyph) -> Self {
         Self {
             size,
             cursor: None,
-            glyphs: vec![DEFAULT_GLYPH; size.area()],
+            default_glyph,
+            glyphs: vec![default_glyph; size.area()],
         }
     }
-    pub fn clear(&mut self) {
+
+    pub fn resize(&mut self, size: Size) {
+        self.size = size;
+    }
+
+    pub fn resize_with_junk(&mut self, size: Size) {
+        self.size = size;
         self.glyphs.truncate(0);
-        self.cursor = None;
-        for _ in 0..self.size.area() {
-            self.glyphs.push(DEFAULT_GLYPH);
-        }
+        self.glyphs.resize(self.size.area(), Glyph::from_char('\0'));
     }
+
+    pub fn clear(&mut self) {
+        self.cursor = None;
+        self.glyphs.truncate(0);
+        self.glyphs.resize(self.size.area(), self.default_glyph);
+    }
+
     pub fn get_cursor(&self) -> Option<Pos> {
         self.cursor
     }
+
     pub fn diff(bmp_last: &Self, bmp: &Self, buf: &mut Buf) -> Result<()> {
         assert!(bmp_last.size == bmp.size);
         let size = bmp.size;
@@ -47,6 +60,7 @@ impl Bitmap {
                 }
             }
         }
+        write!(buf, "\x1b[m").context("clear-formatting")?;
         Ok(())
     }
 }
@@ -83,7 +97,31 @@ impl<'a> BitmapView<'a> {
             return;
         }
         let pos = pos + self.frame.top_left();
-        self.bitmap.glyphs[pos.x + pos.y * self.bitmap.size.width] = glyph;
+        let target_glyph = &mut self.bitmap.glyphs[pos.x + pos.y * self.bitmap.size.width];
+        target_glyph.ch = glyph.ch;
+
+        match glyph.format {
+            Format {
+                fg: FgColor::None,
+                bg: BgColor::None,
+            } => {}
+            Format {
+                fg,
+                bg: BgColor::None,
+            } => {
+                target_glyph.format.fg = fg;
+            }
+            Format {
+                fg: FgColor::None,
+                bg,
+            } => {
+                target_glyph.format.bg = bg;
+            }
+            Format { fg, bg } => {
+                target_glyph.format.fg = fg;
+                target_glyph.format.bg = bg;
+            }
+        }
     }
     pub fn append_chars_at_pos<T>(&mut self, pos: &mut Pos, chs: T, format: Format)
     where
