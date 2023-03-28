@@ -89,7 +89,7 @@ impl DocView {
         if let Some(row) = self.doc.get_line_buf(self.cursor.y) {
             self.cursor.x = self.cursor.x.clamp(
                 0,
-                row.len() - usize::from(row.len() > 0 && self.mode == Mode::Normal),
+                row.len() - usize::from(!row.is_empty() && self.mode == Mode::Normal),
             );
             self.render_cursor_x = row.cursor_to_render_col(self.cursor.x);
         } else {

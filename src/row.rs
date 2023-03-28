@@ -100,9 +100,9 @@ impl Row {
         if self.buf.len() <= x + 1 {
             self.buf.len()
         } else {
-            let start_class = classify(self.buf[x] as char);
+            let start_class = classify(self.buf[x]);
             for (i, &ch) in self.buf[x + 1..].iter().enumerate() {
-                let next_class = classify(ch as char);
+                let next_class = classify(ch);
                 if next_class != start_class {
                     return x + i + 1;
                 }

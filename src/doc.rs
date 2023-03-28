@@ -103,7 +103,7 @@ impl Doc {
     }
     pub fn delete_forwards(&mut self, cursor: Pos, noun: Noun) -> (Option<Coord>, Option<Coord>) {
         if let Some(row) = self.rows.get_mut(cursor.y) {
-            if row.len() == 0 || cursor.x >= row.len() - 1 {
+            if row.is_empty() || cursor.x >= row.len() - 1 {
                 return (None, None);
             }
             let end_index = match noun {

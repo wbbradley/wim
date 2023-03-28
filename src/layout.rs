@@ -12,7 +12,7 @@ pub fn recursive_layout(
     layout_rects.insert(vk, rect);
 
     // Allow the view to layout itself and its children.
-    let next_jobs = view_map.get_view(vk).layout(&view_map, rect.size());
+    let next_jobs = view_map.get_view(vk).layout(view_map, rect.size());
 
     // Recurse by running layout on the child nodes.
     next_jobs.into_iter().for_each(|(vk, child_rect)| {
