@@ -140,6 +140,11 @@ impl DocView {
         }
         */
     }
+    pub fn split_newline(&mut self) -> Result<Status> {
+        self.doc.split_newline(self.cursor);
+        self.jump_cursor(Some(0), Some(self.cursor.y + 1));
+        Ok(Status::Ok)
+    }
     pub fn insert_newline_above(&mut self) -> Result<Status> {
         self.doc.insert_newline(self.cursor.y);
         Ok(Status::Ok)
@@ -163,7 +168,8 @@ impl DocView {
         Ok(Status::Ok)
     }
     pub fn join_line(&mut self) -> Result<Status> {
-        self.doc.join_lines(self.cursor.y..self.cursor.y + 1);
+        let (cx, cy) = self.doc.join_lines(self.cursor.y..self.cursor.y + 1);
+        self.jump_cursor(cx, cy);
         Ok(Status::Ok)
     }
     /*
@@ -249,7 +255,7 @@ impl DispatchTarget for DocView {
                 bindings.insert(Key::Esc, command("switch-mode").arg("normal").at_view(vk));
                 bindings.insert("jk", DK::Key(Key::Esc));
                 bindings.insert(Key::Backspace, command("delete-backwards").at_view(vk));
-                bindings.insert(Key::Enter, command("newline").arg("below").at_view(vk));
+                bindings.insert(Key::Enter, command("newline").at_view(vk));
             }
             Mode::Normal => {
                 bindings.insert(
@@ -410,18 +416,18 @@ impl DispatchTarget for DocView {
                     Err(error!("'move' expects a direction"))
                 }
             }
-            (_, "newline") => {
-                ensure!(args.len() == 1);
-                if let Variant::String(arg) = args.remove(0) {
-                    match arg.as_str() {
-                        "above" => self.insert_newline_above(),
-                        "below" => self.insert_newline_below(),
-                        _ => Err(error!("'newline' expects one of {{above,below}}")),
-                    }
-                } else {
-                    Err(error!("'newline' expects a direction"))
-                }
-            }
+            (_, "newline") => match args.as_slice() {
+                [] => self.split_newline(),
+                [Variant::String(arg)] => match arg.as_str() {
+                    "above" => self.insert_newline_above(),
+                    "below" => self.insert_newline_below(),
+                    _ => Err(error!("'newline' expects one of {{above,below}}")),
+                },
+                _ => Err(error!(
+                    "'newline' encountered unexpected options. [args={:?}]",
+                    args
+                )),
+            },
             (_, "move-rel") => {
                 ensure!((2..=3).contains(&args.len()));
                 let (noun, rel, count) = pull_noun_rel_count(args)?;

@@ -26,11 +26,23 @@ impl Row {
         slf.update_render();
         slf
     }
+    pub fn from_chars(chs: &[char]) -> Self {
+        let mut slf = Self {
+            buf: chs.to_vec(),
+            render: Vec::new(),
+        };
+        slf.update_render();
+        slf
+    }
     pub fn len(&self) -> usize {
         self.buf.len()
     }
     pub fn is_empty(&self) -> bool {
         self.buf.is_empty()
+    }
+    pub fn truncate(&mut self, len: usize) {
+        self.buf.truncate(len);
+        self.update_render();
     }
     // pub fn col_len(&self) -> usize {
     //     self.render.len()
@@ -60,10 +72,16 @@ impl Row {
             self.buf.get(x).copied()
         }
     }
+
     pub fn insert_char(&mut self, x: Coord, ch: char) {
         self.buf.splice(x..x, [ch].into_iter());
         self.update_render();
     }
+
+    pub fn get_slice(&self, range: Range<usize>) -> &[char] {
+        &self.buf[range]
+    }
+
     pub fn update_render(&mut self) {
         // Deal with rendering Tabs.
         let tabs = self.buf.iter().copied().filter(|&x| x == '\t').count();
@@ -92,10 +110,12 @@ impl Row {
         self.buf.extend(s.chars());
         self.update_render();
     }
+
     pub fn append_row(&mut self, row: Self) {
         self.buf.extend(&row.buf);
         self.update_render();
     }
+
     pub fn next_word_break(&self, x: Coord) -> Coord {
         if self.buf.len() <= x + 1 {
             self.buf.len()

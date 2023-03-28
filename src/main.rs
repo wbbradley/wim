@@ -113,7 +113,7 @@ fn run_app(plugin: PluginRef, mut view_map: ViewMap, settings: Settings) -> Resu
     trace!("wim run with args: {:?}", args);
 
     let editor_view_key = Editor::install(plugin, &mut view_map);
-    let mut editor: ViewRef = view_map.get_view(editor_view_key);
+    let editor: ViewRef = view_map.get_view(editor_view_key);
     let mut should_refresh = true;
     let should_resize = Arc::new(AtomicBool::new(false));
     signal_flag::register(SIGWINCH, Arc::clone(&should_resize))?;
@@ -193,15 +193,16 @@ fn run_app(plugin: PluginRef, mut view_map: ViewMap, settings: Settings) -> Resu
             };
         }
         should_refresh = true;
-        pump(&mut view_map, &mut dks, &mut editor)?;
+        pump(&mut view_map, &mut dks)?;
     }
     Ok(())
 }
-fn pump(view_map: &mut ViewMap, dks: &mut VecDeque<DK>, editor: &mut ViewRef) -> Result<()> {
+fn pump(view_map: &mut ViewMap, dks: &mut VecDeque<DK>) -> Result<()> {
     while matches!(dks.front(), Some(DK::Key(Key::None))) {
         trace!("popping Key::None off dks");
         dks.pop_front();
     }
+    let mut cmdline = view_map.get_named_view("command-line").unwrap();
     loop {
         if dks.is_empty() {
             return Ok(());
@@ -220,7 +221,7 @@ fn pump(view_map: &mut ViewMap, dks: &mut VecDeque<DK>, editor: &mut ViewRef) ->
                             dispatch_target.execute_command(name, args)
                         }
                     };
-                    editor.set_status(result?);
+                    cmdline.set_status(result?);
                 }
                 DK::Sequence(next_dks) => {
                     next_dks
@@ -231,7 +232,7 @@ fn pump(view_map: &mut ViewMap, dks: &mut VecDeque<DK>, editor: &mut ViewRef) ->
                 }
             },
             HandleKey::Choices(choices) => {
-                editor.set_status(status!("Valid next bindings: {:?}", choices));
+                cmdline.set_status(status!("Valid next bindings: {:?}", choices));
                 return Ok(());
             }
         }

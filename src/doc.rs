@@ -88,6 +88,18 @@ impl Doc {
         doc.filename = Some(filename);
         Ok(doc)
     }
+    pub fn split_newline(&mut self, cursor: Pos) {
+        let new_row = if let Some(row) = self.rows.get_mut(cursor.y) {
+            let x = cursor.x.clamp(0, row.len());
+            let ret = Row::from_chars(row.get_slice(x..row.len()));
+            row.truncate(x);
+            ret
+        } else {
+            Row::from_line("")
+        };
+        self.rows.insert(cursor.y + 1, new_row);
+        self.dirty = true;
+    }
     pub fn insert_newline(&mut self, y: Coord) {
         let y = std::cmp::min(y, self.rows.len());
         self.rows.splice(y..y, [Row::from_line("")]);
@@ -108,7 +120,7 @@ impl Doc {
             }
             let end_index = match noun {
                 Noun::Line => row.len(),
-                Noun::Char => std::cmp::min(cursor.x + 1, row.len() - 1),
+                Noun::Char => std::cmp::min(cursor.x + 1, row.len()),
                 Noun::Word => row.next_word_break(cursor.x),
             };
             row.splice(cursor.x..end_index, "");
@@ -138,20 +150,26 @@ impl Doc {
             (None, None)
         }
     }
-    pub fn join_lines(&mut self, range: std::ops::Range<Coord>) {
+    pub fn join_lines(&mut self, range: std::ops::Range<Coord>) -> (Option<Coord>, Option<Coord>) {
         if self.rows.len() <= 1 {
-            return;
+            return (None, None);
         }
 
+        let mut new_cursor_pos = Pos {
+            x: 0,
+            y: range.start,
+        };
         let mut new_row = Row::default();
         for _ in range.start..=std::cmp::min(range.end, self.rows.len() - 1) {
             let mut row = self.rows.remove(range.start);
+            new_cursor_pos.x = new_row.len();
             if !row.is_empty() && classify(row.char_at(row.len() - 1).unwrap()) != CharType::Space {
                 row.append_str(" ");
             }
             new_row.append_row(row);
         }
         self.rows.insert(range.start, new_row);
+        (Some(new_cursor_pos.x), Some(new_cursor_pos.y))
     }
 
     pub fn get_next_word_pos(&self, from: Pos) -> Option<Pos> {

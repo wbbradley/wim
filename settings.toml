@@ -1,8 +1,8 @@
 [display.fg.rgb]
-r = 100
+r = 200
 g = 200
 b = 200
 [display.bg.rgb]
-r = 10
-g = 20
-b = 20
+r = 0x26
+g = 0x26
+b = 0x26

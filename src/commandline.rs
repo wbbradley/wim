@@ -79,7 +79,7 @@ impl View for CommandLine {
                     pos,
                     FgColor::Yellow.into(),
                     " ▍ {}",
-                    if is_dirty { "(modified) " } else { "" }
+                    if is_dirty { "(modified) ▍" } else { "" }
                 );
             }
             if let Status::Message {

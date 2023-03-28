@@ -82,7 +82,7 @@ impl Termios {
         let mut ws: libc::winsize = unsafe { std::mem::zeroed() };
         if unsafe {
             libc::ioctl(
-                libc::STDOUT_FILENO,
+                libc::STDIN_FILENO,
                 libc::TIOCGWINSZ,
                 &mut ws as *mut libc::winsize as *mut libc::c_void,
             )
