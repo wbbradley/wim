@@ -3,6 +3,7 @@ use crate::error::Result;
 use crate::prelude::*;
 use crate::row::Row;
 use crate::types::{Coord, Pos};
+use crate::undo::{Change, ChangeStack};
 use crate::utils::read_lines;
 
 #[derive(Debug)]
@@ -11,6 +12,7 @@ pub struct Doc {
     filename: Option<String>,
     rows: Vec<Row>,
     dirty: bool,
+    change_stack: ChangeStack,
 }
 
 #[allow(dead_code)]
@@ -20,6 +22,7 @@ impl Doc {
             filename: None,
             rows: vec![Row::default()],
             dirty: false,
+            change_stack: Default::default(),
         }
     }
     pub fn is_empty(&self) -> bool {
@@ -64,6 +67,16 @@ impl Doc {
             }
         }
     }
+    pub fn push_change(&mut self, change: Change) {
+        let mut temp = ChangeStack::default();
+        std::mem::swap(&mut self.change_stack, &mut temp);
+        temp.push(self, change);
+        std::mem::swap(&mut self.change_stack, &mut temp);
+    }
+    pub fn swap_row(&mut self, index: Coord, row: &mut Row) {
+        assert!((0..self.rows.len()).contains(&index));
+        std::mem::swap(&mut self.rows[index], row);
+    }
     pub fn render_line(&self, pos: Pos) -> std::slice::Iter<'_, char> {
         if pos.y < self.rows.len() {
             self.rows.get(pos.y).unwrap().render_chars_from(pos.x)
@@ -71,7 +84,6 @@ impl Doc {
             EMPTY.iter()
         }
     }
-
     pub fn line_count(&self) -> usize {
         self.rows.len()
     }

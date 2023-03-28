@@ -54,6 +54,7 @@ mod target;
 mod termios;
 mod trie;
 mod types;
+mod undo;
 mod utils;
 mod variant;
 mod view;
