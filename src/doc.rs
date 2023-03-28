@@ -118,7 +118,7 @@ impl Doc {
     }
     pub fn delete_backwards(&mut self, cursor: Pos, noun: Noun) -> (Option<Coord>, Option<Coord>) {
         if let Some(row) = self.rows.get_mut(cursor.y) {
-            if row.len() == 0 || cursor.x == 0 {
+            if row.is_empty() || cursor.x == 0 {
                 if cursor.y > 0 {
                     let prior_row_len = self.rows.get_mut(cursor.y - 1).unwrap().len();
                     self.join_lines(cursor.y - 1..cursor.y);
@@ -145,8 +145,11 @@ impl Doc {
 
         let mut new_row = Row::default();
         for _ in range.start..=std::cmp::min(range.end, self.rows.len() - 1) {
-            let row = self.rows.remove(range.start);
-            new_row.append_row(&row);
+            let mut row = self.rows.remove(range.start);
+            if !row.is_empty() && classify(row.char_at(row.len() - 1).unwrap()) != CharType::Space {
+                row.append_str(" ");
+            }
+            new_row.append_row(row);
         }
         self.rows.insert(range.start, new_row);
     }

@@ -29,6 +29,9 @@ impl Row {
     pub fn len(&self) -> usize {
         self.buf.len()
     }
+    pub fn is_empty(&self) -> bool {
+        self.buf.is_empty()
+    }
     // pub fn col_len(&self) -> usize {
     //     self.render.len()
     // }
@@ -85,7 +88,11 @@ impl Row {
         self.update_render();
     }
 
-    pub fn append_row(&mut self, row: &Self) {
+    pub fn append_str(&mut self, s: &str) {
+        self.buf.extend(s.chars());
+        self.update_render();
+    }
+    pub fn append_row(&mut self, row: Self) {
         self.buf.extend(&row.buf);
         self.update_render();
     }

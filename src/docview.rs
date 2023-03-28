@@ -46,6 +46,7 @@ impl DocView {
         self.clamp_cursor();
         Ok(Status::Ok)
     }
+
     pub fn move_cursor_rel(&mut self, noun: Noun, rel: Rel) -> Result<Status> {
         trace!("move_cursor_rel({:?}, {:?})", noun, rel);
         match (noun, rel) {
@@ -68,6 +69,14 @@ impl DocView {
                 noun,
                 rel
             )),
+        }
+    }
+
+    pub fn delete_rel(&mut self, noun: Noun, rel: Rel) -> Result<Status> {
+        trace!("delete_rel({:?}, {:?})", noun, rel);
+        match rel {
+            Rel::Prior | Rel::Begin => self.delete_backwards(noun),
+            Rel::Next | Rel::End => self.delete_forwards(noun),
         }
     }
 
@@ -367,6 +376,10 @@ impl DispatchTarget for DocView {
                     Err(error!("'switch-mode' expects a string"))
                 }
             }
+            (_, "join-lines") => {
+                ensure!(args.is_empty());
+                self.join_line()
+            }
             (_, "delete-backwards") => {
                 ensure!(args.is_empty());
                 self.delete_backwards(Noun::Char)
@@ -411,27 +424,18 @@ impl DispatchTarget for DocView {
             }
             (_, "move-rel") => {
                 ensure!((2..=3).contains(&args.len()));
-                if let (Variant::String(noun), Variant::String(rel)) =
-                    (args.remove(0), args.remove(0))
-                {
-                    let count = if let Variant::Int(count) = args.remove(0) {
-                        count
-                    } else {
-                        1
-                    };
-
-                    match (Noun::from_str(&noun), Rel::from_str(&rel)) {
-                        (Ok(noun), Ok(rel)) => {
-                            for _ in 0..count {
-                                self.move_cursor_rel(noun, rel)?;
-                            }
-                            Ok(Status::Ok)
-                        }
-                        _ => Err(error!("'move-rel' expects a pair (noun, rel)")),
-                    }
-                } else {
-                    Err(error!("'move-rel' expects a pair (noun, rel)"))
+                let (noun, rel, count) = pull_noun_rel_count(args)?;
+                for _ in 0..count {
+                    self.move_cursor_rel(noun, rel)?;
                 }
+                Ok(Status::Ok)
+            }
+            (Mode::Normal, "delete-rel") => {
+                let (noun, rel, count) = pull_noun_rel_count(args)?;
+                for _ in 0..count {
+                    self.delete_rel(noun, rel)?;
+                }
+                Ok(Status::Ok)
             }
             _ => Err(not_impl!(
                 "DocView::execute_command needs to handle {:?} {:?}.",
@@ -439,6 +443,19 @@ impl DispatchTarget for DocView {
                 args
             )),
         }
+    }
+}
+
+fn pull_noun_rel_count(args: Vec<Variant>) -> Result<(Noun, Rel, i64)> {
+    let (noun, rel, count) = match args.as_slice() {
+        [Variant::String(noun), Variant::String(rel), Variant::Int(count)] => (noun, rel, *count),
+        [Variant::String(noun), Variant::String(rel)] => (noun, rel, 1),
+        _ => return Err(error!("'delete-rel' expects a pair (noun, rel)")),
+    };
+
+    match (Noun::from_str(noun), Rel::from_str(rel)) {
+        (Ok(noun), Ok(rel)) => Ok((noun, rel, count)),
+        _ => Err(error!("'move-rel' expects a pair (noun, rel)")),
     }
 }
 
@@ -454,7 +471,7 @@ impl ViewContext for DocView {
             Some(Variant::Pos(self.cursor))
         } else if property == PROP_DOCVIEW_STATUS {
             Some(Variant::String(format!(
-                "| {:?} | {}:{} ",
+                "▐ {:?} ▐ {}:{} ",
                 self.mode,
                 self.cursor.y + 1,
                 self.cursor.x + 1

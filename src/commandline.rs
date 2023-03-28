@@ -52,22 +52,33 @@ impl View for CommandLine {
         log::trace!("PROP_DOCVIEW_STATUS={:?}", status_text);
         {
             let bgcolor = BgColor::Rgb {
-                r: 10,
-                g: 15,
-                b: 40,
+                r: 100,
+                g: 105,
+                b: 102,
             };
             for x in 0..bmp.get_size().width {
                 bmp.set_bg(Pos { x, y: 0 }, bgcolor);
             }
             let mut pos = Pos { x: 1, y: 0 };
             if let Some(current_filename) = current_filename {
-                bmp_fmt_at!(bmp, pos, FgColor::Red.into(), "{}", current_filename);
+                bmp_fmt_at!(
+                    bmp,
+                    pos,
+                    FgColor::Rgb {
+                        r: 240,
+                        g: 140,
+                        b: 240
+                    }
+                    .into(),
+                    "{}",
+                    current_filename
+                );
                 pos.x += 1;
                 bmp_fmt_at!(
                     bmp,
                     pos,
-                    FgColor::White.into(),
-                    "| {}",
+                    FgColor::Yellow.into(),
+                    " ▍ {}",
                     if is_dirty { "(modified) " } else { "" }
                 );
             }
