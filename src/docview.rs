@@ -141,7 +141,9 @@ impl DocView {
         */
     }
     pub fn split_newline(&mut self) -> Result<Status> {
-        self.doc.split_newline(self.cursor);
+        let mut change_tracker = self.doc.new_change_tracker();
+        let (op, pos) = self.doc.split_newline(self.cursor);
+        change_tracker.add_rows_swap(
         self.jump_cursor(Some(0), Some(self.cursor.y + 1));
         Ok(Status::Ok)
     }

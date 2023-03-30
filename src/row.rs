@@ -18,6 +18,14 @@ impl Row {
     // pub fn render_buf(&self) -> &[char] {
     //     &self.render
     // }
+    pub fn from_buf(buf: Vec<char>) -> Self {
+        let mut slf = Self {
+            buf: buf,
+            render: Vec::new(),
+        };
+        slf.update_render();
+        slf
+    }
     pub fn from_line(line: &str) -> Self {
         let mut slf = Self {
             buf: line.chars().collect(),
@@ -40,9 +48,11 @@ impl Row {
     pub fn is_empty(&self) -> bool {
         self.buf.is_empty()
     }
-    pub fn truncate(&mut self, len: usize) {
-        self.buf.truncate(len);
-        self.update_render();
+    pub fn truncate(&self, len: usize) -> Self {
+        Self::from_chars(&self.buf[0..len])
+    }
+    pub fn split_at(&self, x: usize) -> (Self, Self) {
+        Self::from_chars(&self.buf[0..len])
     }
     // pub fn col_len(&self) -> usize {
     //     self.render.len()
@@ -73,9 +83,10 @@ impl Row {
         }
     }
 
-    pub fn insert_char(&mut self, x: Coord, ch: char) {
-        self.buf.splice(x..x, [ch].into_iter());
-        self.update_render();
+    pub fn insert_char(&self, x: Coord, ch: char) -> Self {
+        let buf = self.buf.clone();
+        buf.splice(x..x, [ch].into_iter());
+        Self::from_buf(buf)
     }
 
     pub fn get_slice(&self, range: Range<usize>) -> &[char] {
@@ -83,19 +94,26 @@ impl Row {
     }
 
     pub fn update_render(&mut self) {
+        Self::renderize_in_place(&self.buf, &mut self.render);
+    }
+    fn renderize(buf: &Vec<char>) -> Vec<char> {
+        let mut render = Default::default();
+        Self::renderize_in_place(buf, &mut render);
+        render
+    }
+    fn renderize_in_place(buf: &Vec<char>, render: &mut Vec<char>) {
         // Deal with rendering Tabs.
-        let tabs = self.buf.iter().copied().filter(|&x| x == '\t').count();
+        let tabs = buf.iter().copied().filter(|&x| x == '\t').count();
         if tabs == 0 {
-            self.render.truncate(0);
-            self.render.extend_from_slice(&self.buf);
+            render.truncate(0);
+            render.extend_from_slice(&buf);
         } else {
-            self.render
-                .reserve(self.buf.len() + tabs * (TAB_STOP_SIZE - 1));
-            for ch in self.buf.iter().copied() {
+            render.reserve(buf.len() + tabs * (TAB_STOP_SIZE - 1));
+            for ch in buf.iter().copied() {
                 if ch == '\t' {
-                    self.render.extend_from_slice(&BLANKS[..TAB_STOP_SIZE]);
+                    render.extend_from_slice(&BLANKS[..TAB_STOP_SIZE]);
                 } else {
-                    self.render.push(ch);
+                    render.push(ch);
                 }
             }
         }

@@ -1,4 +1,5 @@
 use crate::doc::Doc;
+use crate::prelude::*;
 use crate::row::Row;
 
 #[derive(Default, Debug)]
@@ -8,6 +9,10 @@ pub struct ChangeStack {
 }
 
 impl ChangeStack {
+    pub fn clear(&mut self) {
+        self.index = 0;
+        self.changes.truncate(0);
+    }
     pub fn push(&mut self, doc: &mut Doc, mut change: Change) {
         self.changes.truncate(self.index);
         change.execute(doc);
@@ -38,33 +43,51 @@ impl<'a> ChangeTracker<'a> {
     pub fn commit(self) {
         self.doc.push_change(self.change);
     }
+    pub fn add_rows_swap(
+        &mut self,
+        range: Range<usize>,
+        rows: Vec<Row>,
+        before_cursor: Pos,
+        after_cursor: Pos,
+    ) {
+        self.change
+            .push_op(Op::RowsSwap { range, rows }, before_cursor, after_cursor);
+    }
 }
 
 #[derive(Default, Debug)]
 pub struct Change {
     ops: Vec<Op>,
+    before_cursor: Pos,
+    after_cursor: Pos,
 }
 
 #[derive(Debug)]
-enum Op {
-    RowSwap(RowSwap),
-}
-
-#[derive(Debug)]
-pub struct RowSwap {
-    pub index: usize,
-    pub row: Row,
+pub enum Op {
+    RowsSwap { range: Range<usize>, rows: Vec<Row> },
 }
 
 impl Change {
-    pub fn execute(&mut self, doc: &mut Doc) {
+    pub fn push_op(&mut self, op: Op, before_cursor: Pos, after_cursor: Pos) {
+        if self.ops.is_empty() {
+            self.before_cursor = before_cursor;
+        }
+        self.ops.push(op);
+        self.after_cursor = after_cursor;
+    }
+    #[must_use]
+    pub fn execute(&mut self, doc: &mut Doc) -> Pos {
         for op in &mut self.ops {
             match op {
-                Op::RowSwap(ref mut row_op) => {
-                    doc.swap_row(row_op.index, &mut row_op.row);
+                Op::RowsSwap(ref mut row_op) => {
+                    // NB: implicitly swapping redo/undo info inside this call.
+                    doc.swap_rows(&mut row_op.range, &mut row_op.rows);
                 }
             }
         }
+        // Flip this change so that it executes in reverse next time.
+        std::mem::swap(&mut self.before_cursor, &mut self.after_cursor);
         self.ops.reverse();
+        self.before_cursor
     }
 }

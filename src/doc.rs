@@ -3,6 +3,7 @@ use crate::error::Result;
 use crate::prelude::*;
 use crate::row::Row;
 use crate::types::{Coord, Pos};
+use crate::undo::ChangeTracker;
 use crate::undo::{Change, ChangeStack};
 use crate::utils::read_lines;
 
@@ -10,23 +11,25 @@ use crate::utils::read_lines;
 #[allow(dead_code)]
 pub struct Doc {
     filename: Option<String>,
-    rows: Vec<Row>,
+    tracked_rows: Vec<Row>,
     dirty: bool,
     change_stack: ChangeStack,
 }
 
-#[allow(dead_code)]
 impl Doc {
     pub fn empty() -> Self {
         Self {
             filename: None,
-            rows: vec![Row::default()],
+            tracked_rows: vec![Row::default()],
             dirty: false,
             change_stack: Default::default(),
         }
     }
+    pub fn new_change_tracker(&mut self) -> ChangeTracker {
+        ChangeTracker::begin_changes(self)
+    }
     pub fn is_empty(&self) -> bool {
-        self.rows.is_empty()
+        self.tracked_rows.is_empty()
     }
     pub fn is_dirty(&self) -> bool {
         self.dirty
@@ -39,22 +42,22 @@ impl Doc {
     }
     pub fn iter_lines(&self, y: Coord) -> IterLines {
         IterLines {
-            row_iter: self.rows[y..].iter(),
+            row_iter: self.tracked_rows[y..].iter(),
         }
     }
     pub fn iter_from(&self, pos: Pos) -> IterChars {
         IterChars {
-            rows: &self.rows,
-            row: self.rows.get(pos.y),
+            rows: &self.tracked_rows,
+            row: self.tracked_rows.get(pos.y),
             pos,
             y_offset: 0,
         }
     }
     pub fn iter_line(&self, y: Coord) -> IterChars {
-        if self.rows.len() > y {
+        if self.tracked_rows.len() > y {
             IterChars {
-                rows: &self.rows[y..=y],
-                row: self.rows.get(y),
+                rows: &self.tracked_rows[y..=y],
+                row: self.tracked_rows.get(y),
                 pos: Pos { x: 0, y },
                 y_offset: 0,
             }
@@ -73,39 +76,51 @@ impl Doc {
         temp.push(self, change);
         std::mem::swap(&mut self.change_stack, &mut temp);
     }
-    pub fn swap_row(&mut self, index: Coord, row: &mut Row) {
-        assert!((0..self.rows.len()).contains(&index));
-        std::mem::swap(&mut self.rows[index], row);
+    pub fn swap_rows(&mut self, range: &mut Range<Coord>, rows: &mut Vec<Row>) {
+        assert!((0..=self.tracked_rows.len()).contains(&range.start));
+        assert!((range.start..=self.tracked_rows.len()).contains(&range.end));
+        let mut result_rows = self.tracked_rows[*range].iter().cloned().collect();
+        let mut result_range = range.start..range.start + rows.len();
+        self.tracked_rows.splice(*range, rows.iter().cloned());
+        std::mem::swap(&mut result_rows, rows);
+        std::mem::swap(&mut result_range, range);
     }
     pub fn render_line(&self, pos: Pos) -> std::slice::Iter<'_, char> {
-        if pos.y < self.rows.len() {
-            self.rows.get(pos.y).unwrap().render_chars_from(pos.x)
+        if pos.y < self.tracked_rows.len() {
+            self.tracked_rows
+                .get(pos.y)
+                .unwrap()
+                .render_chars_from(pos.x)
         } else {
             EMPTY.iter()
         }
     }
     pub fn line_count(&self) -> usize {
-        self.rows.len()
+        self.tracked_rows.len()
     }
-    pub fn get_line_buf(&self, y: Coord) -> Option<&Row> {
-        self.rows.get(y)
+    pub fn get_row(&self, y: Coord) -> Option<&Row> {
+        self.tracked_rows.get(y)
     }
     pub fn open(filename: String) -> Result<Self> {
         let mut doc = Doc::empty();
-        doc.rows.truncate(0);
+        doc.change_stack.clear();
+        doc.tracked_rows.truncate(0);
         let lines = read_lines(&filename)?;
         for line in lines {
-            doc.rows.push(Row::from_line(&line?));
+            doc.tracked_rows.push(Row::from_line(&line?));
         }
         doc.filename = Some(filename);
+        doc.dirty = false;
         Ok(doc)
     }
-    pub fn split_newline(&mut self, cursor: Pos) {
+    pub fn split_newline(&self, cursor: Pos) -> (crate::undo::Op, Pos) {
         let new_row = if let Some(row) = self.rows.get_mut(cursor.y) {
             let x = cursor.x.clamp(0, row.len());
             let ret = Row::from_chars(row.get_slice(x..row.len()));
             row.truncate(x);
             ret
+                Op::RowsSwap(cursor.y..cursor.y+1,
+                    vec![*self.get_row(cursor.y)
         } else {
             Row::from_line("")
         };

@@ -24,6 +24,7 @@ pub(crate) use crate::viewref::{viewref, ViewRef};
 pub(crate) use log::trace;
 pub(crate) use std::cell::RefCell;
 pub(crate) use std::collections::{HashMap, VecDeque};
+pub(crate) use std::ops::Range;
 pub(crate) use std::rc::Rc;
 pub(crate) use std::str::FromStr;
 pub(crate) use std::sync::Arc;
