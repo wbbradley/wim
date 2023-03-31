@@ -1,7 +1,7 @@
 use crate::classify::classify;
 use crate::consts::{BLANKS, TAB_STOP_SIZE};
 use crate::types::{Coord, SafeCoordCast};
-use std::ops::Range;
+use std::ops::{Range, RangeBounds};
 
 #[allow(dead_code)]
 #[derive(Clone, Default, Debug)]
@@ -19,20 +19,30 @@ impl Row {
     //     &self.render
     // }
     pub fn from_buf(buf: Vec<char>) -> Self {
-        let mut slf = Self {
-            buf: buf,
-            render: Vec::new(),
-        };
-        slf.update_render();
-        slf
+        Self {
+            render: Self::renderize(&buf),
+            buf,
+        }
     }
     pub fn from_line(line: &str) -> Self {
-        let mut slf = Self {
-            buf: line.chars().collect(),
-            render: Vec::new(),
-        };
-        slf.update_render();
-        slf
+        let buf = line.chars().collect();
+        Self {
+            render: Self::renderize(&buf),
+            buf,
+        }
+    }
+    pub fn joined_rows(
+        first: &Self,
+        second: &Self,
+        first_index: Coord,
+        second_index: Coord,
+    ) -> Self {
+        let buf = first.buf[..first_index].to_vec();
+        buf.extend(&second.buf[second_index..]);
+        Self {
+            render: Self::renderize(&buf),
+            buf,
+        }
     }
     pub fn from_chars(chs: &[char]) -> Self {
         let mut slf = Self {
@@ -51,8 +61,11 @@ impl Row {
     pub fn truncate(&self, len: usize) -> Self {
         Self::from_chars(&self.buf[0..len])
     }
-    pub fn split_at(&self, x: usize) -> (Self, Self) {
-        Self::from_chars(&self.buf[0..len])
+    pub fn split_at(&self, x: usize) -> [Self; 2] {
+        [
+            Self::from_chars(&self.buf[..x]),
+            Self::from_chars(&self.buf[x..]),
+        ]
     }
     // pub fn col_len(&self) -> usize {
     //     self.render.len()
@@ -119,9 +132,10 @@ impl Row {
         }
     }
 
-    pub fn splice(&mut self, range: Range<Coord>, text: &str) {
-        self.buf.splice(range, text.chars());
-        self.update_render();
+    pub fn splice(&self, range: impl RangeBounds<Coord>, text: &str) -> Self {
+        let mut buf = self.buf.clone();
+        buf.splice(range, text.chars());
+        Self::from_buf(buf)
     }
 
     pub fn append_str(&mut self, s: &str) {

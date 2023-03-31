@@ -1,4 +1,5 @@
 use crate::size::Size;
+use std::cmp::Ordering;
 
 pub type Coord = usize;
 pub type RelCoord = isize;
@@ -62,6 +63,27 @@ pub struct Pos {
     pub y: Coord,
 }
 
+impl PartialOrd for Pos {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Pos {
+    fn cmp(&self, other: &Self) -> Ordering {
+        if self.y < other.y {
+            Ordering::Less
+        } else if self.y > other.y {
+            Ordering::Greater
+        } else if self.x < other.x {
+            Ordering::Less
+        } else if self.y > other.y {
+            Ordering::Greater
+        } else {
+            Ordering::Equal
+        }
+    }
+}
 #[allow(dead_code)]
 impl Pos {
     pub fn zero() -> Self {
@@ -184,6 +206,15 @@ impl Arbitrary for Rect {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[quickcheck]
+    fn pos_compare(p: Pos, q: Pos) -> bool {
+        if p > q {
+            q < p
+        } else {
+            p <= q
+        }
+    }
 
     #[quickcheck]
     fn rect_pos_addition(r: Rect, p: Pos) -> bool {

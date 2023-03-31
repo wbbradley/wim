@@ -72,21 +72,13 @@ impl DocView {
         }
     }
 
-    pub fn delete_rel(&mut self, noun: Noun, rel: Rel) -> Result<Status> {
-        trace!("delete_rel({:?}, {:?})", noun, rel);
-        match rel {
-            Rel::Prior | Rel::Begin => self.delete_backwards(noun),
-            Rel::Next | Rel::End => self.delete_forwards(noun),
-        }
-    }
-
     pub fn last_valid_row(&self) -> Coord {
         self.doc.line_count()
     }
     fn clamp_cursor(&mut self) {
         log::trace!("clamp_cursor starts at {:?}", self.cursor);
         self.cursor.y = self.cursor.y.clamp(0, self.last_valid_row());
-        if let Some(row) = self.doc.get_line_buf(self.cursor.y) {
+        if let Some(row) = self.doc.get_row(self.cursor.y) {
             self.cursor.x = self.cursor.x.clamp(
                 0,
                 row.len() - usize::from(!row.is_empty() && self.mode == Mode::Normal),
@@ -141,14 +133,23 @@ impl DocView {
         */
     }
     pub fn split_newline(&mut self) -> Result<Status> {
-        let mut change_tracker = self.doc.new_change_tracker();
-        let (op, pos) = self.doc.split_newline(self.cursor);
-        change_tracker.add_rows_swap(
-        self.jump_cursor(Some(0), Some(self.cursor.y + 1));
+        let mut change_tracker = self.doc.new_change_tracker(self.cursor);
+        let doc = &self.doc;
+        let (op, pos) = doc.split_newline(self.cursor);
+        change_tracker.add_op(op, pos);
+        change_tracker.commit();
         Ok(Status::Ok)
     }
     pub fn insert_newline_above(&mut self) -> Result<Status> {
-        self.doc.insert_newline(self.cursor.y);
+        let mut change_tracker = self.doc.new_change_tracker(self.cursor);
+        change_tracker.add_op(
+            self.doc.insert_newline(self.cursor.y),
+            Pos {
+                x: 0,
+                y: self.cursor.y,
+            },
+        );
+        change_tracker.commit();
         Ok(Status::Ok)
     }
     pub fn insert_newline_below(&mut self) -> Result<Status> {
@@ -159,20 +160,31 @@ impl DocView {
         self.doc.insert_char(self.cursor, ch);
         self.move_cursor(1, 0)
     }
-    pub fn delete_forwards(&mut self, noun: Noun) -> Result<Status> {
-        let (cx, cy) = self.doc.delete_forwards(self.cursor, noun);
-        self.jump_cursor(cx, cy);
-        Ok(Status::Ok)
+    pub fn delete_rel(&mut self, noun: Noun, rel: Rel) -> Result<Status> {
+        let (start, end) = self.doc.find_range(self.cursor, noun, rel);
+        self.delete_range(start, end)
     }
-    pub fn delete_backwards(&mut self, noun: Noun) -> Result<Status> {
-        let (cx, cy) = self.doc.delete_backwards(self.cursor, noun);
-        self.jump_cursor(cx, cy);
-        Ok(Status::Ok)
+    fn delete_range(&mut self, start: Pos, end: Pos) -> Result<Status> {
+        let mut change_tracker = self.doc.new_change_tracker(self.cursor);
+        if let Some((op, pos)) = self.doc.delete_range(start, end) {
+            change_tracker.add_op(op, pos);
+            change_tracker.commit();
+            Ok(Status::Ok)
+        } else {
+            Ok(Status::Ok)
+        }
     }
     pub fn join_line(&mut self) -> Result<Status> {
-        let (cx, cy) = self.doc.join_lines(self.cursor.y..self.cursor.y + 1);
-        self.jump_cursor(cx, cy);
-        Ok(Status::Ok)
+        self.delete_range(
+            Pos {
+                x: self.doc.get_row(self.cursor.y).unwrap().len(),
+                y: self.cursor.y,
+            },
+            Pos {
+                x: 0,
+                y: self.cursor.y + 1,
+            },
+        )
     }
     /*
     pub fn write<T>(&self, buf: std::buf::BufWriter<W>)
@@ -390,11 +402,11 @@ impl DispatchTarget for DocView {
             }
             (_, "delete-backwards") => {
                 ensure!(args.is_empty());
-                self.delete_backwards(Noun::Char)
+                self.delete_rel(Noun::Char, Rel::Prior)
             }
             (_, "delete-forwards") => {
                 ensure!(args.is_empty());
-                self.delete_forwards(Noun::Char)
+                self.delete_rel(Noun::Char, Rel::Next)
             }
             (Mode::Normal, "open") => {
                 ensure!(args.len() == 1);

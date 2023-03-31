@@ -1,10 +1,11 @@
 use crate::classify::{classify, CharType};
 use crate::error::Result;
 use crate::prelude::*;
+use crate::rel::Rel;
 use crate::row::Row;
 use crate::types::{Coord, Pos};
-use crate::undo::ChangeTracker;
 use crate::undo::{Change, ChangeStack};
+use crate::undo::{ChangeTracker, Op};
 use crate::utils::read_lines;
 
 #[derive(Debug)]
@@ -25,8 +26,8 @@ impl Doc {
             change_stack: Default::default(),
         }
     }
-    pub fn new_change_tracker(&mut self) -> ChangeTracker {
-        ChangeTracker::begin_changes(self)
+    pub fn new_change_tracker(&mut self, pos: Pos) -> ChangeTracker {
+        ChangeTracker::begin_changes(self, pos)
     }
     pub fn is_empty(&self) -> bool {
         self.tracked_rows.is_empty()
@@ -79,9 +80,10 @@ impl Doc {
     pub fn swap_rows(&mut self, range: &mut Range<Coord>, rows: &mut Vec<Row>) {
         assert!((0..=self.tracked_rows.len()).contains(&range.start));
         assert!((range.start..=self.tracked_rows.len()).contains(&range.end));
-        let mut result_rows = self.tracked_rows[*range].iter().cloned().collect();
+        let mut result_rows = self.tracked_rows[range.clone()].iter().cloned().collect();
         let mut result_range = range.start..range.start + rows.len();
-        self.tracked_rows.splice(*range, rows.iter().cloned());
+        self.tracked_rows
+            .splice(range.clone(), rows.iter().cloned());
         std::mem::swap(&mut result_rows, rows);
         std::mem::swap(&mut result_range, range);
     }
@@ -113,53 +115,115 @@ impl Doc {
         doc.dirty = false;
         Ok(doc)
     }
-    pub fn split_newline(&self, cursor: Pos) -> (crate::undo::Op, Pos) {
-        let new_row = if let Some(row) = self.rows.get_mut(cursor.y) {
+    pub fn split_newline(&self, cursor: Pos) -> (Op, Pos) {
+        if let Some(row) = self.tracked_rows.get(cursor.y) {
             let x = cursor.x.clamp(0, row.len());
-            let ret = Row::from_chars(row.get_slice(x..row.len()));
-            row.truncate(x);
-            ret
-                Op::RowsSwap(cursor.y..cursor.y+1,
-                    vec![*self.get_row(cursor.y)
+            (
+                Op::RowsSwap {
+                    range: cursor.y..cursor.y + 1,
+                    rows: row.split_at(x).to_vec(),
+                },
+                Pos {
+                    x: 0,
+                    y: cursor.y + 1,
+                },
+            )
         } else {
-            Row::from_line("")
-        };
-        self.rows.insert(cursor.y + 1, new_row);
-        self.dirty = true;
-    }
-    pub fn insert_newline(&mut self, y: Coord) {
-        let y = std::cmp::min(y, self.rows.len());
-        self.rows.splice(y..y, [Row::from_line("")]);
-        self.dirty = true;
-    }
-    pub fn insert_char(&mut self, cursor: Pos, ch: char) {
-        if let Some(row) = self.rows.get_mut(cursor.y) {
-            row.insert_char(cursor.x, ch);
-        } else {
-            self.rows.push(Row::from_line(&ch.to_string()));
+            panic!("what is this situation?");
         }
-        self.dirty = true;
     }
-    pub fn delete_forwards(&mut self, cursor: Pos, noun: Noun) -> (Option<Coord>, Option<Coord>) {
-        if let Some(row) = self.rows.get_mut(cursor.y) {
+    pub fn insert_newline(&self, y: Coord) -> Op {
+        Op::RowsSwap {
+            range: y..y,
+            rows: vec![Row::from_line("")],
+        }
+    }
+    pub fn insert_char(&self, cursor: Pos, ch: char) -> Op {
+        if let Some(row) = self.tracked_rows.get(cursor.y) {
+            Op::RowsSwap {
+                range: cursor.y..cursor.y + 1,
+                rows: vec![row.insert_char(cursor.x, ch)],
+            }
+        } else {
+            Op::RowsSwap {
+                range: cursor.y..cursor.y,
+                rows: vec![Row::from_line(&ch.to_string())],
+            }
+        }
+    }
+    pub fn delete_forwards(&self, cursor: Pos, noun: Noun) -> Option<Op> {
+        if let Some(row) = self.tracked_rows.get(cursor.y) {
             if row.is_empty() || cursor.x >= row.len() - 1 {
-                return (None, None);
+                return None;
             }
             let end_index = match noun {
                 Noun::Line => row.len(),
                 Noun::Char => std::cmp::min(cursor.x + 1, row.len()),
                 Noun::Word => row.next_word_break(cursor.x),
             };
-            row.splice(cursor.x..end_index, "");
-            self.dirty = true;
+            Some(Op::RowsSwap {
+                range: cursor.y..cursor.y + 1,
+                rows: vec![row.splice(cursor.x..end_index, "")],
+            })
+        } else {
+            panic!("what to do here?")
         }
-        (None, None)
     }
-    pub fn delete_backwards(&mut self, cursor: Pos, noun: Noun) -> (Option<Coord>, Option<Coord>) {
-        if let Some(row) = self.rows.get_mut(cursor.y) {
+    pub fn delete_range(&self, mut start: Pos, mut end: Pos) -> Option<(Op, Pos)> {
+        if start == end {
+            return None;
+        }
+        if start > end {
+            std::mem::swap(&mut start, &mut end);
+        }
+        let new_row = Row::joined_rows(
+            &self.tracked_rows[start.y],
+            &self.tracked_rows[end.y],
+            start.x,
+            end.x,
+        );
+        Some((
+            Op::RowsSwap {
+                range: start.y..end.y + 1,
+                rows: vec![new_row],
+            },
+            start,
+        ))
+    }
+    pub fn find_range(&self, cursor: Pos, noun: Noun, rel: Rel) -> (Pos, Pos) {
+        if let Some(row) = self.tracked_rows.get(cursor.y) {
+            match rel {
+                Rel::Next => {
+                    if row.is_empty() || cursor.x >= row.len() - 1 {
+                        return (cursor, cursor);
+                    }
+                    let end_index = match noun {
+                        Noun::Line => row.len(),
+                        Noun::Char => std::cmp::min(cursor.x + 1, row.len()),
+                        Noun::Word => row.next_word_break(cursor.x),
+                    };
+                    (
+                        cursor,
+                        Pos {
+                            x: end_index,
+                            y: cursor.y,
+                        },
+                    )
+                }
+                _ => {
+                    panic!("unhandled {:?} {:?}", noun, rel);
+                }
+            }
+        } else {
+            panic!("wakka wakka");
+        }
+    }
+    /*
+    pub fn delete_backwards(&self, cursor: Pos, noun: Noun) -> Option<(Op, Pos)> {
+        if let Some(row) = self.tracked_rows.get(cursor.y) {
             if row.is_empty() || cursor.x == 0 {
                 if cursor.y > 0 {
-                    let prior_row_len = self.rows.get_mut(cursor.y - 1).unwrap().len();
+                    let prior_row_len = self.rows.get(cursor.y - 1).unwrap().len();
                     self.join_lines(cursor.y - 1..cursor.y);
                     return (Some(prior_row_len), Some(cursor.y - 1));
                 }
@@ -198,7 +262,7 @@ impl Doc {
         self.rows.insert(range.start, new_row);
         (Some(new_cursor_pos.x), Some(new_cursor_pos.y))
     }
-
+    */
     pub fn get_next_word_pos(&self, from: Pos) -> Option<Pos> {
         let mut iter = self.iter_from(from);
         let first_cp = iter.next()?;

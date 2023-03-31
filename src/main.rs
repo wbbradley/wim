@@ -31,6 +31,7 @@ mod consts;
 mod dispatch;
 mod dk;
 mod doc;
+mod docrange;
 mod docview;
 mod editor;
 mod error;

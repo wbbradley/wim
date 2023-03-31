@@ -30,28 +30,30 @@ impl ChangeStack {
 #[derive(Debug)]
 pub struct ChangeTracker<'a> {
     doc: &'a mut Doc,
-    change: Change,
+    before_cursor: Pos,
+    after_cursor: Option<Pos>,
+    ops: Vec<Op>,
 }
 
 impl<'a> ChangeTracker<'a> {
-    pub fn begin_changes(doc: &'a mut Doc) -> Self {
+    pub fn begin_changes(doc: &'a mut Doc, cursor: Pos) -> Self {
         Self {
             doc,
-            change: Default::default(),
+            before_cursor: cursor,
+            after_cursor: None,
+            ops: Default::default(),
         }
     }
     pub fn commit(self) {
-        self.doc.push_change(self.change);
+        self.doc.push_change(Change {
+            before_cursor: self.before_cursor,
+            after_cursor: self.after_cursor.unwrap_or(self.before_cursor),
+            ops: self.ops,
+        });
     }
-    pub fn add_rows_swap(
-        &mut self,
-        range: Range<usize>,
-        rows: Vec<Row>,
-        before_cursor: Pos,
-        after_cursor: Pos,
-    ) {
-        self.change
-            .push_op(Op::RowsSwap { range, rows }, before_cursor, after_cursor);
+    pub fn add_op(&mut self, op: Op, cursor: Pos) {
+        self.ops.push(op);
+        self.after_cursor = Some(cursor);
     }
 }
 
@@ -68,20 +70,13 @@ pub enum Op {
 }
 
 impl Change {
-    pub fn push_op(&mut self, op: Op, before_cursor: Pos, after_cursor: Pos) {
-        if self.ops.is_empty() {
-            self.before_cursor = before_cursor;
-        }
-        self.ops.push(op);
-        self.after_cursor = after_cursor;
-    }
     #[must_use]
     pub fn execute(&mut self, doc: &mut Doc) -> Pos {
         for op in &mut self.ops {
             match op {
-                Op::RowsSwap(ref mut row_op) => {
+                Op::RowsSwap { range, rows } => {
                     // NB: implicitly swapping redo/undo info inside this call.
-                    doc.swap_rows(&mut row_op.range, &mut row_op.rows);
+                    doc.swap_rows(&mut range, &mut rows);
                 }
             }
         }
