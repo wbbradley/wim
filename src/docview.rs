@@ -321,6 +321,7 @@ impl DispatchTarget for DocView {
                     "b",
                     command("move-rel").arg("word").arg("prior").at_view(vk),
                 );
+                bindings.insert("v", command("switch-mode").arg("visual").at_view(vk));
                 bindings.insert("i", command("switch-mode").arg("insert").at_view(vk));
                 bindings.insert("h", command("move").arg("left").at_view(vk));
                 bindings.insert(
