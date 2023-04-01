@@ -12,6 +12,7 @@ pub(crate) use crate::key::Key;
 pub(crate) use crate::message::Message;
 pub(crate) use crate::noun::Noun;
 pub(crate) use crate::plugin::PluginRef;
+pub(crate) use crate::sel::Sel;
 pub(crate) use crate::settings::Settings;
 pub(crate) use crate::size::Size;
 pub(crate) use crate::status::{status, Status};

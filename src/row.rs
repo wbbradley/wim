@@ -103,9 +103,8 @@ impl Row {
         Self::from_buf(buf)
     }
 
-    #[allow(dead_code)]
     pub fn get_slice(&self, range: Range<usize>) -> &[char] {
-        &self.buf[range]
+        &self.buf[range.start..range.end.clamp(range.start, self.buf.len())]
     }
 
     pub fn update_render(&mut self) {

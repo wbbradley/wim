@@ -18,6 +18,7 @@ pub struct DocView {
     plugin: PluginRef,
     key: ViewKey,
     cursor: Pos,
+    sel: Option<Sel>,
     render_cursor_x: Coord,
     doc: Doc,
     scroll_offset: Pos,
@@ -202,8 +203,25 @@ impl DocView {
     */
     fn switch_mode(&mut self, mode: Mode) {
         self.mode = mode;
+        if matches!(self.mode, Mode::Visual(VisualMode::Char)) {
+            self.sel = Some(Sel::from_pos(self.cursor));
+        } else {
+            self.sel = None;
+        }
         self.clamp_cursor();
     }
+    fn get_line_fmt_spans(&self, screen_pos: Pos, render_start: Pos, width: usize) -> Vec<Span> {
+        vec![Span {
+            screen_pos,
+            chars: self.doc.render_line_slice(render_start, width),
+            format: Format::none(),
+        }]
+    }
+}
+struct Span<'a> {
+    screen_pos: Pos,
+    chars: &'a [char],
+    format: Format,
 }
 
 impl View for DocView {
@@ -227,16 +245,18 @@ impl View for DocView {
             if y >= size.height || y >= offset_line_count {
                 break;
             }
-            bmp.append_chars_at(
+            let spans = self.get_line_fmt_spans(
                 Pos { x: 0, y },
-                self.doc
-                    .render_line(Pos {
-                        x: self.scroll_offset.x,
-                        y: self.scroll_offset.y + y,
-                    })
-                    .copied(),
-                Format::none(),
+                Pos {
+                    x: self.scroll_offset.x,
+                    y: self.scroll_offset.y + y,
+                },
+                size.width,
             );
+
+            for span in spans {
+                bmp.append_chars_at(span.screen_pos, span.chars.iter().copied(), span.format);
+            }
             y += 1;
         }
         loop {
@@ -259,7 +279,6 @@ impl View for DocView {
         })
     }
 }
-
 impl DispatchTarget for DocView {
     fn get_key_bindings(&self) -> Bindings {
         let vk = self.get_view_key();
@@ -519,6 +538,7 @@ impl DocView {
             plugin,
             key: view_key,
             cursor: Default::default(),
+            sel: None,
             render_cursor_x: 0,
             doc: Doc::empty(),
             scroll_offset: Default::default(),

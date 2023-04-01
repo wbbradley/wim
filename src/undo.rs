@@ -13,6 +13,7 @@ impl ChangeStack {
         self.index = 0;
         self.changes.truncate(0);
     }
+
     #[must_use]
     pub fn push(&mut self, doc: &mut Doc, mut change: Change) -> Pos {
         self.changes.truncate(self.index);

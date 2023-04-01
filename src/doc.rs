@@ -96,8 +96,8 @@ impl Doc {
     pub fn swap_rows(&mut self, range: &mut Range<Coord>, rows: &mut Vec<Row>) {
         assert!((0..=self.tracked_rows.len()).contains(&range.start));
         assert!((range.start..=self.tracked_rows.len()).contains(&range.end));
-        let mut result_rows = self.tracked_rows[range.clone()].iter().cloned().collect();
-        let mut result_range = range.start..range.start + rows.len();
+        let mut result_rows: Vec<Row> = self.tracked_rows[range.clone()].to_vec();
+        let mut result_range: Range<Coord> = range.start..range.start + rows.len();
         self.tracked_rows
             .splice(range.clone(), rows.iter().cloned());
         std::mem::swap(&mut result_rows, rows);
@@ -111,6 +111,16 @@ impl Doc {
                 .render_chars_from(pos.x)
         } else {
             EMPTY.iter()
+        }
+    }
+    pub fn render_line_slice(&self, pos: Pos, len: usize) -> &[char] {
+        if pos.y < self.tracked_rows.len() {
+            self.tracked_rows
+                .get(pos.y)
+                .unwrap()
+                .get_slice(pos.x..pos.x + len)
+        } else {
+            &EMPTY[..]
         }
     }
     pub fn line_count(&self) -> usize {
