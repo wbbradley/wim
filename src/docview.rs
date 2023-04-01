@@ -356,13 +356,39 @@ impl DispatchTarget for DocView {
     fn get_key_bindings(&self) -> Bindings {
         let vk = self.get_view_key();
         let mut bindings: Bindings = Default::default();
+        if matches!(self.mode, Mode::Normal | Mode::Visual { .. }) {
+            bindings.insert("c", command("change-motion").at_view(vk));
+            bindings.insert("d", command("delete-motion").at_view(vk));
+            bindings.insert("y", command("yank-motion").at_view(vk));
+            bindings.insert("h", command("move").arg("left").at_view(vk));
+            bindings.insert("j", command("move").arg("down").at_view(vk));
+            bindings.insert("k", command("move").arg("up").at_view(vk));
+            bindings.insert("l", command("move").arg("right").at_view(vk));
+            bindings.insert("e", command("move-rel").arg("word").arg("end").at_view(vk));
+            bindings.insert("w", command("move-rel").arg("word").arg("next").at_view(vk));
+            bindings.insert("J", command("join-lines").at_view(vk));
+            bindings.insert(
+                "b",
+                command("move-rel").arg("word").arg("prior").at_view(vk),
+            );
+            bindings.insert("x", command("delete").at_view(vk));
+        }
+        if matches!(self.mode, Mode::Visual { .. } | Mode::NormalWithOp(_)) {
+            bindings.insert(
+                "iw",
+                DK::Sequence(vec![
+                    command("internal").at_view(vk),
+                    command("word").at_view(vk),
+                ]),
+            );
+            bindings.insert(
+                "aw",
+                DK::Sequence(vec![command("a").at_view(vk), command("word").at_view(vk)]),
+            );
+        }
+
         match self.mode {
             Mode::Visual { .. } => {
-                bindings.insert("h", command("move").arg("left").at_view(vk));
-                bindings.insert("j", command("move").arg("down").at_view(vk));
-                bindings.insert("k", command("move").arg("up").at_view(vk));
-                bindings.insert("l", command("move").arg("right").at_view(vk));
-                bindings.insert("x", command("delete").at_view(vk));
                 bindings.insert(Key::Esc, command("switch-mode").arg("normal").at_view(vk));
             }
             Mode::Insert => {
@@ -395,12 +421,6 @@ impl DispatchTarget for DocView {
                     "b",
                     command("move-rel").arg("word").arg("prior").at_view(vk),
                 );
-                bindings.insert("e", command("move-rel").arg("word").arg("end").at_view(vk));
-                bindings.insert("w", command("move-rel").arg("word").arg("next").at_view(vk));
-                bindings.insert(
-                    "b",
-                    command("move-rel").arg("word").arg("prior").at_view(vk),
-                );
                 bindings.insert("v", command("switch-mode").arg("visual").at_view(vk));
                 bindings.insert("i", command("switch-mode").arg("insert").at_view(vk));
                 bindings.insert(
@@ -409,10 +429,6 @@ impl DispatchTarget for DocView {
                         .arg(Target::Named("command-line".to_string()))
                         .at_view_map(),
                 );
-                bindings.insert("h", command("move").arg("left").at_view(vk));
-                bindings.insert("j", command("move").arg("down").at_view(vk));
-                bindings.insert("k", command("move").arg("up").at_view(vk));
-                bindings.insert("l", command("move").arg("right").at_view(vk));
                 bindings.insert("J", command("join-lines").at_view(vk));
                 bindings.insert(
                     "o",
@@ -438,19 +454,7 @@ impl DispatchTarget for DocView {
                     command("delete-rel").arg("char").arg("prior").at_view(vk),
                 );
             }
-            Mode::NormalWithOp(_op) => {
-                bindings.insert(
-                    "iw",
-                    DK::Sequence(vec![
-                        command("internal").at_view(vk),
-                        command("word").at_view(vk),
-                    ]),
-                );
-                bindings.insert(
-                    "aw",
-                    DK::Sequence(vec![command("a").at_view(vk), command("word").at_view(vk)]),
-                );
-            }
+            Mode::NormalWithOp(_) => {}
         }
         bindings
     }
