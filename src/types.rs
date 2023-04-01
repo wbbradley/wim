@@ -1,5 +1,6 @@
 use crate::size::Size;
 use std::cmp::Ordering;
+use std::ops::{Bound, RangeBounds};
 
 pub type Coord = usize;
 pub type RelCoord = isize;
@@ -84,6 +85,7 @@ impl Ord for Pos {
         }
     }
 }
+
 #[allow(dead_code)]
 impl Pos {
     pub fn zero() -> Self {
@@ -93,6 +95,26 @@ impl Pos {
         Self {
             x: self.x.clamp(r.x, r.x + r.width),
             y: self.y.clamp(r.y, r.y + r.height),
+        }
+    }
+    pub fn get_start_pos(range: &impl RangeBounds<Self>) -> Self {
+        match range.start_bound() {
+            Bound::Included(&start) => start,
+            Bound::Excluded(&start) => Pos {
+                x: start.x + 1,
+                y: start.y,
+            },
+            Bound::Unbounded => Pos::zero(),
+        }
+    }
+    pub fn get_end_pos(range: &impl RangeBounds<Self>) -> Self {
+        match range.end_bound() {
+            Bound::Included(&end) => Pos {
+                x: end.x + 1,
+                y: end.y,
+            },
+            Bound::Excluded(&end) => end,
+            Bound::Unbounded => panic!("unbounded end pos is not implemented..."),
         }
     }
 }

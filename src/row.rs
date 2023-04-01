@@ -120,7 +120,7 @@ impl Row {
         let tabs = buf.iter().copied().filter(|&x| x == '\t').count();
         if tabs == 0 {
             render.truncate(0);
-            render.extend_from_slice(&buf);
+            render.extend_from_slice(buf);
         } else {
             render.reserve(buf.len() + tabs * (TAB_STOP_SIZE - 1));
             for ch in buf.iter().copied() {

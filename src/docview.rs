@@ -169,12 +169,21 @@ impl DocView {
         self.doc.insert_char(self.cursor, ch);
         self.move_cursor(1, 0)
     }
+    pub fn delete_sel(&mut self) -> Result<Status> {
+        if let Some(sel) = self.sel {
+            let ret = self.delete_range(sel.start..=sel.end);
+            self.switch_mode(Mode::Normal);
+            ret
+        } else {
+            Err(error!("invalid sel?!"))
+        }
+    }
     pub fn delete_rel(&mut self, noun: Noun, rel: Rel) -> Result<Status> {
         let (start, end) = self.doc.find_range(self.cursor, noun, rel);
-        self.delete_range(start, end)
+        self.delete_range(start..end)
     }
-    fn delete_range(&mut self, start: Pos, end: Pos) -> Result<Status> {
-        if let Some((op, pos)) = self.doc.delete_range(start, end) {
+    fn delete_range(&mut self, range: impl RangeBounds<Pos>) -> Result<Status> {
+        if let Some((op, pos)) = self.doc.delete_range(range) {
             let mut change_tracker = self.doc.new_change_tracker(self.cursor);
             change_tracker.add_op(op, pos);
             self.cursor = change_tracker.commit();
@@ -188,8 +197,7 @@ impl DocView {
             Pos {
                 x: self.doc.get_row(self.cursor.y).unwrap().len(),
                 y: self.cursor.y,
-            },
-            Pos {
+            }..Pos {
                 x: 0,
                 y: self.cursor.y + 1,
             },
@@ -354,6 +362,8 @@ impl DispatchTarget for DocView {
                 bindings.insert("j", command("move").arg("down").at_view(vk));
                 bindings.insert("k", command("move").arg("up").at_view(vk));
                 bindings.insert("l", command("move").arg("right").at_view(vk));
+                bindings.insert("x", command("delete").at_view(vk));
+                bindings.insert(Key::Esc, command("switch-mode").arg("normal").at_view(vk));
             }
             Mode::Insert => {
                 bindings.insert(Key::Esc, command("switch-mode").arg("normal").at_view(vk));
@@ -508,6 +518,7 @@ impl DispatchTarget for DocView {
                 ensure!(args.is_empty());
                 self.delete_rel(Noun::Char, Rel::Next)
             }
+            (Mode::Visual(VisualMode::Char), "delete") => self.delete_sel(),
             (Mode::Normal, "open") => {
                 ensure!(args.len() == 1);
                 if let Variant::String(arg) = args.remove(0) {

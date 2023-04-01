@@ -120,7 +120,7 @@ impl Doc {
                 .unwrap()
                 .get_slice(pos.x..pos.x + len)
         } else {
-            &EMPTY[..]
+            EMPTY
         }
     }
     pub fn line_count(&self) -> usize {
@@ -195,13 +195,12 @@ impl Doc {
             panic!("what to do here?")
         }
     }
-    pub fn delete_range(&self, mut start: Pos, mut end: Pos) -> Option<(Op, Pos)> {
-        if start == end {
+    pub fn delete_range(&self, range: impl RangeBounds<Pos>) -> Option<(Op, Pos)> {
+        if range.start_bound() == range.end_bound() {
             return None;
         }
-        if start > end {
-            std::mem::swap(&mut start, &mut end);
-        }
+        let start: Pos = Pos::get_start_pos(&range);
+        let end: Pos = Pos::get_end_pos(&range);
         let new_row = Row::joined_rows(
             &self.tracked_rows[start.y],
             &self.tracked_rows[end.y],
