@@ -11,19 +11,19 @@ pub fn decode_ctrl_key(k: u8) -> char {
     (k + b'a' - 1) as char
 }
 
-pub fn read_key() -> Option<Key> {
+pub fn read_key(reader: &mut impl Iterator<Item = u8>) -> Option<Key> {
     // trace!("reading a key...");
-    if let Some(ch) = read_u8() {
+    if let Some(ch) = reader.next() {
         if ch == 0x1b {
-            match (read_u8(), read_u8()) {
+            match (reader.next(), reader.next()) {
                 (Some(b'['), Some(b'A')) => Some(Key::Up),
                 (Some(b'['), Some(b'B')) => Some(Key::Down),
                 (Some(b'['), Some(b'C')) => Some(Key::Right),
                 (Some(b'['), Some(b'D')) => Some(Key::Left),
                 (Some(b'['), Some(b'H')) => Some(Key::Home),
                 (Some(b'['), Some(b'F')) => Some(Key::End),
-                (Some(b'['), Some(a)) if a.is_ascii_digit() => match read_u8() {
-                    Some(b) if b.is_ascii_digit() => match (a, b, read_u8()) {
+                (Some(b'['), Some(a)) if a.is_ascii_digit() => match reader.next() {
+                    Some(b) if b.is_ascii_digit() => match (a, b, reader.next()) {
                         (b'1', b'5', Some(b'~')) => Some(Key::Function(5)),
                         (b'1', b'7', Some(b'~')) => Some(Key::Function(6)),
                         (b'1', b'8', Some(b'~')) => Some(Key::Function(7)),
@@ -34,7 +34,7 @@ pub fn read_key() -> Option<Key> {
                         (b'2', b'4', Some(b'~')) => Some(Key::Function(12)),
                         _ => Some(Key::Esc),
                     },
-                    Some(b';') => match (a, b';', read_u8(), read_u8()) {
+                    Some(b';') => match (a, b';', reader.next(), reader.next()) {
                         (b'1', b';', Some(b'2'), Some(b'P')) => Some(Key::PrintScreen),
                         _ => Some(Key::Esc),
                     },
@@ -77,7 +77,7 @@ pub fn read_key() -> Option<Key> {
         } else if ch & 0b11100000 == 0b11000000 {
             log::trace!("saw {:#04x}", ch);
             let ch = ch as u32;
-            let b = read_u8()? as u32;
+            let b = reader.next()? as u32;
             log::trace!("saw {:#04x}", b);
             assert!(b & 0b11000000 == 0b10000000);
             Some(Key::Utf8(char::from_u32(
@@ -86,10 +86,10 @@ pub fn read_key() -> Option<Key> {
         } else if ch & 0b11110000 == 0b11100000 {
             log::trace!("saw {:#04x}", ch);
             let ch = ch as u32;
-            let b = read_u8()? as u32;
+            let b = reader.next()? as u32;
             log::trace!("saw {:#04x}", b);
             assert!(b & 0b11000000 == 0b10000000);
-            let c = read_u8()? as u32;
+            let c = reader.next()? as u32;
             log::trace!("saw {:#04x}", c);
             assert!(c & 0b11000000 == 0b10000000);
             let val = ((ch & 0b00001111) << 12) | ((b & 0b00111111) << 6) | (c & 0b00111111);
@@ -98,13 +98,13 @@ pub fn read_key() -> Option<Key> {
         } else if ch & 0b11111000 == 0b11110000 {
             let ch = ch as u32;
             log::trace!("saw {:#04x}", ch);
-            let b = read_u8()? as u32;
+            let b = reader.next()? as u32;
             log::trace!("saw {:#04x}", b);
             assert!(b & 0b11000000 == 0b10000000);
-            let c = read_u8()? as u32;
+            let c = reader.next()? as u32;
             log::trace!("saw {:#04x}", c);
             assert!(c & 0b11000000 == 0b10000000);
-            let d = read_u8()? as u32;
+            let d = reader.next()? as u32;
             log::trace!("saw {:#04x}", d);
             assert!(d & 0b11000000 == 0b10000000);
             Some(Key::Utf8(char::from_u32(

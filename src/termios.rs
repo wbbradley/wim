@@ -56,13 +56,13 @@ impl Termios {
         let mut termios = Self::new();
         termios.enable_raw_mode().unwrap();
         // Clear the screen to begin.
-        put!("\x1b[2J");
+        put!(libc::STDOUT_FILENO, "\x1b[2J");
         termios
     }
     pub fn exit_raw_mode(&self) {
         let mut in_raw_mode = self.in_raw_mode.lock().unwrap();
         if *in_raw_mode {
-            put!("\x1b[2J\x1b[H\x1b[0m");
+            put!(libc::STDOUT_FILENO, "\x1b[2J\x1b[H\x1b[0m");
             if unsafe {
                 libc::tcsetattr(
                     libc::STDIN_FILENO,
@@ -73,7 +73,7 @@ impl Termios {
             {
                 die!("Termios::drop");
             }
-            put!("\x1b[2J\x1b[H\x1b[0m");
+            put!(libc::STDOUT_FILENO, "\x1b[2J\x1b[H\x1b[0m");
             *in_raw_mode = false;
         }
     }
@@ -89,7 +89,7 @@ impl Termios {
         } == -1
             || ws.ws_col == 0
         {
-            if put!("\x1b[999C\x1b[999B") != 12 {
+            if put!(libc::STDOUT_FILENO, "\x1b[999C\x1b[999B") != 12 {
                 read_u8();
                 Size {
                     width: 80,
@@ -123,7 +123,7 @@ fn get_cursor_position() -> Option<Pos> {
     let mut i: usize = 0;
 
     // Write the "get position" command.
-    if put!("\x1b[6n") != 4 {
+    if put!(libc::STDOUT_FILENO, "\x1b[6n") != 4 {
         return None;
     }
     loop {

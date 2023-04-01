@@ -61,12 +61,12 @@ macro_rules! die {
 pub(crate) use die;
 
 macro_rules! put {
-    ($($args:expr),+) => {{
+    ($fd:expr, $($args:expr),+) => {{
         let mut buf = [0u8; 1024];
         let formatted: &str = stackfmt::fmt_truncate(&mut buf, format_args!($($args),+));
         unsafe {
             libc::write(
-                libc::STDOUT_FILENO,
+                $fd,
                 formatted.as_ptr() as *const libc::c_void,
                 formatted.len(),
             )

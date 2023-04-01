@@ -4,6 +4,7 @@ use crate::layout::recursive_layout;
 use crate::plugin::{Plugin, PluginRef};
 use crate::prelude::*;
 use crate::read::read_key;
+use crate::read::read_u8;
 use crate::termios::Termios;
 use crate::types::Rect;
 use crate::view_map::HandleKey;
@@ -66,6 +67,16 @@ mod widechar_width;
 
 pub static VERSION: &str = "v0.1.0";
 
+struct IOReader {}
+impl Iterator for IOReader {
+    type Item = u8;
+
+    #[inline]
+    fn next(&mut self) -> Option<u8> {
+        read_u8()
+    }
+}
+
 fn main() -> Result<()> {
     let settings = Settings::load()?;
     simple_logging::log_to_file("wim.log", LevelFilter::Trace)?;
@@ -81,7 +92,15 @@ fn main() -> Result<()> {
     }));
 
     let view_map: crate::view_map::ViewMap = ViewMap::new();
-    let res = run_app(plugin, view_map, settings);
+    let res = run_app(
+        plugin,
+        view_map,
+        settings,
+        libc::STDIN_FILENO,
+        libc::STDOUT_FILENO,
+        Termios::get_window_size,
+        IOReader {},
+    );
     termios.exit_raw_mode();
     res
 }
@@ -110,7 +129,15 @@ fn write_bmp_diff(
     Ok(())
 }
 
-fn run_app(plugin: PluginRef, mut view_map: ViewMap, settings: Settings) -> Result<()> {
+fn run_app(
+    plugin: PluginRef,
+    mut view_map: ViewMap,
+    settings: Settings,
+    stdin: libc::c_int,
+    stdout: libc::c_int,
+    get_window_size: fn() -> Size,
+    mut reader: impl Iterator<Item = u8>,
+) -> Result<()> {
     let args: Vec<String> = env::args().collect();
     trace!("wim run with args: {:?}", args);
 
@@ -131,7 +158,7 @@ fn run_app(plugin: PluginRef, mut view_map: ViewMap, settings: Settings) -> Resu
         dks.push_back(command("open").arg(filename).at_focused());
     }
     let mut layout_rects: HashMap<ViewKey, Rect> = Default::default();
-    let mut terminal_size: Size = Termios::get_window_size();
+    let mut terminal_size: Size = get_window_size();
     let mut bmp = Bitmap::new(terminal_size, default_glyph);
     let mut bmp_last = Bitmap::new(terminal_size, default_glyph);
 
@@ -139,10 +166,10 @@ fn run_app(plugin: PluginRef, mut view_map: ViewMap, settings: Settings) -> Resu
     while !editor.get_property_bool(crate::consts::PROP_EDITOR_SHOULD_QUIT, true) {
         if should_resize.swap(false, Ordering::Relaxed) {
             should_refresh = true;
-            terminal_size = Termios::get_window_size();
+            terminal_size = get_window_size();
             bmp.resize(terminal_size);
             bmp_last.resize(terminal_size);
-            crate::utils::put!("\x1b[2J");
+            crate::utils::put!(stdout, "\x1b[2J");
         }
 
         if should_refresh {
@@ -161,7 +188,7 @@ fn run_app(plugin: PluginRef, mut view_map: ViewMap, settings: Settings) -> Resu
                 view_map.get_view(vk).display(&view_map, &mut bmp_view);
             }
             // Rasterize the bitmap to the terminal and swap the write buffers..
-            write_bmp_diff(&mut buf, &mut bmp_last, &mut bmp, libc::STDIN_FILENO)?;
+            write_bmp_diff(&mut buf, &mut bmp_last, &mut bmp, stdin)?;
             // {
             //     use std::fs::File;
             //     use std::io::prelude::*;
@@ -172,8 +199,8 @@ fn run_app(plugin: PluginRef, mut view_map: ViewMap, settings: Settings) -> Resu
         }
 
         if matches!(dks.front(), Some(DK::Key(_)) | None) {
-            if let Some(key) = read_key() {
-                trace!("read key '{:?}'", key);
+            if let Some(key) = read_key(&mut reader) {
+                // trace!("read key '{:?}'", key);
                 key_timeout = Some(Instant::now() + Duration::from_secs(1));
                 dks.push_back(DK::Key(key));
             } else if let Some(next_key_timeout) = key_timeout {
@@ -238,5 +265,35 @@ fn pump(view_map: &mut ViewMap, dks: &mut VecDeque<DK>) -> Result<()> {
                 return Ok(());
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    #[test]
+    fn insert_text() {
+        let fd: libc::c_int = unsafe {
+            match std::ffi::CString::new("/dev/null") {
+                Ok(name) => libc::open(name.as_ptr(), libc::O_RDWR, 0o644),
+                Err(_) => panic!("failed to make cstring"),
+            }
+        };
+        let settings = Settings::default();
+        let plugin = Plugin::new();
+        let view_map: crate::view_map::ViewMap = ViewMap::new();
+        let res = run_app(
+            plugin,
+            view_map,
+            settings,
+            fd,
+            fd,
+            || Size {
+                width: 100,
+                height: 100,
+            },
+            b"iHello world.\x1b:q\x0d".into_iter().copied(),
+        );
+        assert!(res.is_ok());
     }
 }

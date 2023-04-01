@@ -22,3 +22,14 @@ impl Settings {
         toml::from_str(&contents).context("load-settings")
     }
 }
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            display: DisplaySettings {
+                fg: FgColor::White,
+                bg: BgColor::Black,
+            },
+        }
+    }
+}
