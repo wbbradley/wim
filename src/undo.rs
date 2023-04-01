@@ -13,17 +13,24 @@ impl ChangeStack {
         self.index = 0;
         self.changes.truncate(0);
     }
-    pub fn push(&mut self, doc: &mut Doc, mut change: Change) {
+    #[must_use]
+    pub fn push(&mut self, doc: &mut Doc, mut change: Change) -> Pos {
         self.changes.truncate(self.index);
-        change.execute(doc);
+        let pos = change.execute(doc);
         self.changes.push(change);
+        self.index += 1;
+        pos
     }
 
-    pub fn pop(&mut self, doc: &mut Doc) {
+    #[allow(dead_code)]
+    #[must_use]
+    pub fn pop(&mut self, doc: &mut Doc) -> Option<Pos> {
         if self.index > 0 {
             self.index -= 1;
+            Some(self.changes[self.index].execute(doc))
+        } else {
+            None
         }
-        self.changes[self.index].execute(doc);
     }
 }
 
@@ -44,12 +51,13 @@ impl<'a> ChangeTracker<'a> {
             ops: Default::default(),
         }
     }
-    pub fn commit(self) {
+    #[must_use]
+    pub fn commit(self) -> Pos {
         self.doc.push_change(Change {
             before_cursor: self.before_cursor,
             after_cursor: self.after_cursor.unwrap_or(self.before_cursor),
             ops: self.ops,
-        });
+        })
     }
     pub fn add_op(&mut self, op: Op, cursor: Pos) {
         self.ops.push(op);
@@ -75,8 +83,7 @@ impl Change {
         for op in &mut self.ops {
             match op {
                 Op::RowsSwap { range, rows } => {
-                    // NB: implicitly swapping redo/undo info inside this call.
-                    doc.swap_rows(&mut range, &mut rows);
+                    doc.swap_rows(range, rows);
                 }
             }
         }

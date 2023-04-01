@@ -37,7 +37,7 @@ impl Row {
         first_index: Coord,
         second_index: Coord,
     ) -> Self {
-        let buf = first.buf[..first_index].to_vec();
+        let mut buf = first.buf[..first_index].to_vec();
         buf.extend(&second.buf[second_index..]);
         Self {
             render: Self::renderize(&buf),
@@ -58,6 +58,7 @@ impl Row {
     pub fn is_empty(&self) -> bool {
         self.buf.is_empty()
     }
+    #[allow(dead_code)]
     pub fn truncate(&self, len: usize) -> Self {
         Self::from_chars(&self.buf[0..len])
     }
@@ -97,11 +98,12 @@ impl Row {
     }
 
     pub fn insert_char(&self, x: Coord, ch: char) -> Self {
-        let buf = self.buf.clone();
+        let mut buf = self.buf.clone();
         buf.splice(x..x, [ch].into_iter());
         Self::from_buf(buf)
     }
 
+    #[allow(dead_code)]
     pub fn get_slice(&self, range: Range<usize>) -> &[char] {
         &self.buf[range]
     }
@@ -138,6 +140,7 @@ impl Row {
         Self::from_buf(buf)
     }
 
+    /*
     pub fn append_str(&mut self, s: &str) {
         self.buf.extend(s.chars());
         self.update_render();
@@ -147,6 +150,7 @@ impl Row {
         self.buf.extend(&row.buf);
         self.update_render();
     }
+    */
 
     pub fn next_word_break(&self, x: Coord) -> Coord {
         if self.buf.len() <= x + 1 {
@@ -163,6 +167,7 @@ impl Row {
         }
     }
 
+    #[allow(dead_code)]
     pub fn prev_word_break(&self, mut x: Coord) -> Coord {
         x = x.clamp(0, self.buf.len());
         if x <= 1 {

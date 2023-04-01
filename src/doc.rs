@@ -17,6 +17,7 @@ pub struct Doc {
     change_stack: ChangeStack,
 }
 
+#[allow(dead_code)]
 impl Doc {
     pub fn empty() -> Self {
         Self {
@@ -71,11 +72,26 @@ impl Doc {
             }
         }
     }
-    pub fn push_change(&mut self, change: Change) {
+    #[must_use]
+    pub fn pop_change(&mut self) -> Option<Pos> {
         let mut temp = ChangeStack::default();
         std::mem::swap(&mut self.change_stack, &mut temp);
-        temp.push(self, change);
+        let pos = temp.pop(self);
         std::mem::swap(&mut self.change_stack, &mut temp);
+        if pos.is_some() {
+            // TODO: save last saved undo index and pass that around.
+            self.dirty = true;
+        }
+        pos
+    }
+    #[must_use]
+    pub fn push_change(&mut self, change: Change) -> Pos {
+        let mut temp = ChangeStack::default();
+        std::mem::swap(&mut self.change_stack, &mut temp);
+        let pos = temp.push(self, change);
+        std::mem::swap(&mut self.change_stack, &mut temp);
+        self.dirty = true;
+        pos
     }
     pub fn swap_rows(&mut self, range: &mut Range<Coord>, rows: &mut Vec<Row>) {
         assert!((0..=self.tracked_rows.len()).contains(&range.start));

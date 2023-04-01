@@ -133,23 +133,24 @@ impl DocView {
         */
     }
     pub fn split_newline(&mut self) -> Result<Status> {
+        let (op, pos) = self.doc.split_newline(self.cursor);
+
         let mut change_tracker = self.doc.new_change_tracker(self.cursor);
-        let doc = &self.doc;
-        let (op, pos) = doc.split_newline(self.cursor);
         change_tracker.add_op(op, pos);
-        change_tracker.commit();
+        self.cursor = change_tracker.commit();
         Ok(Status::Ok)
     }
     pub fn insert_newline_above(&mut self) -> Result<Status> {
+        let op = self.doc.insert_newline(self.cursor.y);
         let mut change_tracker = self.doc.new_change_tracker(self.cursor);
         change_tracker.add_op(
-            self.doc.insert_newline(self.cursor.y),
+            op,
             Pos {
                 x: 0,
                 y: self.cursor.y,
             },
         );
-        change_tracker.commit();
+        self.cursor = change_tracker.commit();
         Ok(Status::Ok)
     }
     pub fn insert_newline_below(&mut self) -> Result<Status> {
@@ -165,10 +166,10 @@ impl DocView {
         self.delete_range(start, end)
     }
     fn delete_range(&mut self, start: Pos, end: Pos) -> Result<Status> {
-        let mut change_tracker = self.doc.new_change_tracker(self.cursor);
         if let Some((op, pos)) = self.doc.delete_range(start, end) {
+            let mut change_tracker = self.doc.new_change_tracker(self.cursor);
             change_tracker.add_op(op, pos);
-            change_tracker.commit();
+            self.cursor = change_tracker.commit();
             Ok(Status::Ok)
         } else {
             Ok(Status::Ok)
@@ -272,6 +273,7 @@ impl DispatchTarget for DocView {
                 bindings.insert(Key::Enter, command("newline").at_view(vk));
             }
             Mode::Normal => {
+                bindings.insert("u", command("undo").at_view(vk));
                 bindings.insert(
                     Key::Ctrl('u'),
                     command("move-rel")
@@ -383,6 +385,14 @@ impl DispatchTarget for DocView {
         }
 
         match (self.mode, name.as_ref()) {
+            (Mode::Normal, "undo") => {
+                if let Some(pos) = self.doc.pop_change() {
+                    self.cursor = pos;
+                    Ok(Status::Ok)
+                } else {
+                    Ok(status!("Nothing left to undo."))
+                }
+            }
             (Mode::Normal, "change" | "yank" | "delete") => {
                 self.mode = Mode::NormalWithOp(Op::from_str(name.as_ref())?);
                 Ok(Status::Ok)
