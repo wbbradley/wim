@@ -106,10 +106,12 @@ impl View for CommandLine {
         self.view_key
     }
     fn get_cursor_pos(&self) -> Option<Pos> {
-        Some(Pos {
+        let x = Some(Pos {
             x: 1 + self.cursor - self.scroll_offset,
             y: 1,
-        })
+        });
+        trace!("commandline pos: {:?}", x);
+        x
     }
     fn set_status(&mut self, status: Status) {
         log::trace!("[CommandLine] Status Updated: {:?}", &status);

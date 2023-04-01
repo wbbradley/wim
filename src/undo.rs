@@ -23,6 +23,17 @@ impl ChangeStack {
         pos
     }
 
+    #[must_use]
+    pub fn redo(&mut self, doc: &mut Doc) -> Option<Pos> {
+        if self.index < self.changes.len() {
+            let pos = self.changes[self.index].execute(doc);
+            self.index += 1;
+            Some(pos)
+        } else {
+            None
+        }
+    }
+
     #[allow(dead_code)]
     #[must_use]
     pub fn pop(&mut self, doc: &mut Doc) -> Option<Pos> {
@@ -40,10 +51,11 @@ pub struct ChangeTracker<'a> {
     doc: &'a mut Doc,
     before_cursor: Pos,
     after_cursor: Option<Pos>,
-    ops: Vec<Op>,
+    ops: Vec<ChangeOp>,
 }
 
 impl<'a> ChangeTracker<'a> {
+    #[must_use]
     pub fn begin_changes(doc: &'a mut Doc, cursor: Pos) -> Self {
         Self {
             doc,
@@ -60,7 +72,7 @@ impl<'a> ChangeTracker<'a> {
             ops: self.ops,
         })
     }
-    pub fn add_op(&mut self, op: Op, cursor: Pos) {
+    pub fn add_op(&mut self, op: ChangeOp, cursor: Pos) {
         self.ops.push(op);
         self.after_cursor = Some(cursor);
     }
@@ -68,13 +80,13 @@ impl<'a> ChangeTracker<'a> {
 
 #[derive(Default, Debug)]
 pub struct Change {
-    ops: Vec<Op>,
+    ops: Vec<ChangeOp>,
     before_cursor: Pos,
     after_cursor: Pos,
 }
 
 #[derive(Debug)]
-pub enum Op {
+pub enum ChangeOp {
     RowsSwap { range: Range<usize>, rows: Vec<Row> },
 }
 
@@ -83,7 +95,7 @@ impl Change {
     pub fn execute(&mut self, doc: &mut Doc) -> Pos {
         for op in &mut self.ops {
             match op {
-                Op::RowsSwap { range, rows } => {
+                ChangeOp::RowsSwap { range, rows } => {
                     doc.swap_rows(range, rows);
                 }
             }
@@ -91,6 +103,11 @@ impl Change {
         // Flip this change so that it executes in reverse next time.
         std::mem::swap(&mut self.before_cursor, &mut self.after_cursor);
         self.ops.reverse();
+        trace!(
+            "before_cursor={:?}, after_cursor={:?}",
+            self.before_cursor,
+            self.after_cursor
+        );
         self.before_cursor
     }
 }

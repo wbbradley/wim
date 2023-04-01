@@ -5,7 +5,7 @@ use crate::rel::Rel;
 use crate::row::Row;
 use crate::types::{Coord, Pos};
 use crate::undo::{Change, ChangeStack};
-use crate::undo::{ChangeTracker, Op};
+use crate::undo::{ChangeOp, ChangeTracker};
 use crate::utils::read_lines;
 
 #[derive(Debug)]
@@ -19,6 +19,7 @@ pub struct Doc {
 
 #[allow(dead_code)]
 impl Doc {
+    #[must_use]
     pub fn empty() -> Self {
         Self {
             filename: None,
@@ -27,26 +28,32 @@ impl Doc {
             change_stack: Default::default(),
         }
     }
+    #[must_use]
     pub fn new_change_tracker(&mut self, pos: Pos) -> ChangeTracker {
         ChangeTracker::begin_changes(self, pos)
     }
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.tracked_rows.is_empty()
     }
+    #[must_use]
     pub fn is_dirty(&self) -> bool {
         self.dirty
     }
+    #[must_use]
     pub fn get_filename(&self) -> Option<&str> {
         match self.filename {
             Some(ref filename) => Some(filename.as_str()),
             None => None,
         }
     }
+    #[must_use]
     pub fn iter_lines(&self, y: Coord) -> IterLines {
         IterLines {
             row_iter: self.tracked_rows[y..].iter(),
         }
     }
+    #[must_use]
     pub fn iter_from(&self, pos: Pos) -> IterChars {
         IterChars {
             rows: &self.tracked_rows,
@@ -55,6 +62,7 @@ impl Doc {
             y_offset: 0,
         }
     }
+    #[must_use]
     pub fn iter_line(&self, y: Coord) -> IterChars {
         if self.tracked_rows.len() > y {
             IterChars {
@@ -73,7 +81,7 @@ impl Doc {
         }
     }
     #[must_use]
-    pub fn pop_change(&mut self) -> Option<Pos> {
+    pub fn undo_change(&mut self) -> Option<Pos> {
         let mut temp = ChangeStack::default();
         std::mem::swap(&mut self.change_stack, &mut temp);
         let pos = temp.pop(self);
@@ -93,6 +101,15 @@ impl Doc {
         self.dirty = true;
         pos
     }
+    #[must_use]
+    pub fn redo_change(&mut self) -> Option<Pos> {
+        let mut temp = ChangeStack::default();
+        std::mem::swap(&mut self.change_stack, &mut temp);
+        let pos = temp.redo(self);
+        std::mem::swap(&mut self.change_stack, &mut temp);
+        self.dirty = true;
+        pos
+    }
     pub fn swap_rows(&mut self, range: &mut Range<Coord>, rows: &mut Vec<Row>) {
         assert!((0..=self.tracked_rows.len()).contains(&range.start));
         assert!((range.start..=self.tracked_rows.len()).contains(&range.end));
@@ -103,6 +120,7 @@ impl Doc {
         std::mem::swap(&mut result_rows, rows);
         std::mem::swap(&mut result_range, range);
     }
+    #[must_use]
     pub fn render_line(&self, pos: Pos) -> std::slice::Iter<'_, char> {
         if pos.y < self.tracked_rows.len() {
             self.tracked_rows
@@ -113,6 +131,7 @@ impl Doc {
             EMPTY.iter()
         }
     }
+    #[must_use]
     pub fn render_line_slice(&self, pos: Pos, len: usize) -> &[char] {
         if pos.y < self.tracked_rows.len() {
             self.tracked_rows
@@ -123,9 +142,11 @@ impl Doc {
             EMPTY
         }
     }
+    #[must_use]
     pub fn line_count(&self) -> usize {
         self.tracked_rows.len()
     }
+    #[must_use]
     pub fn get_row(&self, y: Coord) -> Option<&Row> {
         self.tracked_rows.get(y)
     }
@@ -141,11 +162,12 @@ impl Doc {
         doc.dirty = false;
         Ok(doc)
     }
-    pub fn split_newline(&self, cursor: Pos) -> (Op, Pos) {
+    #[must_use]
+    pub fn split_newline(&self, cursor: Pos) -> (ChangeOp, Pos) {
         if let Some(row) = self.tracked_rows.get(cursor.y) {
             let x = cursor.x.clamp(0, row.len());
             (
-                Op::RowsSwap {
+                ChangeOp::RowsSwap {
                     range: cursor.y..cursor.y + 1,
                     rows: row.split_at(x).to_vec(),
                 },
@@ -158,26 +180,35 @@ impl Doc {
             panic!("what is this situation?");
         }
     }
-    pub fn insert_newline(&self, y: Coord) -> Op {
-        Op::RowsSwap {
+    #[must_use]
+    pub fn insert_newline(&self, y: Coord) -> ChangeOp {
+        ChangeOp::RowsSwap {
             range: y..y,
             rows: vec![Row::from_line("")],
         }
     }
-    pub fn insert_char(&self, cursor: Pos, ch: char) -> Op {
+    #[must_use]
+    pub fn insert_char(&self, cursor: Pos, ch: char) -> (ChangeOp, Pos) {
         if let Some(row) = self.tracked_rows.get(cursor.y) {
-            Op::RowsSwap {
-                range: cursor.y..cursor.y + 1,
-                rows: vec![row.insert_char(cursor.x, ch)],
-            }
+            (
+                ChangeOp::RowsSwap {
+                    range: cursor.y..cursor.y + 1,
+                    rows: vec![row.insert_char(cursor.x, ch)],
+                },
+                cursor.inc_x(),
+            )
         } else {
-            Op::RowsSwap {
-                range: cursor.y..cursor.y,
-                rows: vec![Row::from_line(&ch.to_string())],
-            }
+            (
+                ChangeOp::RowsSwap {
+                    range: cursor.y..cursor.y,
+                    rows: vec![Row::from_line(&ch.to_string())],
+                },
+                cursor.inc_x(),
+            )
         }
     }
-    pub fn delete_forwards(&self, cursor: Pos, noun: Noun) -> Option<Op> {
+    #[must_use]
+    pub fn delete_forwards(&self, cursor: Pos, noun: Noun) -> Option<ChangeOp> {
         if let Some(row) = self.tracked_rows.get(cursor.y) {
             if row.is_empty() || cursor.x >= row.len() - 1 {
                 return None;
@@ -187,7 +218,7 @@ impl Doc {
                 Noun::Char => std::cmp::min(cursor.x + 1, row.len()),
                 Noun::Word => row.next_word_break(cursor.x),
             };
-            Some(Op::RowsSwap {
+            Some(ChangeOp::RowsSwap {
                 range: cursor.y..cursor.y + 1,
                 rows: vec![row.splice(cursor.x..end_index, "")],
             })
@@ -195,7 +226,7 @@ impl Doc {
             panic!("what to do here?")
         }
     }
-    pub fn delete_range(&self, range: impl RangeBounds<Pos>) -> Option<(Op, Pos)> {
+    pub fn delete_range(&self, range: impl RangeBounds<Pos>) -> Option<(ChangeOp, Pos)> {
         if range.start_bound() == range.end_bound() {
             return None;
         }
@@ -208,7 +239,7 @@ impl Doc {
             end.x,
         );
         Some((
-            Op::RowsSwap {
+            ChangeOp::RowsSwap {
                 range: start.y..end.y + 1,
                 rows: vec![new_row],
             },
@@ -244,7 +275,7 @@ impl Doc {
         }
     }
     /*
-    pub fn delete_backwards(&self, cursor: Pos, noun: Noun) -> Option<(Op, Pos)> {
+    pub fn delete_backwards(&self, cursor: Pos, noun: Noun) -> Option<(ChangeOp, Pos)> {
         if let Some(row) = self.tracked_rows.get(cursor.y) {
             if row.is_empty() || cursor.x == 0 {
                 if cursor.y > 0 {

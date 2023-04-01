@@ -9,6 +9,7 @@ use crate::prelude::*;
 use crate::rel::Rel;
 use crate::status::Status;
 use crate::types::{Coord, Pos, Rect, RelCoord};
+use crate::undo::ChangeOp;
 use crate::view::ViewContext;
 use mode::*;
 // use std::fs::OpenOptions;
@@ -98,6 +99,14 @@ impl DocView {
         };
         log::trace!("clamp_cursor ends at {:?}", self.cursor);
     }
+    fn apply_op_pos(&mut self, op_pos: (ChangeOp, Pos)) -> Result<Status> {
+        let (op, pos) = op_pos;
+        let mut change_tracker = self.doc.new_change_tracker(self.cursor);
+        change_tracker.add_op(op, pos);
+        let cursor = Some(change_tracker.commit());
+        self.jump_cursor_pos(cursor);
+        Ok(Status::Ok)
+    }
     pub fn jump_cursor_pos(&mut self, pos: Option<Pos>) {
         if let Some(pos) = pos {
             self.jump_cursor(Some(pos.x), Some(pos.y));
@@ -141,33 +150,26 @@ impl DocView {
         */
     }
     pub fn split_newline(&mut self) -> Result<Status> {
-        let (op, pos) = self.doc.split_newline(self.cursor);
-
-        let mut change_tracker = self.doc.new_change_tracker(self.cursor);
-        change_tracker.add_op(op, pos);
-        self.cursor = change_tracker.commit();
-        Ok(Status::Ok)
+        self.apply_op_pos(self.doc.split_newline(self.cursor))
     }
     pub fn insert_newline_above(&mut self) -> Result<Status> {
         let op = self.doc.insert_newline(self.cursor.y);
-        let mut change_tracker = self.doc.new_change_tracker(self.cursor);
-        change_tracker.add_op(
-            op,
-            Pos {
-                x: 0,
-                y: self.cursor.y,
-            },
-        );
-        self.cursor = change_tracker.commit();
-        Ok(Status::Ok)
+        let pos = Pos {
+            x: 0,
+            y: self.cursor.y,
+        };
+        self.apply_op_pos((op, pos))
     }
     pub fn insert_newline_below(&mut self) -> Result<Status> {
-        self.doc.insert_newline(self.cursor.y + 1);
-        self.move_cursor(0, 1)
+        let op = self.doc.insert_newline(self.cursor.y + 1);
+        let pos = Pos {
+            x: 0,
+            y: self.cursor.y + 1,
+        };
+        self.apply_op_pos((op, pos))
     }
     pub fn insert_char(&mut self, ch: char) -> Result<Status> {
-        self.doc.insert_char(self.cursor, ch);
-        self.move_cursor(1, 0)
+        self.apply_op_pos(self.doc.insert_char(self.cursor, ch))
     }
     pub fn delete_sel(&mut self) -> Result<Status> {
         if let Some(sel) = self.sel {
@@ -183,13 +185,9 @@ impl DocView {
         self.delete_range(start..end)
     }
     fn delete_range(&mut self, range: impl RangeBounds<Pos>) -> Result<Status> {
-        if let Some((op, pos)) = self.doc.delete_range(range) {
-            let mut change_tracker = self.doc.new_change_tracker(self.cursor);
-            change_tracker.add_op(op, pos);
-            self.cursor = change_tracker.commit();
-            Ok(Status::Ok)
-        } else {
-            Ok(Status::Ok)
+        match self.doc.delete_range(range) {
+            Some(op_pos) => self.apply_op_pos(op_pos),
+            None => Ok(Status::Ok),
         }
     }
     pub fn join_line(&mut self) -> Result<Status> {
@@ -399,6 +397,7 @@ impl DispatchTarget for DocView {
             }
             Mode::Normal => {
                 bindings.insert("u", command("undo").at_view(vk));
+                bindings.insert(Key::Ctrl('r'), command("redo").at_view(vk));
                 bindings.insert(
                     Key::Ctrl('u'),
                     command("move-rel")
@@ -490,11 +489,21 @@ impl DispatchTarget for DocView {
 
         match (self.mode, name.as_ref()) {
             (Mode::Normal, "undo") => {
-                if let Some(pos) = self.doc.pop_change() {
-                    self.cursor = pos;
-                    Ok(Status::Ok)
-                } else {
+                let pos = self.doc.undo_change();
+                self.jump_cursor_pos(pos);
+                if pos.is_none() {
                     Ok(status!("Nothing left to undo."))
+                } else {
+                    Ok(Status::Ok)
+                }
+            }
+            (Mode::Normal, "redo") => {
+                let pos = self.doc.redo_change();
+                self.jump_cursor_pos(pos);
+                if pos.is_none() {
+                    Ok(status!("Nothing left to redo."))
+                } else {
+                    Ok(Status::Ok)
                 }
             }
             (Mode::Normal, "change" | "yank" | "delete") => {

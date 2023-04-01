@@ -115,6 +115,7 @@ fn write_bmp_diff(
     buf.extend(b"\x1b[?25l");
     Bitmap::diff(bmp_last, bmp, buf)?;
     if let Some(cursor) = bmp.get_cursor() {
+        trace!("cursor is at {:?}", cursor);
         write!(buf, "\x1b[{};{}H", cursor.y + 1, cursor.x + 1).context("write-cursor")?
     }
     buf.extend(b"\x1b[?25h");
@@ -185,7 +186,13 @@ fn run_app(
             bmp.clear();
             for (&vk, &frame) in layout_rects.iter() {
                 let mut bmp_view = BitmapView::new(&mut bmp, frame);
-                view_map.get_view(vk).display(&view_map, &mut bmp_view);
+                let view = view_map.get_view(vk);
+                view.display(&view_map, &mut bmp_view);
+                if vk == view_map.focused_view_key() {
+                    if let Some(cursor_pos) = view.get_cursor_pos() {
+                        bmp_view.set_cursor(cursor_pos);
+                    }
+                }
             }
             // Rasterize the bitmap to the terminal and swap the write buffers..
             write_bmp_diff(&mut buf, &mut bmp_last, &mut bmp, stdin)?;

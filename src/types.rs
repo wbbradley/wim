@@ -117,6 +117,12 @@ impl Pos {
             Bound::Unbounded => panic!("unbounded end pos is not implemented..."),
         }
     }
+    pub fn inc_x(self) -> Self {
+        Self {
+            x: self.x + 1,
+            y: self.y,
+        }
+    }
 }
 
 impl std::ops::Add<Pos> for Pos {
