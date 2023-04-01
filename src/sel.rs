@@ -1,6 +1,6 @@
 use crate::types::Pos;
 
-#[allow(dead_code)]
+#[derive(Debug, Clone, Copy)]
 pub struct Sel {
     pub start: Pos,
     pub end: Pos,

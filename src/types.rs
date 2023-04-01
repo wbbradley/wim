@@ -77,7 +77,7 @@ impl Ord for Pos {
             Ordering::Greater
         } else if self.x < other.x {
             Ordering::Less
-        } else if self.y > other.y {
+        } else if self.x > other.x {
             Ordering::Greater
         } else {
             Ordering::Equal

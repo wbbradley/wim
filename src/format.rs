@@ -13,4 +13,10 @@ impl Format {
             bg: BgColor::None,
         }
     }
+    pub const fn selected() -> Self {
+        Self {
+            fg: FgColor::Black,
+            bg: BgColor::White,
+        }
+    }
 }

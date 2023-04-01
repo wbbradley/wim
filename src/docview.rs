@@ -44,6 +44,13 @@ impl DocView {
     pub fn move_cursor(&mut self, x: RelCoord, y: RelCoord) -> Result<Status> {
         self.cursor.y = (self.cursor.y as RelCoord + y).clamp(0, RelCoord::MAX) as Coord;
         self.cursor.x = (self.cursor.x as RelCoord + x).clamp(0, RelCoord::MAX) as Coord;
+        if matches!(self.mode, Mode::Visual(VisualMode::Char)) {
+            if let Some(ref mut sel) = self.sel {
+                sel.end = self.cursor;
+            } else {
+                panic!("There should be a sel right now!");
+            }
+        }
         self.clamp_cursor();
         Ok(Status::Ok)
     }
@@ -210,7 +217,65 @@ impl DocView {
         }
         self.clamp_cursor();
     }
-    fn get_line_fmt_spans(&self, screen_pos: Pos, render_start: Pos, width: usize) -> Vec<Span> {
+    fn get_line_fmt_spans(
+        &self,
+        mut screen_pos: Pos,
+        mut render_start: Pos,
+        width: usize,
+    ) -> Vec<Span> {
+        let mut spans = Vec::new();
+        if let Some(sel) = self.sel {
+            let (mut start, mut end) = (sel.start, sel.end);
+            if start > end {
+                std::mem::swap(&mut start, &mut end);
+                end.x += 1;
+            }
+            if start.y == render_start.y {
+                if end.y == render_start.y {
+                    if start.x > render_start.x {
+                        let chars = self.doc.render_line_slice(
+                            render_start,
+                            std::cmp::min(start.x - render_start.x, width - screen_pos.x),
+                        );
+                        spans.push(Span {
+                            screen_pos,
+                            chars,
+                            format: Format::none(),
+                        });
+                        screen_pos.x += chars.len();
+                        render_start.x += chars.len();
+                    }
+                    if screen_pos.x < width && end.x > render_start.x {
+                        // Span on a single line.
+                        let chars = self.doc.render_line_slice(
+                            render_start,
+                            std::cmp::min(end.x - render_start.x, width - screen_pos.x),
+                        );
+                        spans.push(Span {
+                            screen_pos,
+                            chars,
+                            format: Format::selected(),
+                        });
+                        screen_pos.x += chars.len();
+                        render_start.x += chars.len();
+                    }
+                    if screen_pos.x < width {
+                        // Span on a single line.
+                        let chars = self
+                            .doc
+                            .render_line_slice(render_start, width - screen_pos.x);
+                        spans.push(Span {
+                            screen_pos,
+                            chars,
+                            format: Format::none(),
+                        });
+                        screen_pos.x += chars.len();
+                        render_start.x += chars.len();
+                    }
+                }
+                return spans;
+            }
+        }
         vec![Span {
             screen_pos,
             chars: self.doc.render_line_slice(render_start, width),
@@ -284,7 +349,12 @@ impl DispatchTarget for DocView {
         let vk = self.get_view_key();
         let mut bindings: Bindings = Default::default();
         match self.mode {
-            Mode::Visual { .. } => {}
+            Mode::Visual { .. } => {
+                bindings.insert("h", command("move").arg("left").at_view(vk));
+                bindings.insert("j", command("move").arg("down").at_view(vk));
+                bindings.insert("k", command("move").arg("up").at_view(vk));
+                bindings.insert("l", command("move").arg("right").at_view(vk));
+            }
             Mode::Insert => {
                 bindings.insert(Key::Esc, command("switch-mode").arg("normal").at_view(vk));
                 bindings.insert("jk", DK::Key(Key::Esc));
@@ -323,13 +393,13 @@ impl DispatchTarget for DocView {
                 );
                 bindings.insert("v", command("switch-mode").arg("visual").at_view(vk));
                 bindings.insert("i", command("switch-mode").arg("insert").at_view(vk));
-                bindings.insert("h", command("move").arg("left").at_view(vk));
                 bindings.insert(
                     ":",
                     command("focus")
                         .arg(Target::Named("command-line".to_string()))
                         .at_view_map(),
                 );
+                bindings.insert("h", command("move").arg("left").at_view(vk));
                 bindings.insert("j", command("move").arg("down").at_view(vk));
                 bindings.insert("k", command("move").arg("up").at_view(vk));
                 bindings.insert("l", command("move").arg("right").at_view(vk));
@@ -446,7 +516,7 @@ impl DispatchTarget for DocView {
                     Err(error!("'open' expects a filename"))
                 }
             }
-            (Mode::Normal, "move") => {
+            (Mode::Normal | Mode::Visual(VisualMode::Char), "move") => {
                 ensure!(args.len() == 1);
                 if let Variant::String(arg) = args.remove(0) {
                     match arg.as_str() {
