@@ -7,6 +7,12 @@ use std::fs;
 #[derive(Deserialize)]
 pub struct Settings {
     pub display: DisplaySettings,
+    pub debug: DebugSettings,
+}
+
+#[derive(Deserialize)]
+pub struct DebugSettings {
+    pub write_writes: bool,
 }
 
 #[derive(Deserialize)]
@@ -29,6 +35,9 @@ impl Default for Settings {
             display: DisplaySettings {
                 fg: FgColor::White,
                 bg: BgColor::Black,
+            },
+            debug: DebugSettings {
+                write_writes: false,
             },
         }
     }

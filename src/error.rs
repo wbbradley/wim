@@ -18,6 +18,12 @@ impl Error {
     {
         Self::General { message: m.into() }
     }
+    pub fn new_io_error<T>(m: T) -> Self
+    where
+        T: Into<String>,
+    {
+        Self::IO { message: m.into() }
+    }
     pub fn not_impl<T>(m: T) -> Self
     where
         T: Into<String>,
@@ -50,6 +56,18 @@ impl<T> ErrorContext<T> for std::result::Result<T, toml::de::Error> {
         match self {
             Ok(t) => Ok(t),
             Err(e) => Err(error!("{}: (toml decoding error: {})", message, e)),
+        }
+    }
+}
+
+impl ErrorContext<()> for std::io::Result<()> {
+    fn context(self, message: &str) -> Result<()> {
+        match self {
+            Ok(_) => Ok(()),
+            Err(e) => Err(Error::new_io_error(format!(
+                "{}: (io error: {})",
+                message, e
+            ))),
         }
     }
 }

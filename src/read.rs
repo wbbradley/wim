@@ -14,7 +14,9 @@ pub fn decode_ctrl_key(k: u8) -> char {
 pub fn read_key(reader: &mut impl Iterator<Item = u8>) -> Option<Key> {
     // trace!("reading a key...");
     if let Some(ch) = reader.next() {
-        if ch == 0x1b {
+        if ch == 0x00 {
+            Some(Key::None)
+        } else if ch == 0x1b {
             match (reader.next(), reader.next()) {
                 (Some(b'['), Some(b'A')) => Some(Key::Up),
                 (Some(b'['), Some(b'B')) => Some(Key::Down),

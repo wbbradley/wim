@@ -44,6 +44,10 @@ impl ViewMap {
     pub fn get_root_view_key(&self) -> ViewKey {
         self.root_view_key.unwrap()
     }
+    #[cfg(test)]
+    pub fn get_root_view(&self) -> Option<ViewRef> {
+        self.root_view_key.map(|vk| self.get_view(vk))
+    }
     pub fn insert(&mut self, view: ViewRef, vk_parent: Option<ViewKey>, name: Option<String>) {
         let vk = view.get_view_key();
         self.map.insert(vk, view);

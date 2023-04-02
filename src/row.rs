@@ -107,6 +107,10 @@ impl Row {
         &self.buf[range.start..range.end.clamp(range.start, self.buf.len())]
     }
 
+    pub fn as_slice(&self) -> &[char] {
+        &self.buf
+    }
+
     pub fn update_render(&mut self) {
         Self::renderize_in_place(&self.buf, &mut self.render);
     }

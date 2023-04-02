@@ -1,4 +1,5 @@
-use std::fmt::{write, Arguments, Result, Write};
+use crate::error::Result;
+use std::fmt::{write, Arguments, Result as FmtResult, Write};
 
 #[derive(Clone, Default)]
 pub struct Buf(Vec<u8>);
@@ -17,6 +18,14 @@ impl Buf {
     pub fn as_bytes(&self) -> &[u8] {
         &self.0
     }
+    pub fn write_to_file(&self, filename: &str) -> Result<()> {
+        use crate::error::ErrorContext;
+        use std::fs::File;
+        use std::io::prelude::*;
+        let mut file = File::create(filename)?;
+        file.write_all(self.as_bytes())
+            .context("write_all in write_to_file")
+    }
 }
 
 impl<'a> Extend<&'a u8> for Buf {
@@ -32,14 +41,14 @@ impl Buf {
 }
 
 impl Write for Buf {
-    fn write_str(&mut self, s: &str) -> Result {
+    fn write_str(&mut self, s: &str) -> FmtResult {
         self.0.extend(s.as_bytes());
         Ok(())
     }
-    fn write_char(&mut self, ch: char) -> Result {
+    fn write_char(&mut self, ch: char) -> FmtResult {
         self.write_str(ch.encode_utf8(&mut [0; 4]))
     }
-    fn write_fmt(mut self: &mut Self, args: Arguments<'_>) -> Result {
+    fn write_fmt(mut self: &mut Self, args: Arguments<'_>) -> FmtResult {
         write(&mut self, args)
     }
 }

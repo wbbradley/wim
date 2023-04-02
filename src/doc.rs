@@ -7,6 +7,7 @@ use crate::types::{Coord, Pos};
 use crate::undo::{Change, ChangeStack};
 use crate::undo::{ChangeOp, ChangeTracker};
 use crate::utils::read_lines;
+use std::fmt;
 
 #[derive(Debug)]
 #[allow(dead_code)]
@@ -479,5 +480,17 @@ impl<'a> Iterator for IterCharsRev<'a> {
             }
             None => None,
         }
+    }
+}
+
+impl fmt::Display for Doc {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for row in self.tracked_rows.iter() {
+            for ch in row.as_slice() {
+                write!(f, "{}", ch)?;
+            }
+        }
+        writeln!(f)?;
+        Ok(())
     }
 }

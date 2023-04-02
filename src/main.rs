@@ -91,10 +91,10 @@ fn main() -> Result<()> {
         println!("{}", p);
     }));
 
-    let view_map: crate::view_map::ViewMap = ViewMap::new();
+    let mut view_map: crate::view_map::ViewMap = ViewMap::new();
     let res = run_app(
         plugin,
-        view_map,
+        &mut view_map,
         settings,
         libc::STDIN_FILENO,
         libc::STDOUT_FILENO,
@@ -132,7 +132,7 @@ fn write_bmp_diff(
 
 fn run_app(
     plugin: PluginRef,
-    mut view_map: ViewMap,
+    view_map: &mut ViewMap,
     settings: Settings,
     stdin: libc::c_int,
     stdout: libc::c_int,
@@ -142,7 +142,7 @@ fn run_app(
     let args: Vec<String> = env::args().collect();
     trace!("wim run with args: {:?}", args);
 
-    let editor_view_key = Editor::install(plugin, &mut view_map);
+    let editor_view_key = Editor::install(plugin, view_map);
     let editor: ViewRef = view_map.get_view(editor_view_key);
     let mut should_refresh = true;
     let should_resize = Arc::new(AtomicBool::new(false));
@@ -176,7 +176,7 @@ fn run_app(
         if should_refresh {
             layout_rects.clear();
             recursive_layout(
-                &view_map,
+                view_map,
                 view_map.get_root_view_key(),
                 terminal_size.into(),
                 &mut layout_rects,
@@ -187,7 +187,7 @@ fn run_app(
             for (&vk, &frame) in layout_rects.iter() {
                 let mut bmp_view = BitmapView::new(&mut bmp, frame);
                 let view = view_map.get_view(vk);
-                view.display(&view_map, &mut bmp_view);
+                view.display(view_map, &mut bmp_view);
                 if vk == view_map.focused_view_key() {
                     if let Some(cursor_pos) = view.get_cursor_pos() {
                         bmp_view.set_cursor(cursor_pos);
@@ -196,12 +196,9 @@ fn run_app(
             }
             // Rasterize the bitmap to the terminal and swap the write buffers..
             write_bmp_diff(&mut buf, &mut bmp_last, &mut bmp, stdin)?;
-            // {
-            //     use std::fs::File;
-            //     use std::io::prelude::*;
-            //     let mut file = File::create("buf.bin")?;
-            //     file.write_all(buf.as_bytes())?;
-            // }
+            if settings.debug.write_writes {
+                buf.write_to_file("last_write.bin")?;
+            }
             should_refresh = false;
         }
 
@@ -229,7 +226,7 @@ fn run_app(
             };
         }
         should_refresh = true;
-        match pump(&mut view_map, &mut dks)? {
+        match pump(view_map, &mut dks)? {
             PumpResult::Quit => {
                 return Ok(());
             }
@@ -325,13 +322,11 @@ mod test {
 
     fn run_text(text: &str) -> Result<String> {
         let fd = open_dev_null();
-        let settings = Settings::default();
-        let plugin = Plugin::new();
-        let view_map = ViewMap::new();
-        run_app(
-            plugin,
-            view_map,
-            settings,
+        let mut view_map = ViewMap::new();
+        let result = run_app(
+            Plugin::new(),
+            &mut view_map,
+            Settings::default(),
             fd,
             fd,
             || Size {
@@ -339,7 +334,15 @@ mod test {
                 height: 100,
             },
             text.as_bytes().into_iter().copied(),
-        )
+        );
+        result.map(|()| {
+            view_map
+                .get_root_view()
+                .unwrap()
+                .get_doc()
+                .unwrap()
+                .to_string()
+        })
     }
 
     #[test]
@@ -349,7 +352,7 @@ mod test {
 
     #[test]
     fn delete_char() {
-        check!("iHello world.\x1b\0\0bbx:quit\x0d");
+        check_doc!("iHello world.\x1b\0\0bbx:quit\x0d", "ello world.\n");
     }
 
     #[test]
