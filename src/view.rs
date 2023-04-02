@@ -1,3 +1,4 @@
+use crate::doc::Doc;
 use crate::plugin::PluginRef;
 use crate::prelude::*;
 use crate::types::{Pos, Rect};
@@ -47,5 +48,8 @@ pub trait View: DispatchTarget + ViewContext {
             std::any::type_name::<Self>(),
             status
         );
+    }
+    fn get_doc(&self) -> Option<&Doc> {
+        None
     }
 }

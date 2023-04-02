@@ -166,7 +166,7 @@ impl Doc {
         if let Some(row) = self.tracked_rows.get(cursor.y) {
             let x = cursor.x.clamp(0, row.len());
             (
-                ChangeOp::RowsSwap {
+                ChangeOp {
                     range: cursor.y..cursor.y + 1,
                     rows: row.split_at(x).to_vec(),
                 },
@@ -181,7 +181,7 @@ impl Doc {
     }
     #[must_use]
     pub fn insert_newline(&self, y: Coord) -> ChangeOp {
-        ChangeOp::RowsSwap {
+        ChangeOp {
             range: y..y,
             rows: vec![Row::from_line("")],
         }
@@ -190,7 +190,7 @@ impl Doc {
     pub fn insert_char(&self, cursor: Pos, ch: char) -> (ChangeOp, Pos) {
         if let Some(row) = self.tracked_rows.get(cursor.y) {
             (
-                ChangeOp::RowsSwap {
+                ChangeOp {
                     range: cursor.y..cursor.y + 1,
                     rows: vec![row.insert_char(cursor.x, ch)],
                 },
@@ -198,7 +198,7 @@ impl Doc {
             )
         } else {
             (
-                ChangeOp::RowsSwap {
+                ChangeOp {
                     range: cursor.y..cursor.y,
                     rows: vec![Row::from_line(&ch.to_string())],
                 },
@@ -217,7 +217,7 @@ impl Doc {
                 Noun::Char => std::cmp::min(cursor.x + 1, row.len()),
                 Noun::Word => row.next_word_break(cursor.x),
             };
-            Some(ChangeOp::RowsSwap {
+            Some(ChangeOp {
                 range: cursor.y..cursor.y + 1,
                 rows: vec![row.splice(cursor.x..end_index, "")],
             })
@@ -238,7 +238,7 @@ impl Doc {
             end.x,
         );
         Some((
-            ChangeOp::RowsSwap {
+            ChangeOp {
                 range: start.y..end.y + 1,
                 rows: vec![new_row],
             },

@@ -296,6 +296,9 @@ struct Span<'a> {
 }
 
 impl View for DocView {
+    fn get_doc(&self) -> Option<&Doc> {
+        Some(&self.doc)
+    }
     fn install_plugins(&mut self, plugin: PluginRef) {
         self.plugin = plugin;
     }

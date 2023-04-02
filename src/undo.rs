@@ -34,7 +34,6 @@ impl ChangeStack {
         }
     }
 
-    #[allow(dead_code)]
     #[must_use]
     pub fn pop(&mut self, doc: &mut Doc) -> Option<Pos> {
         if self.index > 0 {
@@ -86,19 +85,17 @@ pub struct Change {
 }
 
 #[derive(Debug)]
-pub enum ChangeOp {
-    RowsSwap { range: Range<usize>, rows: Vec<Row> },
+pub struct ChangeOp {
+    pub range: Range<usize>,
+    pub rows: Vec<Row>,
 }
 
 impl Change {
     #[must_use]
     pub fn execute(&mut self, doc: &mut Doc) -> Pos {
         for op in &mut self.ops {
-            match op {
-                ChangeOp::RowsSwap { range, rows } => {
-                    doc.swap_rows(range, rows);
-                }
-            }
+            let ChangeOp { range, rows } = op;
+            doc.swap_rows(range, rows);
         }
         // Flip this change so that it executes in reverse next time.
         std::mem::swap(&mut self.before_cursor, &mut self.after_cursor);

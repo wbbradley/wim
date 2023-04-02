@@ -302,7 +302,6 @@ mod test {
     use super::*;
     use crate::utils::open_dev_null;
 
-    #[allow(unused_macros)]
     macro_rules! check {
         ($text:expr) => {{
             let res = run_text($text);
@@ -311,7 +310,20 @@ mod test {
         }};
     }
 
-    fn run_text(text: &str) -> Result<()> {
+    macro_rules! check_doc {
+        ($text:expr, $should_be:expr) => {{
+            let res = run_text($text);
+            eprintln!("res={:?}", res);
+            match res {
+                Ok(text) => {
+                    assert!($should_be == text);
+                }
+                _ => panic!("error during run_text!"),
+            }
+        }};
+    }
+
+    fn run_text(text: &str) -> Result<String> {
         let fd = open_dev_null();
         let settings = Settings::default();
         let plugin = Plugin::new();
