@@ -130,3 +130,13 @@ pub fn wcwidth(buf: &[u8]) -> usize {
         })
         .sum()
 }
+
+#[cfg(test)]
+pub fn open_dev_null() -> libc::c_int {
+    unsafe {
+        match std::ffi::CString::new("/dev/null") {
+            Ok(name) => libc::open(name.as_ptr(), libc::O_RDWR, 0o644),
+            Err(_) => panic!("failed to make cstring"),
+        }
+    }
+}

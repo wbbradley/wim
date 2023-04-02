@@ -300,15 +300,11 @@ fn pump(view_map: &mut ViewMap, dks: &mut VecDeque<DK>) -> Result<PumpResult> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::utils::open_dev_null;
+
     #[test]
     fn insert_text() {
-        simple_logging::log_to_file("insert_text.log", LevelFilter::Info).expect("log_to_file");
-        let fd: libc::c_int = unsafe {
-            match std::ffi::CString::new("/dev/null") {
-                Ok(name) => libc::open(name.as_ptr(), libc::O_RDWR, 0o644),
-                Err(_) => panic!("failed to make cstring"),
-            }
-        };
+        let fd = open_dev_null();
         let settings = Settings::default();
         let plugin = Plugin::new();
         let view_map: crate::view_map::ViewMap = ViewMap::new();
