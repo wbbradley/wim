@@ -302,13 +302,21 @@ mod test {
     use super::*;
     use crate::utils::open_dev_null;
 
-    #[test]
-    fn insert_text() {
+    #[allow(unused_macros)]
+    macro_rules! check {
+        ($text:expr) => {{
+            let res = run_text($text);
+            eprintln!("res={:?}", res);
+            assert!(res.is_ok());
+        }};
+    }
+
+    fn run_text(text: &str) -> Result<()> {
         let fd = open_dev_null();
         let settings = Settings::default();
         let plugin = Plugin::new();
-        let view_map: crate::view_map::ViewMap = ViewMap::new();
-        let res = run_app(
+        let view_map = ViewMap::new();
+        run_app(
             plugin,
             view_map,
             settings,
@@ -318,9 +326,22 @@ mod test {
                 width: 100,
                 height: 100,
             },
-            b"iHello world.\x1b\0\0:quit\x0d".into_iter().copied(),
-        );
-        eprintln!("res={:?}", res);
-        assert!(res.is_ok());
+            text.as_bytes().into_iter().copied(),
+        )
+    }
+
+    #[test]
+    fn insert_text() {
+        check!("iHello world.\x1b\0\0:quit\x0d");
+    }
+
+    #[test]
+    fn delete_char() {
+        check!("iHello world.\x1b\0\0bbx:quit\x0d");
+    }
+
+    #[test]
+    fn delete_word() {
+        check!("iHello world.\x1b\0\0bbdw:quit\x0d");
     }
 }
