@@ -56,6 +56,7 @@ pub fn read_key(reader: &mut impl Iterator<Item = u8>) -> Option<Key> {
                 (Some(b'O'), Some(b'Q')) => Some(Key::Function(2)),
                 (Some(b'O'), Some(b'R')) => Some(Key::Function(3)),
                 (Some(b'O'), Some(b'S')) => Some(Key::Function(4)),
+                (Some(b'\0'), Some(b'\0')) => Some(Key::Esc),
                 (Some(a), Some(b)) => Some(Key::EscSeq2(a, b)),
                 (Some(a), None) => Some(Key::EscSeq1(a)),
                 (_, _) => Some(Key::Esc),

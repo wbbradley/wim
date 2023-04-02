@@ -229,11 +229,21 @@ fn run_app(
             };
         }
         should_refresh = true;
-        pump(&mut view_map, &mut dks)?;
+        match pump(&mut view_map, &mut dks)? {
+            PumpResult::Quit => {
+                return Ok(());
+            }
+            PumpResult::Continue => {}
+        }
     }
     Ok(())
 }
-fn pump(view_map: &mut ViewMap, dks: &mut VecDeque<DK>) -> Result<()> {
+enum PumpResult {
+    Continue,
+    Quit,
+}
+
+fn pump(view_map: &mut ViewMap, dks: &mut VecDeque<DK>) -> Result<PumpResult> {
     while matches!(dks.front(), Some(DK::Key(Key::None))) {
         trace!("popping Key::None off dks");
         dks.pop_front();
@@ -241,7 +251,7 @@ fn pump(view_map: &mut ViewMap, dks: &mut VecDeque<DK>) -> Result<()> {
     let mut cmdline = view_map.get_named_view("command-line").unwrap();
     loop {
         if dks.is_empty() {
-            return Ok(());
+            return Ok(PumpResult::Continue);
         }
         match view_map.handle_keys(dks) {
             HandleKey::DK(dk) => match dk {
@@ -252,12 +262,24 @@ fn pump(view_map: &mut ViewMap, dks: &mut VecDeque<DK>) -> Result<()> {
                 DK::Dispatch(target, message) => {
                     let mut dispatch_target = view_map.resolve(target);
                     let result = match message {
-                        Message::SendKey(key) => dispatch_target.send_key(key),
+                        Message::SendKey(key) => {
+                            log::info!("send_key({:?})", key);
+                            dispatch_target.send_key(key)
+                        }
                         Message::Command { name, args } => {
+                            log::info!("execute_command({:?}, {:?})", name, args);
                             dispatch_target.execute_command(name, args)
                         }
                     };
-                    cmdline.set_status(result?);
+                    match result {
+                        Ok(Status::Quit) => {
+                            return Ok(PumpResult::Quit);
+                        }
+                        Ok(status) => {
+                            cmdline.set_status(status);
+                        }
+                        Err(err) => return Err(err),
+                    }
                 }
                 DK::Sequence(next_dks) => {
                     next_dks
@@ -269,7 +291,7 @@ fn pump(view_map: &mut ViewMap, dks: &mut VecDeque<DK>) -> Result<()> {
             },
             HandleKey::Choices(choices) => {
                 cmdline.set_status(status!("Valid next bindings: {:?}", choices));
-                return Ok(());
+                return Ok(PumpResult::Continue);
             }
         }
     }
@@ -280,6 +302,7 @@ mod test {
     use super::*;
     #[test]
     fn insert_text() {
+        simple_logging::log_to_file("insert_text.log", LevelFilter::Info).expect("log_to_file");
         let fd: libc::c_int = unsafe {
             match std::ffi::CString::new("/dev/null") {
                 Ok(name) => libc::open(name.as_ptr(), libc::O_RDWR, 0o644),
@@ -299,8 +322,9 @@ mod test {
                 width: 100,
                 height: 100,
             },
-            b"iHello world.\x1b:q\x0d".into_iter().copied(),
+            b"iHello world.\x1b\0\0:quit\x0d".into_iter().copied(),
         );
+        eprintln!("res={:?}", res);
         assert!(res.is_ok());
     }
 }

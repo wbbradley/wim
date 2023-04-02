@@ -156,14 +156,14 @@ impl<'a> BitmapView<'a> {
         count
     }
     pub fn end_line_with_str(&mut self, mut pos: Pos, s: &str) {
-        log::trace!("calling end_line_with_str(pos={:?}, s={:?})", pos, s);
+        // log::trace!("calling end_line_with_str(pos={:?}, s={:?})", pos, s);
         let count = s.chars().count();
         if self.frame.width <= pos.x {
             log::trace!("pos.x is too high!");
             return;
         }
         let remaining_space = self.frame.width - pos.x;
-        log::trace!("remaining_space = {}, count = {}", remaining_space, count);
+        // log::trace!("remaining_space = {}, count = {}", remaining_space, count);
         if remaining_space >= count {
             let mll = self.frame.width;
             pos.x = mll - count;

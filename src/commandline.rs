@@ -124,16 +124,28 @@ impl DispatchTarget for CommandLine {
         let vk = self.get_view_key();
         let mut bindings: Bindings = Default::default();
         bindings.insert(Key::Esc, command("focus").arg(Target::Previous).at_view(vk));
-        bindings.insert(
-            Key::Enter,
-            DK::Sequence(vec![
-                command("clear-text").at_view(vk),
-                command("focus").arg(Target::Previous).at_view_map(),
-                command("invoke-execute")
-                    .arg(self.text.as_ref())
-                    .at_focused(),
-            ]),
-        );
+        // TODO: parse the typed text and transform it into an AST.
+        if self.text == "quit" {
+            bindings.insert(
+                Key::Enter,
+                DK::Sequence(vec![
+                    command("clear-text").at_view(vk),
+                    command("focus").arg(Target::Previous).at_view_map(),
+                    command("quit").at_focused(),
+                ]),
+            );
+        } else {
+            bindings.insert(
+                Key::Enter,
+                DK::Sequence(vec![
+                    command("clear-text").at_view(vk),
+                    command("focus").arg(Target::Previous).at_view_map(),
+                    command("invoke-execute")
+                        .arg(self.text.as_ref())
+                        .at_focused(),
+                ]),
+            );
+        }
         bindings
     }
 

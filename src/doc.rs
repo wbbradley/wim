@@ -120,7 +120,6 @@ impl Doc {
         std::mem::swap(&mut result_rows, rows);
         std::mem::swap(&mut result_range, range);
     }
-    #[must_use]
     pub fn render_line(&self, pos: Pos) -> std::slice::Iter<'_, char> {
         if pos.y < self.tracked_rows.len() {
             self.tracked_rows

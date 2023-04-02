@@ -485,6 +485,8 @@ impl DispatchTarget for DocView {
             } else {
                 return Err(error!("'switch-mode' expects a string"));
             }
+        } else if name.as_str() == "quit" {
+            return Ok(Status::Quit);
         }
 
         match (self.mode, name.as_ref()) {
