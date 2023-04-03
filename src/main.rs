@@ -348,7 +348,7 @@ mod test {
 
     #[test]
     fn delete_char() -> Result<()> {
-        simple_logging::log_to_stderr(LevelFilter::Info);
+        // simple_logging::log_to_stderr(LevelFilter::Info);
         check_doc!("iHello world.\x1b\0\0bbx:quit\x0d", "ello world.\n");
         Ok(())
     }
@@ -359,5 +359,9 @@ mod test {
     #[test]
     fn delete_word() {
         check!("iHello world.\x1b\0\0bbdw:quit\x0d");
+    }
+    #[test]
+    fn delete_word_end() {
+        check!("iHello world.\x1b\0\0bbde:quit\x0d");
     }
 }

@@ -123,6 +123,12 @@ impl Pos {
             y: self.y,
         }
     }
+    pub fn dec_x(self) -> Self {
+        Self {
+            x: self.x - 1,
+            y: self.y,
+        }
+    }
 }
 
 impl std::ops::Add<Pos> for Pos {

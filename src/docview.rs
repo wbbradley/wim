@@ -55,7 +55,55 @@ impl DocView {
         self.clamp_cursor();
         Ok(Status::Ok)
     }
+    pub fn get_rel_cursor_pos(&self, x: RelCoord, y: RelCoord) -> Pos {
+        self.clamped_pos(Pos {
+            y: (self.cursor.y as RelCoord + y).clamp(0, RelCoord::MAX) as Coord,
+            x: (self.cursor.x as RelCoord + x).clamp(0, RelCoord::MAX) as Coord,
+        })
+    }
 
+    pub fn do_op_to_range(&mut self, op: Op, range: impl RangeBounds<Pos>) -> Result<Status> {
+        match op {
+            Op::Delete => {
+                let ret = self.delete_range(range);
+                self.switch_mode(Mode::Normal);
+                ret
+            }
+            Op::Change => {
+                let ret = self.delete_range(range);
+                self.switch_mode(Mode::Insert);
+                ret
+            }
+            Op::Yank => {
+                panic!("yank range not impl");
+            }
+        }
+    }
+
+    pub fn do_op_rel(&mut self, op: Op, noun: Noun, rel: Rel) -> Result<Status> {
+        trace!("do_op_rel({:?}, {:?}, {:?})", op, noun, rel);
+        let end_pos: Option<Pos> = match (noun, rel) {
+            (Noun::Char, Rel::Prior) => Some(self.get_rel_cursor_pos(-1, 0)),
+            (Noun::Char, Rel::Next) => Some(self.get_rel_cursor_pos(1, 0)),
+            (Noun::Line, Rel::Prior) => Some(self.get_rel_cursor_pos(0, -1)),
+            (Noun::Line, Rel::Next) => Some(self.get_rel_cursor_pos(0, 1)),
+            (Noun::Word, Rel::Next) => self.doc.get_next_word_pos(self.cursor),
+            (Noun::Word, Rel::Prior) => self.doc.get_prior_word_pos(self.cursor),
+            (Noun::Word, Rel::End) => self.doc.get_word_end(self.cursor),
+            _ => {
+                return Err(not_impl!(
+                    "DocView: Don't know how to handle relative motion for ({:?}, {:?}).",
+                    noun,
+                    rel
+                ));
+            }
+        };
+        if let Some(end_pos) = end_pos {
+            self.do_op_to_range(op, self.cursor..=end_pos)
+        } else {
+            Err(error!("couldn't get an end pos?!"))
+        }
+    }
     pub fn move_cursor_rel(&mut self, noun: Noun, rel: Rel) -> Result<Status> {
         trace!("move_cursor_rel({:?}, {:?})", noun, rel);
         match (noun, rel) {
@@ -83,6 +131,18 @@ impl DocView {
 
     pub fn last_valid_row(&self) -> Coord {
         self.doc.line_count()
+    }
+    pub fn clamped_pos(&self, mut pos: Pos) -> Pos {
+        pos.y = pos.y.clamp(0, self.last_valid_row());
+        if let Some(row) = self.doc.get_row(pos.y) {
+            pos.x = pos.x.clamp(
+                0,
+                row.len() - usize::from(!row.is_empty() && self.mode == Mode::Normal),
+            );
+        } else {
+            pos.x = 0;
+        };
+        pos
     }
     fn clamp_cursor(&mut self) {
         log::trace!("clamp_cursor starts at {:?}", self.cursor);
@@ -378,16 +438,16 @@ impl DispatchTarget for DocView {
 
         match self.mode {
             Mode::NormalWithOp(op) => {
+                builder.insert(Key::Esc, command("switch-mode").arg("normal"));
                 builder.insert(op.as_str(), command("line"));
-                builder.insert("h", command("char").arg("prior"));
-                builder.insert("j", command("line").arg("next"));
-                builder.insert("k", command("line").arg("prior"));
-                builder.insert("l", command("char").arg("next"));
-                builder.insert("e", command("word").arg("end"));
-                builder.insert("w", command("word").arg("end"));
-                builder.insert("J", command("join-lines"));
+                builder.insert("h", command("move-rel").arg("char").arg("prior"));
+                builder.insert("j", command("move-rel").arg("line").arg("next"));
+                builder.insert("k", command("move-rel").arg("line").arg("prior"));
+                builder.insert("l", command("move-rel").arg("char").arg("next"));
+                builder.insert("e", command("move-rel").arg("word").arg("end"));
+                builder.insert("w", command("move-rel").arg("word").arg("end"));
                 builder.insert("b", command("move-rel").arg("word").arg("prior"));
-                builder.insert("x", command("delete"));
+                builder.insert("J", command("join-lines"));
             }
             Mode::NormalWithOpObjMode(_op, _obj_mode) => {
                 builder.insert("w", command("word"));
@@ -556,6 +616,14 @@ impl DispatchTarget for DocView {
                     args
                 )),
             },
+            (Mode::NormalWithOp(op), "move-rel") => {
+                ensure!((2..=3).contains(&args.len()));
+                let (noun, rel, count) = pull_noun_rel_count(args)?;
+                for _ in 0..count {
+                    self.do_op_rel(op, noun, rel)?;
+                }
+                Ok(Status::Ok)
+            }
             (_, "move-rel") => {
                 ensure!((2..=3).contains(&args.len()));
                 let (noun, rel, count) = pull_noun_rel_count(args)?;

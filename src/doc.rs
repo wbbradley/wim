@@ -319,6 +319,22 @@ impl Doc {
         (Some(new_cursor_pos.x), Some(new_cursor_pos.y))
     }
     */
+    pub fn get_word_end(&self, from: Pos) -> Option<Pos> {
+        let mut iter = self.iter_from(from);
+        let first_cp = iter.next()?;
+        let mut last_class = classify(first_cp.ch);
+        let mut prior_pos = first_cp.pos;
+        for cp in iter {
+            let new_class = classify(cp.ch);
+            if new_class != last_class {
+                return Some(prior_pos);
+            } else {
+                last_class = new_class;
+                prior_pos = cp.pos;
+            }
+        }
+        Some(prior_pos)
+    }
     pub fn get_next_word_pos(&self, from: Pos) -> Option<Pos> {
         let mut iter = self.iter_from(from);
         let first_cp = iter.next()?;
