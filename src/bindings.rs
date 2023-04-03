@@ -24,10 +24,11 @@ impl BindingsBuilder {
     }
     pub fn insert(&mut self, keys_like: impl KeysLike, dk_like: impl IntoDKBinding) {
         let keys = keys_like.parse_keys();
-        assert!(!self.bindings.map.contains_key(&keys));
-        self.bindings
-            .map
-            .insert(keys, dk_like.to_dk_with_default_vk(self.default_vk));
+        let dk = dk_like.to_dk_with_default_vk(self.default_vk);
+        if self.bindings.map.contains_key(&keys) {
+            log::error!("bindings map already contains keys: {:?} => {:?}", keys, dk);
+        }
+        self.bindings.map.insert(keys, dk);
     }
     pub fn get_bindings(self) -> Bindings {
         self.bindings
@@ -52,7 +53,7 @@ impl KeysLike for Key {
     }
 }
 
-trait IntoDKBinding {
+pub trait IntoDKBinding {
     fn to_dk_with_default_vk(self, vk: ViewKey) -> DK;
 }
 

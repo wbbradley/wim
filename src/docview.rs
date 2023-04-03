@@ -369,7 +369,6 @@ impl DispatchTarget for DocView {
             builder.insert("w", command("move-rel").arg("word").arg("next"));
             builder.insert("J", command("join-lines"));
             builder.insert("b", command("move-rel").arg("word").arg("prior"));
-            builder.insert("x", command("delete"));
         }
 
         if matches!(self.mode, Mode::Visual { .. } | Mode::NormalWithOp(_)) {
@@ -384,17 +383,18 @@ impl DispatchTarget for DocView {
                 builder.insert("j", command("line").arg("next"));
                 builder.insert("k", command("line").arg("prior"));
                 builder.insert("l", command("char").arg("next"));
-                builder.insert("e", command("move-rel").arg("word").arg("end"));
-                builder.insert("w", command("move-rel").arg("word").arg("next"));
+                builder.insert("e", command("word").arg("end"));
+                builder.insert("w", command("word").arg("end"));
                 builder.insert("J", command("join-lines"));
                 builder.insert("b", command("move-rel").arg("word").arg("prior"));
                 builder.insert("x", command("delete"));
             }
-            Mode::NormalWithOpObjMode(op, obj_mode) => {
+            Mode::NormalWithOpObjMode(_op, _obj_mode) => {
                 builder.insert("w", command("word"));
             }
             Mode::Visual { .. } => {
                 builder.insert(Key::Esc, command("switch-mode").arg("normal"));
+                builder.insert("x", command("delete"));
             }
             Mode::Insert => {
                 builder.insert(Key::Esc, command("switch-mode").arg("normal"));
@@ -413,9 +413,7 @@ impl DispatchTarget for DocView {
                     Key::Ctrl('d'),
                     command("move-rel").arg("line").arg("next").arg(44),
                 );
-                builder.insert("c", command("operator").arg("change"));
                 builder.insert("s", command("save"));
-                builder.insert("b", command("move-rel").arg("word").arg("prior"));
                 builder.insert("v", command("switch-mode").arg("visual"));
                 builder.insert("i", command("switch-mode").arg("insert"));
                 builder.insert(
@@ -424,7 +422,6 @@ impl DispatchTarget for DocView {
                         .arg(Target::Named("command-line".to_string()))
                         .at_view_map(),
                 );
-                builder.insert("J", command("join-lines"));
                 builder.insert(
                     "o",
                     DK::Sequence(vec![
@@ -575,9 +572,10 @@ impl DispatchTarget for DocView {
                 Ok(Status::Ok)
             }
             _ => Err(not_impl!(
-                "DocView::execute_command needs to handle {:?} {:?}.",
+                "DocView::execute_command needs to handle {:?} {:?} in mode {:?}.",
                 name,
-                args
+                args,
+                self.mode
             )),
         }
     }
@@ -637,10 +635,12 @@ impl DocView {
 
 mod mode {
     #[derive(Copy, Clone, Debug, Eq, PartialEq)]
+    #[allow(dead_code)]
     pub enum ObjMod {
         Inner,
         A,
     }
+    #[allow(dead_code)]
     #[derive(Copy, Clone, Debug, Eq, PartialEq)]
     pub enum Mode {
         Insert,
