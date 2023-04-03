@@ -28,6 +28,10 @@ impl ViewContext for Editor {
     }
 }
 impl View for Editor {
+    fn get_doc_text(&self, view_map: &ViewMap) -> Option<String> {
+        self.top_view_key
+            .and_then(|vk| view_map.get_view(vk).get_doc_text(view_map))
+    }
     fn install_plugins(&mut self, plugin: PluginRef) {
         self.plugin = plugin;
     }

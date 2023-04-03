@@ -299,6 +299,7 @@ mod test {
     use super::*;
     use crate::utils::open_dev_null;
 
+    #[allow(unused_macros)]
     macro_rules! check {
         ($text:expr) => {{
             let res = run_text($text);
@@ -339,22 +340,21 @@ mod test {
             view_map
                 .get_root_view()
                 .unwrap()
-                .get_doc()
+                .get_doc_text(&view_map)
                 .unwrap()
-                .to_string()
         })
     }
 
     #[test]
+    fn delete_char() -> Result<()> {
+        simple_logging::log_to_stderr(LevelFilter::Info);
+        check_doc!("iHello world.\x1b\0\0bbx:quit\x0d", "ello world.\n");
+        Ok(())
+    }
+    #[test]
     fn insert_text() {
         check!("iHello world.\x1b\0\0:quit\x0d");
     }
-
-    #[test]
-    fn delete_char() {
-        check_doc!("iHello world.\x1b\0\0bbx:quit\x0d", "ello world.\n");
-    }
-
     #[test]
     fn delete_word() {
         check!("iHello world.\x1b\0\0bbdw:quit\x0d");

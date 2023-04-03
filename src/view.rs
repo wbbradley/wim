@@ -1,4 +1,3 @@
-use crate::doc::Doc;
 use crate::plugin::PluginRef;
 use crate::prelude::*;
 use crate::types::{Pos, Rect};
@@ -49,7 +48,5 @@ pub trait View: DispatchTarget + ViewContext {
             status
         );
     }
-    fn get_doc(&self) -> Option<&Doc> {
-        None
-    }
+    fn get_doc_text(&self, _view_map: &ViewMap) -> Option<String>;
 }

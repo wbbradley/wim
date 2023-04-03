@@ -1,3 +1,4 @@
+use crate::bindings::BindingsBuilder;
 use crate::bitmap::bmp_fmt_at;
 use crate::color::{BgColor, FgColor};
 use crate::error::{Error, Result};
@@ -31,6 +32,10 @@ impl CommandLine {
 }
 
 impl View for CommandLine {
+    fn get_doc_text(&self, _view_map: &ViewMap) -> Option<String> {
+        log::error!("commandline doesn't have a doc!");
+        None
+    }
     fn install_plugins(&mut self, plugin: PluginRef) {
         self.plugin = plugin;
     }
@@ -122,11 +127,11 @@ impl View for CommandLine {
 impl DispatchTarget for CommandLine {
     fn get_key_bindings(&self) -> Bindings {
         let vk = self.get_view_key();
-        let mut bindings: Bindings = Default::default();
-        bindings.insert(Key::Esc, command("focus").arg(Target::Previous).at_view(vk));
+        let mut builder = BindingsBuilder::new(vk);
+        builder.insert(Key::Esc, command("focus").arg(Target::Previous));
         // TODO: parse the typed text and transform it into an AST.
         if self.text == "quit" {
-            bindings.insert(
+            builder.insert(
                 Key::Enter,
                 DK::Sequence(vec![
                     command("clear-text").at_view(vk),
@@ -135,7 +140,7 @@ impl DispatchTarget for CommandLine {
                 ]),
             );
         } else {
-            bindings.insert(
+            builder.insert(
                 Key::Enter,
                 DK::Sequence(vec![
                     command("clear-text").at_view(vk),
@@ -146,7 +151,7 @@ impl DispatchTarget for CommandLine {
                 ]),
             );
         }
-        bindings
+        builder.get_bindings()
     }
 
     fn send_key(&mut self, key: Key) -> Result<Status> {

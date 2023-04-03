@@ -18,6 +18,9 @@ impl ViewContext for VStack {
     }
 }
 impl View for VStack {
+    fn get_doc_text(&self, _view_map: &ViewMap) -> Option<String> {
+        panic!("not sure what to do with vstack get_doc_text call...");
+    }
     fn install_plugins(&mut self, plugin: PluginRef) {
         self.plugin = plugin;
     }

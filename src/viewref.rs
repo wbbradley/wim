@@ -34,6 +34,9 @@ impl ViewContext for ViewRef {
 }
 
 impl View for ViewRef {
+    fn get_doc_text(&self, view_map: &ViewMap) -> Option<String> {
+        self.ptr.borrow_mut().get_doc_text(view_map)
+    }
     fn install_plugins(&mut self, plugin: PluginRef) {
         self.ptr.borrow_mut().install_plugins(plugin)
     }

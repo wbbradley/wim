@@ -1,4 +1,4 @@
-use crate::bindings::Bindings;
+use crate::bindings::{Bindings, BindingsBuilder};
 use crate::consts::{
     PROP_DOCVIEW_CURSOR_POS, PROP_DOCVIEW_STATUS, PROP_DOC_FILENAME, PROP_DOC_IS_MODIFIED,
 };
@@ -296,8 +296,8 @@ struct Span<'a> {
 }
 
 impl View for DocView {
-    fn get_doc(&self) -> Option<&Doc> {
-        Some(&self.doc)
+    fn get_doc_text(&self, _view_map: &ViewMap) -> Option<String> {
+        Some(self.doc.to_string())
     }
     fn install_plugins(&mut self, plugin: PluginRef) {
         self.plugin = plugin;
@@ -356,90 +356,83 @@ impl View for DocView {
 impl DispatchTarget for DocView {
     fn get_key_bindings(&self) -> Bindings {
         let vk = self.get_view_key();
-        let mut bindings: Bindings = Default::default();
+        let mut builder = BindingsBuilder::new(vk);
         if matches!(self.mode, Mode::Normal | Mode::Visual { .. }) {
-            bindings.insert("c", command("change-motion").at_view(vk));
-            bindings.insert("d", command("delete-motion").at_view(vk));
-            bindings.insert("y", command("yank-motion").at_view(vk));
-            bindings.insert("h", command("move").arg("left").at_view(vk));
-            bindings.insert("j", command("move").arg("down").at_view(vk));
-            bindings.insert("k", command("move").arg("up").at_view(vk));
-            bindings.insert("l", command("move").arg("right").at_view(vk));
-            bindings.insert("e", command("move-rel").arg("word").arg("end").at_view(vk));
-            bindings.insert("w", command("move-rel").arg("word").arg("next").at_view(vk));
-            bindings.insert("J", command("join-lines").at_view(vk));
-            bindings.insert(
-                "b",
-                command("move-rel").arg("word").arg("prior").at_view(vk),
-            );
-            bindings.insert("x", command("delete").at_view(vk));
+            builder.insert("c", command("motion").arg("change"));
+            builder.insert("d", command("motion").arg("delete"));
+            builder.insert("y", command("motion").arg("yank"));
+            builder.insert("h", command("move").arg("left"));
+            builder.insert("j", command("move").arg("down"));
+            builder.insert("k", command("move").arg("up"));
+            builder.insert("l", command("move").arg("right"));
+            builder.insert("e", command("move-rel").arg("word").arg("end"));
+            builder.insert("w", command("move-rel").arg("word").arg("next"));
+            builder.insert("J", command("join-lines"));
+            builder.insert("b", command("move-rel").arg("word").arg("prior"));
+            builder.insert("x", command("delete"));
         }
+
         if matches!(self.mode, Mode::Visual { .. } | Mode::NormalWithOp(_)) {
-            bindings.insert(
-                "iw",
-                DK::Sequence(vec![
-                    command("internal").at_view(vk),
-                    command("word").at_view(vk),
-                ]),
-            );
-            bindings.insert(
-                "aw",
-                DK::Sequence(vec![command("a").at_view(vk), command("word").at_view(vk)]),
-            );
+            builder.insert("i", command("inner"));
+            builder.insert("a", command("a"));
         }
 
         match self.mode {
+            Mode::NormalWithOp(op) => {
+                builder.insert(op.as_str(), command("line"));
+                builder.insert("h", command("char").arg("prior"));
+                builder.insert("j", command("line").arg("next"));
+                builder.insert("k", command("line").arg("prior"));
+                builder.insert("l", command("char").arg("next"));
+                builder.insert("e", command("move-rel").arg("word").arg("end"));
+                builder.insert("w", command("move-rel").arg("word").arg("next"));
+                builder.insert("J", command("join-lines"));
+                builder.insert("b", command("move-rel").arg("word").arg("prior"));
+                builder.insert("x", command("delete"));
+            }
+            Mode::NormalWithOpObjMode(op, obj_mode) => {
+                builder.insert("w", command("word"));
+            }
             Mode::Visual { .. } => {
-                bindings.insert(Key::Esc, command("switch-mode").arg("normal").at_view(vk));
+                builder.insert(Key::Esc, command("switch-mode").arg("normal"));
             }
             Mode::Insert => {
-                bindings.insert(Key::Esc, command("switch-mode").arg("normal").at_view(vk));
-                bindings.insert("jk", DK::Key(Key::Esc));
-                bindings.insert(Key::Backspace, command("delete-backwards").at_view(vk));
-                bindings.insert(Key::Enter, command("newline").at_view(vk));
+                builder.insert(Key::Esc, command("switch-mode").arg("normal"));
+                builder.insert("jk", DK::Key(Key::Esc));
+                builder.insert(Key::Backspace, command("delete-backwards"));
+                builder.insert(Key::Enter, command("newline"));
             }
             Mode::Normal => {
-                bindings.insert("u", command("undo").at_view(vk));
-                bindings.insert(Key::Ctrl('r'), command("redo").at_view(vk));
-                bindings.insert(
+                builder.insert("u", command("undo"));
+                builder.insert(Key::Ctrl('r'), command("redo"));
+                builder.insert(
                     Key::Ctrl('u'),
-                    command("move-rel")
-                        .arg("line")
-                        .arg("prior")
-                        .arg(44)
-                        .at_view(vk),
+                    command("move-rel").arg("line").arg("prior").arg(44),
                 );
-                bindings.insert(
+                builder.insert(
                     Key::Ctrl('d'),
-                    command("move-rel")
-                        .arg("line")
-                        .arg("next")
-                        .arg(44)
-                        .at_view(vk),
+                    command("move-rel").arg("line").arg("next").arg(44),
                 );
-                bindings.insert("c", command("operator").arg("change").at_view(vk));
-                bindings.insert("s", command("save").at_view(vk));
-                bindings.insert(
-                    "b",
-                    command("move-rel").arg("word").arg("prior").at_view(vk),
-                );
-                bindings.insert("v", command("switch-mode").arg("visual").at_view(vk));
-                bindings.insert("i", command("switch-mode").arg("insert").at_view(vk));
-                bindings.insert(
+                builder.insert("c", command("operator").arg("change"));
+                builder.insert("s", command("save"));
+                builder.insert("b", command("move-rel").arg("word").arg("prior"));
+                builder.insert("v", command("switch-mode").arg("visual"));
+                builder.insert("i", command("switch-mode").arg("insert"));
+                builder.insert(
                     ":",
                     command("focus")
                         .arg(Target::Named("command-line".to_string()))
                         .at_view_map(),
                 );
-                bindings.insert("J", command("join-lines").at_view(vk));
-                bindings.insert(
+                builder.insert("J", command("join-lines"));
+                builder.insert(
                     "o",
                     DK::Sequence(vec![
                         command("newline").arg("below").at_view(vk),
                         command("switch-mode").arg("insert").at_view(vk),
                     ]),
                 );
-                bindings.insert(
+                builder.insert(
                     "O",
                     DK::Sequence(vec![
                         command("newline").arg("above").at_view(vk),
@@ -447,18 +440,11 @@ impl DispatchTarget for DocView {
                         command("switch-mode").arg("insert").at_view(vk),
                     ]),
                 );
-                bindings.insert(
-                    "x",
-                    command("delete-rel").arg("char").arg("next").at_view(vk),
-                );
-                bindings.insert(
-                    "X",
-                    command("delete-rel").arg("char").arg("prior").at_view(vk),
-                );
+                builder.insert("x", command("delete-rel").arg("char").arg("next"));
+                builder.insert("X", command("delete-rel").arg("char").arg("prior"));
             }
-            Mode::NormalWithOp(_) => {}
         }
-        bindings
+        builder.get_bindings()
     }
     fn send_key(&mut self, key: Key) -> Result<Status> {
         match self.mode {
@@ -493,6 +479,12 @@ impl DispatchTarget for DocView {
         }
 
         match (self.mode, name.as_ref()) {
+            (Mode::Normal, "motion") => {
+                if let Some(Variant::String(op)) = args.get(0) {
+                    self.mode = Mode::NormalWithOp(Op::from_str(op)?);
+                }
+                Ok(Status::Ok)
+            }
             (Mode::Normal, "undo") => {
                 let pos = self.doc.undo_change();
                 self.jump_cursor_pos(pos);
@@ -510,10 +502,6 @@ impl DispatchTarget for DocView {
                 } else {
                     Ok(Status::Ok)
                 }
-            }
-            (Mode::Normal, "change" | "yank" | "delete") => {
-                self.mode = Mode::NormalWithOp(Op::from_str(name.as_ref())?);
-                Ok(Status::Ok)
             }
             (_mode, "switch-mode") => {
                 ensure!(args.len() == 1);
@@ -649,11 +637,17 @@ impl DocView {
 
 mod mode {
     #[derive(Copy, Clone, Debug, Eq, PartialEq)]
+    pub enum ObjMod {
+        Inner,
+        A,
+    }
+    #[derive(Copy, Clone, Debug, Eq, PartialEq)]
     pub enum Mode {
         Insert,
         Visual(VisualMode),
         Normal,
         NormalWithOp(Op),
+        NormalWithOpObjMode(Op, ObjMod),
     }
 
     #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -682,6 +676,16 @@ mod mode {
         Change,
         Delete,
         Yank,
+    }
+
+    impl Op {
+        pub fn as_str(&self) -> &'static str {
+            match self {
+                Self::Change => "c",
+                Self::Delete => "d",
+                Self::Yank => "y",
+            }
+        }
     }
 
     impl std::str::FromStr for Op {
