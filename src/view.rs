@@ -1,6 +1,6 @@
 use crate::plugin::PluginRef;
 use crate::prelude::*;
-use crate::types::{Pos, Rect};
+use crate::types::Rect;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub struct ViewKey(usize);

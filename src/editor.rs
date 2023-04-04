@@ -5,7 +5,7 @@ use crate::error::Result;
 use crate::plugin::PluginRef;
 use crate::prelude::*;
 use crate::status::Status;
-use crate::types::{Pos, Rect};
+use crate::types::Rect;
 use crate::view::ViewContext;
 
 #[allow(dead_code)]

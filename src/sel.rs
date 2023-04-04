@@ -1,4 +1,4 @@
-use crate::types::Pos;
+use crate::pos::Pos;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Sel {

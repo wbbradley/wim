@@ -1,4 +1,5 @@
-use crate::types::{Coord, Pos};
+use crate::pos::Pos;
+use crate::types::Coord;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct Size {

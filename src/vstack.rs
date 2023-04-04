@@ -3,7 +3,7 @@ use crate::error::{Error, Result};
 use crate::plugin::PluginRef;
 use crate::prelude::*;
 use crate::status::Status;
-use crate::types::{Pos, Rect};
+use crate::types::Rect;
 use crate::view::{ViewContext, ViewKey};
 
 pub struct VStack {

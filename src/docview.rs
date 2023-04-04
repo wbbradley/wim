@@ -8,7 +8,7 @@ use crate::plugin::PluginRef;
 use crate::prelude::*;
 use crate::rel::Rel;
 use crate::status::Status;
-use crate::types::{Coord, Pos, Rect, RelCoord};
+use crate::types::{Coord, Rect, RelCoord};
 use crate::undo::ChangeOp;
 use crate::view::ViewContext;
 use mode::*;
@@ -56,13 +56,11 @@ impl DocView {
         Ok(Status::Ok)
     }
     pub fn get_rel_cursor_pos(&self, x: RelCoord, y: RelCoord) -> Pos {
-        self.clamped_pos(Pos {
-            y: (self.cursor.y as RelCoord + y).clamp(0, RelCoord::MAX) as Coord,
-            x: (self.cursor.x as RelCoord + x).clamp(0, RelCoord::MAX) as Coord,
-        })
+        self.doc.get_rel_pos(self.cursor, x, y)
     }
 
-    pub fn do_op_to_range(&mut self, op: Op, range: impl RangeBounds<Pos>) -> Result<Status> {
+    pub fn do_op_to_range(&mut self, op: Op, range: PosRange) -> Result<Status> {
+        self.mode = Mode::Normal;
         match op {
             Op::Delete => {
                 let ret = self.delete_range(range);
@@ -82,27 +80,15 @@ impl DocView {
 
     pub fn do_op_rel(&mut self, op: Op, noun: Noun, rel: Rel) -> Result<Status> {
         trace!("do_op_rel({:?}, {:?}, {:?})", op, noun, rel);
-        let end_pos: Option<Pos> = match (noun, rel) {
-            (Noun::Char, Rel::Prior) => Some(self.get_rel_cursor_pos(-1, 0)),
-            (Noun::Char, Rel::Next) => Some(self.get_rel_cursor_pos(1, 0)),
-            (Noun::Line, Rel::Prior) => Some(self.get_rel_cursor_pos(0, -1)),
-            (Noun::Line, Rel::Next) => Some(self.get_rel_cursor_pos(0, 1)),
-            (Noun::Word, Rel::Next) => self.doc.get_next_word_pos(self.cursor),
-            (Noun::Word, Rel::Prior) => self.doc.get_prior_word_pos(self.cursor),
-            (Noun::Word, Rel::End) => self.doc.get_word_end(self.cursor),
-            _ => {
-                return Err(not_impl!(
-                    "DocView: Don't know how to handle relative motion for ({:?}, {:?}).",
-                    noun,
-                    rel
-                ));
-            }
+        assert!(matches!(self.mode, Mode::Normal | Mode::NormalWithOp(_)));
+        let text_obj = TextObj {
+            pos: self.cursor,
+            obj_mod: None,
+            noun,
+            rel,
         };
-        if let Some(end_pos) = end_pos {
-            self.do_op_to_range(op, self.cursor..=end_pos)
-        } else {
-            Err(error!("couldn't get an end pos?!"))
-        }
+        let range = self.doc.get_range_from_obj(text_obj)?;
+        self.do_op_to_range(op, range)
     }
     pub fn move_cursor_rel(&mut self, noun: Noun, rel: Rel) -> Result<Status> {
         trace!("move_cursor_rel({:?}, {:?})", noun, rel);
@@ -128,25 +114,12 @@ impl DocView {
             )),
         }
     }
-
-    pub fn last_valid_row(&self) -> Coord {
-        self.doc.line_count()
-    }
-    pub fn clamped_pos(&self, mut pos: Pos) -> Pos {
-        pos.y = pos.y.clamp(0, self.last_valid_row());
-        if let Some(row) = self.doc.get_row(pos.y) {
-            pos.x = pos.x.clamp(
-                0,
-                row.len() - usize::from(!row.is_empty() && self.mode == Mode::Normal),
-            );
-        } else {
-            pos.x = 0;
-        };
-        pos
+    pub fn clamped_pos(&self, pos: Pos) -> Pos {
+        self.doc.clamped_pos(pos, matches!(self.mode, Mode::Normal))
     }
     fn clamp_cursor(&mut self) {
         log::trace!("clamp_cursor starts at {:?}", self.cursor);
-        self.cursor.y = self.cursor.y.clamp(0, self.last_valid_row());
+        self.cursor.y = self.cursor.y.clamp(0, self.doc.line_count());
         if let Some(row) = self.doc.get_row(self.cursor.y) {
             self.cursor.x = self.cursor.x.clamp(
                 0,
@@ -240,11 +213,7 @@ impl DocView {
             Err(error!("invalid sel?!"))
         }
     }
-    pub fn delete_rel(&mut self, noun: Noun, rel: Rel) -> Result<Status> {
-        let (start, end) = self.doc.find_range(self.cursor, noun, rel);
-        self.delete_range(start..end)
-    }
-    fn delete_range(&mut self, range: impl RangeBounds<Pos>) -> Result<Status> {
+    fn delete_range(&mut self, range: PosRange RangeBounds<Pos>) -> Result<Status> {
         match self.doc.delete_range(range) {
             Some(op_pos) => self.apply_op_pos(op_pos),
             None => Ok(Status::Ok),
@@ -575,11 +544,11 @@ impl DispatchTarget for DocView {
             }
             (_, "delete-backwards") => {
                 ensure!(args.is_empty());
-                self.delete_rel(Noun::Char, Rel::Prior)
+                self.do_op_rel(Op::Delete, Noun::Char, Rel::Prior)
             }
             (_, "delete-forwards") => {
                 ensure!(args.is_empty());
-                self.delete_rel(Noun::Char, Rel::Next)
+                self.do_op_rel(Op::Delete, Noun::Char, Rel::Next)
             }
             (Mode::Visual(VisualMode::Char), "delete") => self.delete_sel(),
             (Mode::Normal, "open") => {
@@ -635,7 +604,7 @@ impl DispatchTarget for DocView {
             (Mode::Normal, "delete-rel") => {
                 let (noun, rel, count) = pull_noun_rel_count(args)?;
                 for _ in 0..count {
-                    self.delete_rel(noun, rel)?;
+                    self.do_op_rel(Op::Delete, noun, rel)?;
                 }
                 Ok(Status::Ok)
             }
@@ -702,12 +671,8 @@ impl DocView {
 }
 
 mod mode {
-    #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-    #[allow(dead_code)]
-    pub enum ObjMod {
-        Inner,
-        A,
-    }
+    use super::*;
+
     #[allow(dead_code)]
     #[derive(Copy, Clone, Debug, Eq, PartialEq)]
     pub enum Mode {
@@ -718,13 +683,10 @@ mod mode {
         NormalWithOpObjMode(Op, ObjMod),
     }
 
-    #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-    pub enum TextObj {}
-
     impl std::str::FromStr for Mode {
         type Err = crate::error::Error;
 
-        fn from_str(s: &str) -> Result<Self, Self::Err> {
+        fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
             match s {
                 "insert" => Ok(Self::Insert),
                 "normal" => Ok(Self::Normal),
@@ -759,7 +721,7 @@ mod mode {
     impl std::str::FromStr for Op {
         type Err = crate::error::Error;
 
-        fn from_str(s: &str) -> Result<Self, Self::Err> {
+        fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
             match s {
                 "change" => Ok(Self::Change),
                 "delete" => Ok(Self::Delete),
@@ -779,7 +741,7 @@ mod mode {
     impl std::str::FromStr for VisualMode {
         type Err = crate::error::Error;
 
-        fn from_str(s: &str) -> Result<Self, Self::Err> {
+        fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
             match s {
                 "char" => Ok(Self::Char),
                 "line" => Ok(Self::Line),

@@ -3,7 +3,7 @@ use crate::error::Result;
 use crate::prelude::*;
 use crate::rel::Rel;
 use crate::row::Row;
-use crate::types::{Coord, Pos};
+use crate::types::{Coord, RelCoord};
 use crate::undo::{Change, ChangeStack};
 use crate::undo::{ChangeOp, ChangeTracker};
 use crate::utils::read_lines;
@@ -163,6 +163,57 @@ impl Doc {
         Ok(doc)
     }
     #[must_use]
+    pub fn clamped_pos(&self, mut pos: Pos, allow_at_eol: bool) -> Pos {
+        pos.y = pos.y.clamp(0, self.line_count());
+        if let Some(row) = self.get_row(pos.y) {
+            pos.x = pos
+                .x
+                .clamp(0, row.len() - usize::from(!row.is_empty() && allow_at_eol));
+        } else {
+            pos.x = 0;
+        };
+        pos
+    }
+    pub fn get_rel_pos(&self, pos: Pos, x: RelCoord, y: RelCoord) -> Pos {
+        self.clamped_pos(
+            Pos {
+                y: (pos.y as RelCoord + y).clamp(0, RelCoord::MAX) as Coord,
+                x: (pos.x as RelCoord + x).clamp(0, RelCoord::MAX) as Coord,
+            },
+            true,
+        )
+    }
+    pub fn get_range_from_obj(
+        &self,
+        TextObj {
+            pos,
+            obj_mod,
+            noun,
+            rel,
+        }: TextObj,
+    ) -> Result<PosRange> {
+        Ok(match (noun, rel, obj_mod) {
+            (Noun::Char, Rel::Prior, Motion) => Pos::range(self.get_rel_pos(pos, -1, 0), pos),
+            (Noun::Char, Rel::Prior, _) => Pos::range(self.get_rel_pos(pos, -1, 0), pos),
+            (Noun::Char, Rel::Next, Motion) => Pos::range(pos, self.get_rel_pos(pos, 1, 0)),
+            (Noun::Char, Rel::Next, _) => Pos::range(pos, self.get_rel_pos(pos, 1, 0)),
+            (Noun::Line, Rel::Prior, _) => Pos::range_lines(pos.y - 1, pos.y),
+            (Noun::Line, Rel::Next, _) => Pos::range_lines(pos.y, pos.y + 1),
+            // (Noun::Word, Rel::Next, _) => self.get_next_word_pos(pos),
+            // (Noun::Word, Rel::Prior, _) => self.get_prior_word_pos(pos),
+            // (Noun::Word, Rel::End, _) => self.get_word_end(pos),
+            _ => {
+                return Err(not_impl!(
+                    "Doc: Don't know how to get range from text_obj ({:?}, {:?}, {:?}, {:?})",
+                    pos,
+                    obj_mod,
+                    noun,
+                    rel
+                ));
+            }
+        })
+    }
+    #[must_use]
     pub fn split_newline(&self, cursor: Pos) -> (ChangeOp, Pos) {
         if let Some(row) = self.tracked_rows.get(cursor.y) {
             let x = cursor.x.clamp(0, row.len());
@@ -226,8 +277,8 @@ impl Doc {
             panic!("what to do here?")
         }
     }
-    pub fn delete_range(&self, range: impl RangeBounds<Pos>) -> Option<(ChangeOp, Pos)> {
-        if range.start_bound() == range.end_bound() {
+    pub fn delete_range(&self, range: PosRange) -> Option<(ChangeOp, Pos)> {
+        if range.is_empty() {
             return None;
         }
         let start: Pos = Pos::get_start_pos(&range);
@@ -245,34 +296,6 @@ impl Doc {
             },
             start,
         ))
-    }
-    pub fn find_range(&self, cursor: Pos, noun: Noun, rel: Rel) -> (Pos, Pos) {
-        if let Some(row) = self.tracked_rows.get(cursor.y) {
-            match rel {
-                Rel::Next => {
-                    if row.is_empty() || cursor.x >= row.len() - 1 {
-                        return (cursor, cursor);
-                    }
-                    let end_index = match noun {
-                        Noun::Line => row.len(),
-                        Noun::Char => std::cmp::min(cursor.x + 1, row.len()),
-                        Noun::Word => row.next_word_break(cursor.x),
-                    };
-                    (
-                        cursor,
-                        Pos {
-                            x: end_index,
-                            y: cursor.y,
-                        },
-                    )
-                }
-                _ => {
-                    panic!("unhandled {:?} {:?}", noun, rel);
-                }
-            }
-        } else {
-            panic!("wakka wakka");
-        }
     }
     /*
     pub fn delete_backwards(&self, cursor: Pos, noun: Noun) -> Option<(ChangeOp, Pos)> {
