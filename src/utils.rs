@@ -8,7 +8,7 @@ use std::io::{BufReader, Lines};
 use std::path::Path;
 
 #[allow(dead_code)]
-#[cfg(any(target_os = "linux"))]
+#[cfg(target_os = "linux")]
 pub mod errors {
     use libc::__errno_location;
     pub fn get_errno() -> c_int {
@@ -17,7 +17,7 @@ pub mod errors {
 }
 
 #[allow(dead_code)]
-#[cfg(any(target_os = "macos"))]
+#[cfg(target_os = "macos")]
 pub mod errors {
     use libc::__error;
     pub fn get_errno() -> libc::c_int {

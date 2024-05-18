@@ -25,18 +25,18 @@ impl TrieNode {
     fn insert(&mut self, dk: DK, keys: &[Key]) {
         let mut cur = self;
         for key in keys {
-            cur = cur.children.entry(*key).or_insert(TrieNode::default());
+            cur = cur.children.entry(*key).or_default();
         }
         cur.dk = Some(dk);
     }
 
     fn match_prefix<'a>(&'a self, prefix: &[Key]) -> PrefixMatch<'a> {
         let mut cur = self;
-        for key in prefix {
-            if key == &Key::None {
+        for &key in prefix {
+            if key == Key::None {
                 return (&cur.dk).into();
             } else {
-                match cur.children.get(key) {
+                match cur.children.get(&key) {
                     Some(next) => {
                         cur = next;
                     }

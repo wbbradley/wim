@@ -4,7 +4,7 @@ pub(crate) use crate::buf::Buf;
 pub(crate) use crate::command::command;
 pub(crate) use crate::consts::*;
 pub(crate) use crate::dispatch::{DispatchRef, DispatchTarget, Dispatcher};
-pub(crate) use crate::dk::DK;
+pub(crate) use crate::dk::*;
 pub(crate) use crate::error::{error, not_impl};
 pub(crate) use crate::format::Format;
 pub(crate) use crate::glyph::Glyph;

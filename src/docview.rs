@@ -537,7 +537,7 @@ impl DispatchTarget for DocView {
 
         match (self.mode, name.as_ref()) {
             (Mode::Normal, "motion") => {
-                if let Some(Variant::String(op)) = args.get(0) {
+                if let Some(Variant::String(op)) = args.first() {
                     self.mode = Mode::NormalWithOp(Op::from_str(op)?);
                 }
                 Ok(Status::Ok)
@@ -715,6 +715,7 @@ mod mode {
         Visual(VisualMode),
         Normal,
         NormalWithOp(Op),
+        #[allow(clippy::enum_variant_names)]
         NormalWithOpObjMode(Op, ObjMod),
     }
 

@@ -25,6 +25,7 @@ pub trait ViewContext {
             _ => None,
         }
     }
+    #[allow(dead_code)]
     fn get_property_pos(&self, property: &str) -> Option<Pos> {
         match self.get_property(property) {
             Some(Variant::Pos(b)) => Some(b),

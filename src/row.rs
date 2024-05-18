@@ -25,7 +25,7 @@ impl Row {
         }
     }
     pub fn from_line(line: &str) -> Self {
-        let buf = line.chars().collect();
+        let buf: Vec<char> = line.chars().collect();
         Self {
             render: Self::renderize(&buf),
             buf,
@@ -74,7 +74,6 @@ impl Row {
 
     /// Adjust the render column to account for tabs.
     pub fn cursor_to_render_col(&self, cursor: Coord) -> Coord {
-        let cursor = cursor;
         let mut render_x: usize = 0;
         for (i, &ch) in self.buf.iter().enumerate() {
             if i == cursor {
@@ -99,7 +98,7 @@ impl Row {
 
     pub fn insert_char(&self, x: Coord, ch: char) -> Self {
         let mut buf = self.buf.clone();
-        buf.splice(x..x, [ch].into_iter());
+        buf.splice(x..x, [ch]);
         Self::from_buf(buf)
     }
 
@@ -114,12 +113,12 @@ impl Row {
     pub fn update_render(&mut self) {
         Self::renderize_in_place(&self.buf, &mut self.render);
     }
-    fn renderize(buf: &Vec<char>) -> Vec<char> {
+    fn renderize(buf: &[char]) -> Vec<char> {
         let mut render = Default::default();
         Self::renderize_in_place(buf, &mut render);
         render
     }
-    fn renderize_in_place(buf: &Vec<char>, render: &mut Vec<char>) {
+    fn renderize_in_place(buf: &[char], render: &mut Vec<char>) {
         // Deal with rendering Tabs.
         let tabs = buf.iter().copied().filter(|&x| x == '\t').count();
         if tabs == 0 {

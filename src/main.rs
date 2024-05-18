@@ -7,7 +7,7 @@ use crate::read::read_key;
 use crate::read::read_u8;
 use crate::termios::Termios;
 use crate::types::Rect;
-use crate::view_map::HandleKey;
+use crate::view_map::{HandleKey, ViewMap};
 use log::LevelFilter;
 use signal_hook::consts::signal::SIGWINCH;
 use signal_hook::flag as signal_flag;
@@ -91,7 +91,7 @@ fn main() -> Result<()> {
         println!("{}", p);
     }));
 
-    let mut view_map: crate::view_map::ViewMap = ViewMap::new();
+    let mut view_map: ViewMap = ViewMap::new();
     let res = run_app(
         plugin,
         &mut view_map,
@@ -170,7 +170,7 @@ fn run_app(
             terminal_size = get_window_size();
             bmp.resize(terminal_size);
             bmp_last.resize(terminal_size);
-            crate::utils::put!(stdout, "\x1b[2J");
+            utils::put!(stdout, "\x1b[2J");
         }
 
         if should_refresh {
