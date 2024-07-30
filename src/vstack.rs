@@ -6,6 +6,7 @@ use crate::status::Status;
 use crate::types::{Pos, Rect};
 use crate::view::{ViewContext, ViewKey};
 
+#[allow(dead_code)]
 pub struct VStack {
     plugin: PluginRef,
     view_key: ViewKey,

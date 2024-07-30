@@ -3,7 +3,6 @@ use crate::consts::{BLANKS, TAB_STOP_SIZE};
 use crate::types::{Coord, SafeCoordCast};
 use std::ops::{Range, RangeBounds};
 
-#[allow(dead_code)]
 #[derive(Clone, Default, Debug)]
 pub struct Row {
     buf: Vec<char>,

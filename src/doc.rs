@@ -248,7 +248,7 @@ impl Doc {
     }
     pub fn find_range(&self, cursor: Pos, noun: Noun, rel: Rel) -> (Pos, Pos) {
         if let Some(row) = self.tracked_rows.get(cursor.y) {
-            match rel {
+            return match rel {
                 Rel::Next => {
                     if row.is_empty() || cursor.x >= row.len() - 1 {
                         return (cursor, cursor);
@@ -266,13 +266,21 @@ impl Doc {
                         },
                     )
                 }
-                _ => {
-                    panic!("unhandled {:?} {:?}", noun, rel);
+                Rel::Prior => {
+                    panic!()
                 }
-            }
-        } else {
-            panic!("wakka wakka");
+                _ => {
+                    panic!()
+                }
+            };
         }
+        /*
+                        _ => {
+                            panic!("unhandled {:?} {:?}", noun, rel);
+                        }
+        }
+        */
+        panic!()
     }
     /*
     pub fn delete_backwards(&self, cursor: Pos, noun: Noun) -> Option<(ChangeOp, Pos)> {

@@ -1,4 +1,3 @@
-use crate::plugin::PluginRef;
 use crate::prelude::*;
 use crate::types::{Pos, Rect};
 
@@ -35,6 +34,7 @@ pub trait ViewContext {
 }
 
 pub trait View: DispatchTarget + ViewContext {
+    #[allow(dead_code)]
     fn install_plugins(&mut self, plugin: PluginRef);
     /// layout returns a vec of views that also need layout.
     #[must_use]
@@ -49,5 +49,6 @@ pub trait View: DispatchTarget + ViewContext {
             status
         );
     }
+    #[allow(dead_code)]
     fn get_doc_text(&self, _view_map: &ViewMap) -> Option<String>;
 }

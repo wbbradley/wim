@@ -16,7 +16,7 @@ use mode::*;
 // use std::io::{Seek, SeekFrom, Write};
 
 pub struct DocView {
-    plugin: PluginRef,
+    _plugin: PluginRef,
     key: ViewKey,
     cursor: Pos,
     sel: Option<Sel>,
@@ -360,7 +360,7 @@ impl View for DocView {
         Some(self.doc.to_string())
     }
     fn install_plugins(&mut self, plugin: PluginRef) {
-        self.plugin = plugin;
+        self._plugin = plugin;
     }
     fn layout(&mut self, _view_map: &ViewMap, size: Size) -> Vec<(ViewKey, Rect)> {
         log::trace!("docview size is {:?}", size);
@@ -689,7 +689,7 @@ impl ViewContext for DocView {
 impl DocView {
     pub fn new(view_key: ViewKey, plugin: PluginRef) -> Self {
         Self {
-            plugin,
+            _plugin: plugin,
             key: view_key,
             cursor: Default::default(),
             sel: None,
