@@ -1,6 +1,7 @@
 # wim 
 
-A console-based IDE.
+I was fiddling around building a vim-like console-based IDE. I haven't touched this
+in a while...
 
 ## Intent
 
@@ -16,14 +17,11 @@ Cmd ::= TextObj |
         Operator (ForcedMotion)? Motion
 Operator ::= Delete | Change | Yank
 
-ge 
 ## Next items
 
-ge ge ge ge ge ge ge ge ge ge ge ge - Save - Specific editor bindings composition
+ - Save - Specific editor bindings composition
   - "send-operator"
-
   - "send-text-object"
-  this is a new line.
   - "send-motion"
 - Undo
 - Move status-bar to editor window.
